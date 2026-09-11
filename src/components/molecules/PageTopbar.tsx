@@ -1,8 +1,13 @@
 /**
- * PageTopbar — Full-width navigation bar with back arrow + breadcrumb label.
- * Sits above page content, 56px tall, white bg with subtle bottom border.
- * Sticks to the top of the scroll container so it stays visible while the
- * page body scrolls. Optional right-side `actions` slot for page-level CTAs.
+ * PageTopbar — Full-width navigation bar with a back arrow and a breadcrumb
+ * trail. Sits above page content, 56px tall, white bg with subtle bottom
+ * border. Sticks to the top of the scroll container so it stays visible while
+ * the page body scrolls. Optional right-side `actions` slot for page-level CTAs.
+ *
+ * The trail is `[ancestors…] › title`. Ancestors are muted and clickable, the
+ * title is the page you are on and is not. Without a `trail` the bar shows the
+ * title alone next to the chevron, which reads as "go back to the page you are
+ * already on" — so pass the parent wherever one exists.
  *
  * @figmaComponent  Page Topbar
  * @figmaNode       6419:75476
@@ -12,20 +17,34 @@
 
 import type { ReactNode } from 'react'
 
+export interface PageTopbarCrumb {
+  label: string
+  /** Omit for an ancestor that is not itself a screen you can land on. */
+  onClick?: () => void
+}
+
 interface PageTopbarProps {
   title: string
   onBack: () => void
   /**
    * Overrides the label next to the back arrow. Used when the page was reached
    * from somewhere other than its usual parent — e.g. arriving from an Oracle
-   * citation reads "Back to response" rather than the session id.
+   * citation reads "Back to response" rather than the session id. Ignored when
+   * `trail` is given, since the trail already names where you came from.
    */
   backLabel?: string
+  /**
+   * Ancestors of this page, outermost first — `[{ label: 'User test' }]` renders
+   * "‹ User test › <title>". The chevron and every ancestor without its own
+   * `onClick` fall back to `onBack`.
+   */
+  trail?: PageTopbarCrumb[]
   /** Optional right-aligned slot for page-level actions (e.g. Save changes). */
   actions?: ReactNode
 }
 
-export function PageTopbar({ title, onBack, backLabel, actions }: PageTopbarProps) {
+export function PageTopbar({ title, onBack, backLabel, trail, actions }: PageTopbarProps) {
+  const hasTrail = (trail?.length ?? 0) > 0
   return (
     <div
       className="w-full h-[56px] flex items-center justify-between sticky top-0 z-30 shrink-0 pr-[20px]"
@@ -34,12 +53,15 @@ export function PageTopbar({ title, onBack, backLabel, actions }: PageTopbarProp
         borderBottom: '1px solid var(--bg-subtle)',
       }}
     >
-      {/* Back button — positioned at left=20px, vertically centered */}
-      <button
-        className="ml-[20px] flex flex-1 min-w-0 gap-[10px] items-center cursor-pointer"
-        onClick={onBack}
-      >
-        <div className="size-[24px] rounded-[100px] flex items-center justify-center">
+      {/* Chevron + trail. The chevron is its own button so an ancestor crumb can
+          carry a different destination than plain "back". */}
+      <div className="ml-[20px] flex flex-1 min-w-0 gap-[10px] items-center">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back"
+          className="size-[24px] rounded-[100px] flex items-center justify-center shrink-0 cursor-pointer"
+        >
           <svg
             width="7.5"
             height="13.5"
@@ -54,16 +76,49 @@ export function PageTopbar({ title, onBack, backLabel, actions }: PageTopbarProp
               fill="var(--text-secondary)"
             />
           </svg>
-        </div>
-        {/* Long queries clip with an ellipsis rather than shoving the actions
+        </button>
+
+        {/* Long titles clip with an ellipsis rather than shoving the actions
             slot off the right edge. */}
-        <span
-          className="font-display text-s font-semibold leading-[1.5] min-w-0 truncate text-left"
-          style={{ color: 'var(--text-secondary)' }}
-        >
-          {backLabel ?? title}
-        </span>
-      </button>
+        <nav className="flex items-center gap-xs min-w-0" aria-label="Breadcrumb">
+          {hasTrail ? (
+            <>
+              {trail!.map((crumb) => (
+                <span key={crumb.label} className="flex items-center gap-xs min-w-0 shrink">
+                  <button
+                    type="button"
+                    onClick={crumb.onClick ?? onBack}
+                    className="page-topbar-crumb font-display text-s font-semibold leading-[1.5] min-w-0 max-w-[220px] truncate text-left"
+                    style={{ color: 'var(--text-secondary)' }}
+                    title={crumb.label}
+                  >
+                    {crumb.label}
+                  </button>
+                  <span style={{ color: 'var(--text-placeholder)' }} aria-hidden>
+                    ›
+                  </span>
+                </span>
+              ))}
+              <span
+                className="font-display text-s font-semibold leading-[1.5] flex-1 min-w-0 truncate"
+                style={{ color: 'var(--text-primary)' }}
+                aria-current="page"
+              >
+                {title}
+              </span>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onBack}
+              className="page-topbar-crumb font-display text-s font-semibold leading-[1.5] min-w-0 truncate text-left"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              {backLabel ?? title}
+            </button>
+          )}
+        </nav>
+      </div>
 
       {actions && (
         <div className="flex items-center gap-s shrink-0">{actions}</div>

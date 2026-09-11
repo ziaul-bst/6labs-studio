@@ -36,6 +36,7 @@ export type ReportTab = 'issues' | 'testers' | 'steps' | 'comparison'
 
 export interface UserTestReportProps {
   runName: string
+
   /** Shown in the topbar — the report's own name, not the run's. */
   reportName?: string
   issues: UserTestIssue[]
@@ -111,6 +112,9 @@ export function UserTestReport({
           title the reader just came from. */}
       <PageTopbar
         title={reportName}
+        /* Only the run — the test itself is already the selected row in the
+           sidebar, so naming it here says nothing the screen does not. */
+        trail={[{ label: runName }]}
         onBack={() => onBackToRun?.()}
         actions={
           <>

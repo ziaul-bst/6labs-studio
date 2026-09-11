@@ -29,7 +29,6 @@ import Button from '../ui/Button'
 import { MembersIcon } from '../icons/MembersIcon'
 import { PlusIcon } from '../icons/PlusIcon'
 import { SendIcon } from '../icons/SendIcon'
-import { InfoFilledIcon } from '../icons/InfoFilledIcon'
 import { BulbIcon } from '../icons/BulbIcon'
 import { USER_TEST_HOME_PROMPTS } from '../../lib/mocks/testing'
 import { GAME_CONTEXT_DOCS, PICKER_VIDEOS } from '../../lib/mocks/user-test'
@@ -203,19 +202,6 @@ export function UserTestHome({
                 />
               )}
             </div>
-
-            {mode === 'report' && (
-              <div
-                className="flex items-center gap-xs rounded-l px-m py-xs mt-m font-body text-s text-text-secondary leading-[1.5]"
-                style={{ backgroundColor: 'var(--bg-page-pale)' }}
-              >
-                <span className="shrink-0 text-text-tertiary" aria-hidden>
-                  <InfoFilledIcon size={16} />
-                </span>
-                The report lists friction and comprehension issues ranked by testers affected, with every
-                finding supported by clips.
-              </div>
-            )}
 
             {/* Bar — context on the left, the action on the right */}
             <div className="flex items-center gap-s pt-m mt-m" style={{ borderTop: '1px solid var(--border-subtle)' }}>

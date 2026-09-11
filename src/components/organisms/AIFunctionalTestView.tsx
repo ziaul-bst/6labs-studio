@@ -17,7 +17,7 @@ import { TestingPageHeader } from '../molecules/TestingPageHeader'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
 import { BuildPickerModal } from './BuildPickerModal'
-import { useBuilds, verifiedVersionOf } from '../../lib/buildsDemoState'
+import { useBuilds, versionOf } from '../../lib/buildsDemoState'
 import { CheckIcon } from '../icons/CheckIcon'
 import {
   FieldLabel,
@@ -65,7 +65,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
   const [build, setBuild] = useState<string | null>(null)
   const [buildPickerOpen, setBuildPickerOpen] = useState(false)
   const builds = useBuilds()
-  const chosenBuild = builds.find((b) => b.status === 'ready' && verifiedVersionOf(b) === build) ?? null
+  const chosenBuild = builds.find((b) => b.status === 'ready' && versionOf(b) === build) ?? null
   const [runName, setRunName] = useState('Season 9 — core loop')
   const [instructions, setInstructions] = useState('')
   const [runs, setRuns] = useState<TestRunHistoryItem[]>(AI_FUNCTIONAL_HISTORY)
@@ -183,8 +183,8 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
               filled={build !== null}
               icon={<UploadIcon size={20} />}
               title="Choose a build"
-              description="Upload an APK or IPA, or pick one you uploaded before. An earlier build shows whether a failure is new."
-              formats="APK · IPA"
+              description="Upload an APK, or pick one you uploaded before. An earlier build shows whether a failure is new."
+              formats="APK"
               required
               accent="success"
               onClick={() => setBuildPickerOpen(true)}

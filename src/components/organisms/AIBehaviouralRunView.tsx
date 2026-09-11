@@ -46,6 +46,12 @@ export interface AIBehaviouralRunViewProps {
   issues: AgentIssue[]
   tab: AIBehaviouralRunTab
   onTabChange: (tab: AIBehaviouralRunTab) => void
+  /**
+   * Seeds the Videos tab's status filter. "Watch live" on a history row arrives
+   * with 'live', so the reader lands on the sessions playing right now rather
+   * than on the whole batch.
+   */
+  initialStatus?: VideosStatusFilter
   onBack: () => void
   /** Opens a session, optionally landing on one of its screens. */
   onOpenSession: (sessionId: string, stepIndex?: number) => void
@@ -63,6 +69,7 @@ export function AIBehaviouralRunView({
   issues,
   tab,
   onTabChange,
+  initialStatus = 'all',
   onBack,
   onOpenSession,
   className,
@@ -76,7 +83,7 @@ export function AIBehaviouralRunView({
   const liveSession = [...sessions].filter((s) => s.status === 'live').sort((a, b) => b.reached - a.reached)[0]
 
   /* The Videos tab's controls live in the tab row, so their state lives here. */
-  const [status, setStatus] = useState<VideosStatusFilter>('all')
+  const [status, setStatus] = useState<VideosStatusFilter>(initialStatus)
   const [persona, setPersona] = useState<string>('all')
   const [query, setQuery] = useState('')
 

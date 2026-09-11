@@ -2,11 +2,11 @@
  * buildsDemoState — the builds an AI test can be pointed at, and their upload
  * states, for the build picker and the state machine dock.
  *
- * A build is not "there" the moment it is dropped: it uploads, then 6labs
- * verifies it (reads the manifest, signs it for the players), and only then
- * can a run use it — or it fails verification. The picker shows every one of
- * those states, and the dock can put the list into any of them so a reviewer
- * does not have to time a 500 MB upload.
+ * A build is not "there" the moment it is dropped: a release build is hundreds
+ * of megabytes, so it uploads first and only then can a run use it — or the
+ * upload fails. The picker shows every one of those states, and the dock can
+ * put the list into any of them so a reviewer does not have to time a 500 MB
+ * upload.
  *
  * Shared by the AI functional and AI behavioural composers so an upload made
  * on one is there on the other.
@@ -15,23 +15,24 @@
  */
 import { useSyncExternalStore } from 'react'
 
-export type BuildStatus = 'uploading' | 'verifying' | 'ready' | 'failed'
+export type BuildStatus = 'uploading' | 'ready' | 'failed'
 
 export interface BuildFile {
   id: string
-  /** "v2.3.1" — read from the manifest once verified; the file name until then. */
+  /** "v2.3.1" — read from the package once it lands; the file name until then. */
   version: string
   fileName: string
-  platform: 'APK' | 'IPA'
+  /* Android only for now — iOS builds are not accepted yet. */
+  platform: 'APK'
   sizeLabel: string
   /** "uploaded Aug 29" */
   uploadedLabel: string
   status: BuildStatus
   /** 0–100 while uploading. */
   progress?: number
-  /** Why verification failed — one line. */
+  /** Why the upload failed — one line. */
   error?: string
-  /** The most recent verified build — the default pick. */
+  /** The most recently uploaded build — the default pick. */
   newest?: boolean
 }
 
@@ -48,9 +49,9 @@ export const BUILDS_DEMO_LABELS: Record<BuildsDemoState, string> = {
 }
 
 export const BUILDS_DEMO_NOTES: Record<BuildsDemoState, string> = {
-  seeded: 'Three verified builds, newest first.',
-  uploading: 'A build mid-upload, then verifying, then ready — the whole arc in a few seconds.',
-  failed: 'A file that did not verify, with retry and remove.',
+  seeded: 'Three uploaded builds, newest first.',
+  uploading: 'A build mid-upload, then ready — the whole arc in a few seconds.',
+  failed: 'An upload that did not finish, with retry and remove.',
   empty: 'Nothing uploaded yet — the picker leads with the upload zone.',
   many: 'Twenty-four builds: the list scrolls inside the dialog and gets a search.',
 }
@@ -72,7 +73,7 @@ const MANY: BuildFile[] = Array.from({ length: 24 }, (_, i) => {
     id: `b-many-${i}`,
     version,
     fileName: `whiteout-${version.slice(1)}-release.apk`,
-    platform: i % 7 === 3 ? 'IPA' : 'APK',
+    platform: 'APK',
     sizeLabel: `${296 + ((i * 5) % 30)} MB`,
     uploadedLabel: `uploaded ${MONTHS[d.getMonth()]} ${d.getDate()}`,
     status: 'ready',
@@ -80,7 +81,7 @@ const MANY: BuildFile[] = Array.from({ length: 24 }, (_, i) => {
   }
 })
 
-const FAILED_ERROR = 'Not a valid Android package — the manifest could not be read. Export a release build and try again.'
+const FAILED_ERROR = 'Upload did not finish — the connection dropped at 64%. Try again.'
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 
@@ -106,7 +107,7 @@ const clearTimer = (id: string) => {
   timers.delete(id)
 }
 
-/** Walks one build through upload → verifying → ready (or failed). */
+/** Walks one build through upload → ready (or failed). */
 function run(id: string, fromProgress: number, outcome: 'ready' | 'failed') {
   clearTimer(id)
   let progress = fromProgress
@@ -117,16 +118,13 @@ function run(id: string, fromProgress: number, outcome: 'ready' | 'failed') {
       return
     }
     clearTimer(id)
-    update(id, { status: 'verifying', progress: 100 })
-    window.setTimeout(() => {
-      if (outcome === 'failed') {
-        update(id, { status: 'failed', error: FAILED_ERROR })
-        return
-      }
-      /* The new build becomes the newest verified one; the old newest steps down. */
-      builds = builds.map((b) => (b.id === id ? { ...b, status: 'ready', newest: true, uploadedLabel: 'uploaded just now' } : { ...b, newest: false }))
-      emit()
-    }, 1600)
+    if (outcome === 'failed') {
+      update(id, { status: 'failed', progress: 100, error: FAILED_ERROR })
+      return
+    }
+    /* The new build becomes the newest one; the old newest steps down. */
+    builds = builds.map((b) => (b.id === id ? { ...b, status: 'ready', progress: 100, newest: true, uploadedLabel: 'uploaded just now' } : { ...b, newest: false }))
+    emit()
   }, 260)
   timers.set(id, t)
 }
@@ -153,7 +151,7 @@ export function setBuildsDemoState(next: BuildsDemoState): void {
       break
     case 'failed':
       builds = [
-        { id: 'b-bad', version: 'whiteout-debug-unsigned.apk', fileName: 'whiteout-debug-unsigned.apk', platform: 'APK', sizeLabel: '296 MB', uploadedLabel: 'uploaded just now', status: 'failed', error: FAILED_ERROR },
+        { id: 'b-bad', version: 'whiteout-2.3.2-rc1.apk', fileName: 'whiteout-2.3.2-rc1.apk', platform: 'APK', sizeLabel: '318 MB', uploadedLabel: 'a moment ago', status: 'failed', error: FAILED_ERROR },
         ...SEEDED,
       ]
       break
@@ -163,10 +161,11 @@ export function setBuildsDemoState(next: BuildsDemoState): void {
   emit()
 }
 
-/** What the upload zone does in the prototype — a new build arrives and verifies. */
+/** What the upload zone does in the prototype — a new build uploads and lands. */
 export function startUpload(kind: 'ok' | 'broken' = 'ok'): void {
   const id = `b-up-${Date.now()}`
-  const fileName = kind === 'broken' ? 'whiteout-debug-unsigned.apk' : 'whiteout-2.3.2-rc1.apk'
+  /* Same file either way — an upload fails on the connection, not the file. */
+  const fileName = 'whiteout-2.3.2-rc1.apk'
   builds = [
     { id, version: fileName, fileName, platform: 'APK', sizeLabel: '318 MB', uploadedLabel: 'uploading', status: 'uploading', progress: 0 },
     ...builds,
@@ -188,8 +187,8 @@ export function removeBuild(id: string): void {
   emit()
 }
 
-/** Version label a verified build gets once its manifest is read. */
-export const verifiedVersionOf = (b: BuildFile) => (b.status === 'ready' && b.version.endsWith('.apk') ? 'v2.3.2' : b.version)
+/** Version label a build gets once the upload lands and its package is read. */
+export const versionOf = (b: BuildFile) => (b.status === 'ready' && b.version.endsWith('.apk') ? 'v2.3.2' : b.version)
 
 export const getBuilds = (): BuildFile[] => builds
 export const getBuildsDemoState = (): BuildsDemoState => preset

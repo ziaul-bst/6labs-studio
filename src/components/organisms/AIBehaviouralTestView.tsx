@@ -25,7 +25,7 @@ import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
 import { InstructionsField, SetupNote } from '../molecules/TestingSetupPieces'
 import { SegmentedControl } from '../atoms/SegmentedControl'
-import { AIBehaviouralRunView, type AIBehaviouralRunTab } from './AIBehaviouralRunView'
+import { AIBehaviouralRunView, type AIBehaviouralRunTab, type VideosStatusFilter } from './AIBehaviouralRunView'
 import { AIAgentSessionView, AGENT_LOOP_MS } from './AIAgentSessionView'
 import { BuildField } from './BuildPickerModal'
 import Button from '../ui/Button'
@@ -123,6 +123,9 @@ export function AIBehaviouralTestView({
   const [runs, setRuns] = useState<TestRunHistoryItem[]>(AI_BEHAVIOURAL_HISTORY)
   const [openRun, setOpenRun] = useState<TestRunHistoryItem | null>(null)
   const [runTab, setRunTab] = useState<AIBehaviouralRunTab>('report')
+  /* Seeds the run screen's Videos filter — 'live' when the reader came in from
+     "Watch live" on a run still in flight. */
+  const [runVideosStatus, setRunVideosStatus] = useState<VideosStatusFilter>('all')
   /* The session being watched, and the screen a report clip pointed at. */
   const [openSession, setOpenSession] = useState<{ id: string; step?: number } | null>(null)
   /* How far the live sessions have got — ticks up while a run is in flight. */
@@ -146,6 +149,7 @@ export function AIBehaviouralTestView({
      its Report — the same landing the history row gives each. */
   useRunDemoSeed((state) => {
     setOpenSession(null)
+    setRunVideosStatus('all')
     if (state === 'composer') {
       setOpenRun(null)
       return
@@ -250,6 +254,7 @@ export function AIBehaviouralTestView({
         issues={issues}
         tab={runTab}
         onTabChange={setRunTab}
+        initialStatus={runVideosStatus}
         onBack={() => {
           setOpenRun(null)
           setTab('history')
@@ -408,14 +413,6 @@ export function AIBehaviouralTestView({
                     style={{ borderTop: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-page-pale)' }}
                   >
                     <span className="font-semibold text-text-primary">{totalAgents} agents</span> in total
-                    <span className="flex-1" />
-                    <button
-                      type="button"
-                      className="font-semibold text-text-brand hover:underline"
-                      onClick={() => setCounts((c) => Object.fromEntries(personas.map((p) => [p.id, c[personas[0].id] ?? 5])))}
-                    >
-                      Same for all
-                    </button>
                   </div>
                 </div>
               )}
@@ -488,17 +485,25 @@ export function AIBehaviouralTestView({
           onOpen={(run) => {
             setOpenSession(null)
             setRunTab(run.state === 'progress' ? 'videos' : 'report')
+            /* Opening the run is a request for the run, not for what is live in
+               it — only "Watch live" narrows the list. */
+            setRunVideosStatus('all')
             setOpenRun(run)
           }}
-          /* Straight into the furthest-along live session of a run in flight —
-             the same session the run screen's live strip points at. */
+          /* Agents play in parallel, so "watch live" is usually a set, not a
+             session. It lands on the run's Videos tab filtered to what is
+             playing right now — the count is the point, and picking one of
+             twenty by "furthest along" is a choice nobody asked for and one
+             that lands somewhere different on every click. A single live
+             session is its own list, so that case opens the player directly. */
           onWatchLive={(run) => {
-            const live = buildAgentSessions(run.id, metaForRun(run), liveReached)
-              .filter((s) => s.status === 'live')
-              .sort((a, b) => b.reached - a.reached)[0]
+            const live = buildAgentSessions(run.id, metaForRun(run), liveReached).filter(
+              (s) => s.status === 'live',
+            )
             setRunTab('videos')
+            setRunVideosStatus('live')
             setOpenRun(run)
-            setOpenSession(live ? { id: live.id } : null)
+            setOpenSession(live.length === 1 ? { id: live[0].id } : null)
           }}
         />
       )}

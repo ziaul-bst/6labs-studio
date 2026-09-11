@@ -279,14 +279,19 @@ export function RunHistoryList({
       })}
 
       {paged && (
+        /* Sticky, not just last: ten rows plus the header run past the fold on
+           a 13" laptop, and a pager you have to scroll to find reads as a list
+           that simply stops. It sits on the viewport's bottom edge for as long
+           as the card is in view, then settles onto the card's own end. The
+           opaque fill and the bottom radius are what let rows pass behind it
+           without showing through the card's rounded corner. */
         <div
-          className="flex items-center gap-s px-l py-s"
-          style={{ borderTop: '1px solid var(--border-subtle)' }}
+          className="sticky bottom-0 z-[1] flex items-center gap-s px-l py-s rounded-b-2xl"
+          style={{ borderTop: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-elements)' }}
         >
-          <span className="font-body text-s text-text-tertiary leading-[1.5]">
-            {safePage * pageSize + 1}–{Math.min(shown.length, (safePage + 1) * pageSize)} of {shown.length}
-          </span>
-          <span className="flex-1" />
+          {/* Controls to the left, range after them: pinned to the bottom
+              edge, a right-hand Next lands under whatever floats in that
+              corner. The range is the label, so it follows what it labels. */}
           <Button
             variant="secondary"
             size="md"
@@ -308,6 +313,10 @@ export function RunHistoryList({
           >
             Next
           </Button>
+          <span className="font-body text-s text-text-tertiary leading-[1.5] pl-xs">
+            {safePage * pageSize + 1}–{Math.min(shown.length, (safePage + 1) * pageSize)} of {shown.length}
+          </span>
+          <span className="flex-1" />
         </div>
       )}
     </div>

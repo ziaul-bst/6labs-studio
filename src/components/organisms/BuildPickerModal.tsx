@@ -5,10 +5,10 @@
  * test, so it gets the same kind of surface: its own dialog, an upload zone
  * on top, and the list of what has already been uploaded underneath — not a
  * dropdown with an "upload…" row hidden at the bottom. Every state a build
- * passes through is visible in its row: uploading (progress), verifying
- * (spinner), ready (selectable, newest marked), failed (why, retry, remove).
- * Only a verified build can be chosen, and the footer says which one will be
- * used before the reader commits.
+ * passes through is visible in its row: uploading (progress), ready
+ * (selectable, newest marked), failed (why, retry, remove). Only a build that
+ * finished uploading can be chosen, and the footer says which one will be used
+ * before the reader commits.
  *
  * `BuildField` is the composer-side trigger: a field that shows the chosen
  * build and opens this dialog.
@@ -32,7 +32,7 @@ import {
   retryUpload,
   startUpload,
   useBuilds,
-  verifiedVersionOf,
+  versionOf,
   type BuildFile,
 } from '../../lib/buildsDemoState'
 
@@ -51,10 +51,10 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
   const [query, setQuery] = useState('')
   const dialogRef = useRef<HTMLDivElement>(null)
 
-  /* Land on what the composer already has, else the newest verified build. */
+  /* Land on what the composer already has, else the newest build. */
   useEffect(() => {
     if (!isOpen) return
-    const current = builds.find((b) => verifiedVersionOf(b) === value && b.status === 'ready')
+    const current = builds.find((b) => versionOf(b) === value && b.status === 'ready')
     const newest = builds.find((b) => b.status === 'ready' && b.newest) ?? builds.find((b) => b.status === 'ready')
     setSelected(current?.id ?? newest?.id ?? null)
     setQuery('')
@@ -62,8 +62,8 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
-  /* A build that just verified while the dialog is open becomes selectable; a
-     selection that got removed or failed is dropped. */
+  /* A build that finishes uploading while the dialog is open becomes
+     selectable; a selection that got removed or failed is dropped. */
   useEffect(() => {
     if (!selected) return
     const b = builds.find((x) => x.id === selected)
@@ -87,13 +87,13 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
 
   const chosen = builds.find((b) => b.id === selected && b.status === 'ready') ?? null
   const ready = builds.filter((b) => b.status === 'ready').length
-  const inFlight = builds.filter((b) => b.status === 'uploading' || b.status === 'verifying').length
+  const inFlight = builds.filter((b) => b.status === 'uploading').length
   /* Past a handful the list scrolls inside the dialog and takes a search, so
      a studio with a build a day can still find last month's in two keystrokes. */
   const searchable = builds.length > SEARCH_FROM
   const q = query.trim().toLowerCase()
   const listed = q
-    ? builds.filter((b) => `${verifiedVersionOf(b)} ${b.fileName} ${b.uploadedLabel}`.toLowerCase().includes(q))
+    ? builds.filter((b) => `${versionOf(b)} ${b.fileName} ${b.uploadedLabel}`.toLowerCase().includes(q))
     : builds
 
   return (
@@ -119,7 +119,7 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
           <div className="flex flex-col gap-xxs min-w-0">
             <h2 className="font-display text-l font-semibold text-text-primary leading-[1.3] m-0">Select a build</h2>
             <p className="font-body text-s text-text-secondary leading-[1.55] m-0">
-              Upload an APK or IPA, or pick one you uploaded before. 6labs verifies every build before the players can run it.
+              Upload an APK, or pick one you uploaded before. The AI players install the build you choose.
             </p>
           </div>
           <Button variant="transparent" size="md" iconOnly onClick={onClose} aria-label="Close">
@@ -133,7 +133,7 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
             icon={<UploadIcon size={20} />}
             title={builds.length === 0 ? 'Upload your first build' : 'Drop a build here or click to upload'}
             description="A release build of the game the AI players will install and play."
-            formats="APK · IPA · up to 500 MB"
+            formats="APK · up to 500 MB"
             accent="success"
             onClick={() => startUpload('ok')}
           />
@@ -146,7 +146,7 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
                   ? 'none yet'
                   : q
                     ? `${listed.length} of ${builds.length} match`
-                    : `${ready} verified${inFlight ? ` · ${inFlight} in progress` : ''}`}
+                    : `${ready} ready${inFlight ? ` · ${inFlight} uploading` : ''}`}
               </span>
               {searchable && (
                 <>
@@ -170,7 +170,7 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
               </p>
             ) : builds.length === 0 ? (
               <p className="font-body text-s text-text-tertiary leading-[1.6] px-l py-l m-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                Nothing here yet. Drop an APK or IPA above — it uploads, gets verified, and appears here ready to run.
+                Nothing here yet. Drop an APK above — once it finishes uploading it appears here, ready to run.
               </p>
             ) : (
               <div role="radiogroup" aria-label="Uploaded builds" className="flex flex-col overflow-y-auto max-h-[352px]">
@@ -194,10 +194,10 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
         >
           <span className="font-body text-s text-text-tertiary leading-[1.5]">
             {chosen
-              ? `The players will install ${verifiedVersionOf(chosen)}.`
+              ? `The players will install ${versionOf(chosen)}.`
               : ready === 0
-                ? 'Upload and verify a build to continue.'
-                : 'Pick a verified build.'}
+                ? 'Upload a build to continue.'
+                : 'Pick a build.'}
           </span>
           <span className="flex-1" />
           <Button variant="secondary" size="md" onClick={onClose}>
@@ -209,11 +209,11 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
             disabled={!chosen}
             onClick={() => {
               if (!chosen) return
-              onPick(verifiedVersionOf(chosen))
+              onPick(versionOf(chosen))
               onClose()
             }}
           >
-            {chosen ? `Use ${verifiedVersionOf(chosen)}` : 'Use build'}
+            {chosen ? `Use ${versionOf(chosen)}` : 'Use build'}
           </Button>
         </div>
       </div>
@@ -230,7 +230,7 @@ const ROW_GRID = '24px 44px minmax(0, 1fr) 200px 24px'
 
 function BuildRow({ build, selected, first, onSelect }: { build: BuildFile; selected: boolean; first: boolean; onSelect: () => void }) {
   const selectable = build.status === 'ready'
-  const version = verifiedVersionOf(build)
+  const version = versionOf(build)
   return (
     <div
       role="radio"
@@ -311,18 +311,11 @@ function StatusCell({ build }: { build: BuildFile }) {
           <span className="font-code text-xs text-text-secondary whitespace-nowrap w-[36px] text-right">{build.progress ?? 0}%</span>
         </span>
       )
-    case 'verifying':
-      return (
-        <span className="inline-flex items-center gap-xs font-body text-xs text-text-secondary whitespace-nowrap">
-          <span className="testing-spinner-sm shrink-0" aria-hidden />
-          Verifying the package…
-        </span>
-      )
     case 'failed':
       return (
         <span className="flex flex-col items-start gap-xxs min-w-0">
           <span className="font-body text-xs leading-[1.5]" style={{ color: 'var(--error)' }}>
-            {build.error ?? 'Could not be verified.'}
+            {build.error ?? 'Upload did not finish.'}
           </span>
           <span className="flex items-center gap-xs">
             <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); retryUpload(build.id) }}>
@@ -335,7 +328,7 @@ function StatusCell({ build }: { build: BuildFile }) {
         </span>
       )
     default:
-      return <span className="font-body text-xs text-text-tertiary whitespace-nowrap">Verified · ready to run</span>
+      return <span className="font-body text-xs text-text-tertiary whitespace-nowrap">Ready to run</span>
   }
 }
 
@@ -353,8 +346,8 @@ export interface BuildFieldProps {
 export function BuildField({ value, onChange, placeholder = 'Choose a build…', ariaLabel = 'Build', className }: BuildFieldProps) {
   const [open, setOpen] = useState(false)
   const builds = useBuilds()
-  const chosen = builds.find((b) => b.status === 'ready' && verifiedVersionOf(b) === value)
-  const inFlight = builds.filter((b) => b.status === 'uploading' || b.status === 'verifying').length
+  const chosen = builds.find((b) => b.status === 'ready' && versionOf(b) === value)
+  const inFlight = builds.filter((b) => b.status === 'uploading').length
 
   return (
     <>

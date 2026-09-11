@@ -38,6 +38,7 @@ import type { UserTestAskTurn, UserTestEvidenceRef } from '../../lib/types/userT
 
 export interface TestRunThreadProps {
   title: string
+
   /** The opening message — what was asked for. */
   request: { headline: string; detail: string }
   agentName?: string

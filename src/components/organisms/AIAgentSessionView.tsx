@@ -311,7 +311,9 @@ export function AIAgentSessionView({
     <div className={['flex flex-col w-full min-h-full', className].filter(Boolean).join(' ')}>
       <PageTopbar
         title={`${session.persona} · agent ${session.index + 1}`}
-        backLabel={runName}
+        /* Only the run — the test itself is already the selected row in the
+           sidebar, so naming it here says nothing the screen does not. */
+        trail={[{ label: runName }]}
         onBack={onBack}
         actions={
           <>

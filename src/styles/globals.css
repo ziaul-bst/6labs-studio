@@ -2671,6 +2671,16 @@ textarea { resize: none; font-family: var(--font-body); }
 }
 
 /* Selection bar buttons — text on a dark bar, quiet until hovered */
+/* Breadcrumb ancestors in PageTopbar — quiet until pointed at, so the trail
+   reads as orientation rather than a row of buttons. */
+.page-topbar-crumb {
+  transition: color 120ms ease;
+}
+.page-topbar-crumb:hover {
+  color: var(--text-primary) !important;
+  text-decoration: underline;
+}
+
 /* Dashed "Add tags" pill — the empty user-tag slot on a library card. Dashed
    and quiet at rest so a grid of untagged clips does not read as forty buttons;
    it firms up to the brand on hover, like the tag it will become. */
