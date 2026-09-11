@@ -2856,3 +2856,101 @@ textarea { resize: none; font-family: var(--font-body); }
 .agent-session-card:focus-visible .agent-session-play {
   opacity: 1;
 }
+
+/* ─── AI session viewer — the live loop ────────────────────────────────────
+   A live session is watched, not read, so each beat of the agent's loop has
+   one piece of motion and no more: a sweep while it reads the screen, a
+   ripple where it taps, a caret while text is being written, a soft pulse on
+   the beat in flight. All of it is decoration over real state — every one of
+   these is absent on a finished session, and all of it stops under
+   prefers-reduced-motion. */
+@keyframes agent-scan-sweep {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+.agent-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 34%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(120, 190, 255, 0.22) 70%, rgba(180, 220, 255, 0.7));
+  animation: agent-scan-sweep 1.3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes agent-tap-ring {
+  0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(2.6); opacity: 0; }
+}
+.agent-tap {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+  animation: agent-tap-ring 1s ease-out infinite;
+}
+
+@keyframes agent-caret-blink {
+  0%, 45%   { opacity: 1; }
+  55%, 100% { opacity: 0; }
+}
+.agent-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background-color: var(--brand);
+  animation: agent-caret-blink 900ms steps(1, end) infinite;
+}
+
+@keyframes agent-phase-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--bg-tint); }
+  50%      { box-shadow: 0 0 0 4px var(--bg-tint); }
+}
+.agent-phase-live {
+  animation: agent-phase-pulse 1.4s ease-in-out infinite;
+}
+
+/* The result of an action lands rather than appears. */
+@keyframes agent-observed-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+.agent-observed {
+  animation: agent-observed-in 220ms ease-out;
+}
+
+/* A spinner that reads on the dark frame, for the caption while the agent acts. */
+.agent-spinner-on-dark {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: testing-spin 800ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-scan,
+  .agent-tap,
+  .agent-caret,
+  .agent-phase-live,
+  .agent-observed,
+  .agent-spinner-on-dark,
+  .agent-live-dot {
+    animation: none;
+  }
+  .agent-scan,
+  .agent-tap {
+    display: none;
+  }
+}

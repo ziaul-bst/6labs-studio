@@ -270,7 +270,10 @@ export function buildAgentSessions(runId: string, meta: AIBehaviouralRunMeta, li
       if (s.flag.issueId === 'furnace' && i % 5 === 4) return { ...s, flag: undefined }
       return s
     })
-    const reached = done ? steps.length : Math.min(steps.length - 1, Math.max(1, liveReached + (i % 4) - 1))
+    /* A live session can walk as far as the run has captured — up to every
+       screen. Capping it below the last one parked the live viewer on a
+       screen it could never leave. */
+    const reached = done ? steps.length : Math.min(steps.length, Math.max(1, liveReached + (i % 4) - 1))
     return {
       id: `${runId}-a${i + 1}`,
       index: i,

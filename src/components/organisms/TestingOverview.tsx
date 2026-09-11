@@ -18,7 +18,7 @@ import { FunctionalTestIcon } from '../icons/FunctionalTestIcon'
 import { AgencyTestIcon } from '../icons/AgencyTestIcon'
 import { MembersIcon } from '../icons/MembersIcon'
 import { BetaTestIcon } from '../icons/BetaTestIcon'
-import { AIPlayerIcon } from '../icons/AIPlayerIcon'
+import { AIFunctionalIcon } from '../icons/AIFunctionalIcon'
 import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
 import { AIScaleIcon } from '../icons/AIScaleIcon'
 import { TestCaseGenIcon } from '../icons/TestCaseGenIcon'
@@ -46,7 +46,7 @@ export const TESTING_ICONS: Partial<Record<NavIconKey, ComponentType<IconProps>>
   'agency-test': AgencyTestIcon,
   'user-test': MembersIcon,
   'beta-test': BetaTestIcon,
-  'ai-functional-test': AIPlayerIcon,
+  'ai-functional-test': AIFunctionalIcon,
   'ai-behavioural-test': AIBehaviouralIcon,
   'ai-scale-test': AIScaleIcon,
   'test-case-gen': TestCaseGenIcon,

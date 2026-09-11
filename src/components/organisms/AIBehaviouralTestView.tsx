@@ -26,7 +26,7 @@ import { RunHistoryList } from '../molecules/RunHistoryList'
 import { InstructionsField, SetupNote } from '../molecules/TestingSetupPieces'
 import { SegmentedControl } from '../atoms/SegmentedControl'
 import { AIBehaviouralRunView, type AIBehaviouralRunTab } from './AIBehaviouralRunView'
-import { AIAgentSessionView } from './AIAgentSessionView'
+import { AIAgentSessionView, AGENT_LOOP_MS } from './AIAgentSessionView'
 import { BuildField } from './BuildPickerModal'
 import Button from '../ui/Button'
 import Checkbox from '../ui/Checkbox'
@@ -168,7 +168,9 @@ export function AIBehaviouralTestView({
   const activeMeta = useMemo(() => (activeRun ? metaForRun(activeRun) : null), [activeRun])
   useEffect(() => {
     if (!activeRun || activeRun.state !== 'progress') return
-    const t = window.setInterval(() => setLiveReached((r) => Math.min(AI_BEHAVIOURAL_STEPS.length - 1, r + 1)), 2500)
+    /* The run produces a screen on the same clock the viewer walks one, so the
+       live strip's counts and the walkthrough never drift apart. */
+    const t = window.setInterval(() => setLiveReached((r) => Math.min(AI_BEHAVIOURAL_STEPS.length - 1, r + 1)), AGENT_LOOP_MS)
     return () => window.clearInterval(t)
   }, [activeRun])
   const sessions = useMemo(() => {

@@ -53,7 +53,7 @@ import { MembersIcon } from '../icons/MembersIcon'
 import { QueryIcon } from '../icons/QueryIcon'
 import { GridIcon } from '../icons/GridIcon'
 import { FunctionalTestIcon } from '../icons/FunctionalTestIcon'
-import { AIPlayerIcon } from '../icons/AIPlayerIcon'
+import { AIFunctionalIcon } from '../icons/AIFunctionalIcon'
 import { AgencyTestIcon } from '../icons/AgencyTestIcon'
 import { BetaTestIcon } from '../icons/BetaTestIcon'
 import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
@@ -97,7 +97,7 @@ const NAV_ICONS: Record<NavIconKey, ComponentType<IconProps>> = {
   'agency-test': AgencyTestIcon,
   'user-test': MembersIcon,
   'beta-test': BetaTestIcon,
-  'ai-functional-test': AIPlayerIcon,
+  'ai-functional-test': AIFunctionalIcon,
   'ai-behavioural-test': AIBehaviouralIcon,
   'ai-scale-test': AIScaleIcon,
   'test-case-gen': TestCaseGenIcon,

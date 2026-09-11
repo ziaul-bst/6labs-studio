@@ -34,7 +34,7 @@ import { FunctionalReportView } from './FunctionalReportView'
 import { runFailureText } from '../molecules/RunFailedNotice'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
-import { AIPlayerIcon } from '../icons/AIPlayerIcon'
+import { AIFunctionalIcon } from '../icons/AIFunctionalIcon'
 import { UploadIcon } from '../icons/UploadIcon'
 import { AI_FUNCTIONAL_HISTORY, SAMPLE_TEST_CASE_FILES } from '../../lib/mocks/testing'
 import { useHistoryDemoSeed } from '../../lib/historyDemoState'
@@ -134,7 +134,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
       <TestingPageHeader
         title="AI functional test"
         description="AI players run your test cases on your build and report what passed, what failed and what they could not reach — with the video."
-        icon={<AIPlayerIcon size={32} />}
+        icon={<AIFunctionalIcon size={32} />}
         accent="success"
       />
 
