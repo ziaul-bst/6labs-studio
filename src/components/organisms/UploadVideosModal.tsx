@@ -213,7 +213,9 @@ export function UploadVideosModal({
         {/* The shared control, not a pair of Buttons: these are two states of
             one choice, and a filled button reads as an action to take. */}
         <SegmentedControl<'files' | 'cli'>
-          className="shrink-0"
+          /* The column parent stretches its children, and a full-width track
+             stops reading as a control — pin it to its content width. */
+          className="self-start w-fit shrink-0"
           ariaLabel="Upload method"
           size="sm"
           value={tab}
