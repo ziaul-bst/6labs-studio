@@ -189,7 +189,7 @@ export function FunctionalTestView({
     const run: TestRunHistoryItem = {
       id: `ft-${Date.now()}`,
       name: runName.trim() || 'Functional verification',
-      detail: `${selected.length} videos · ${testCases[0].name} · started just now`,
+      detail: `${selected.length} videos · ${testCases[0].name}`,
       meta: tags[0] ?? '—',
       state: 'progress',
       when: 'now',
@@ -206,7 +206,7 @@ export function FunctionalTestView({
     return (
       <FunctionalReportView
         title={run.name}
-        subtitle={`${run.detail.replace(' · started just now', '')} · ${run.meta} · verified by 6labs agent`}
+        subtitle={`${run.detail} · ${run.meta} · verified by 6labs agent`}
         mode="human"
         withUx={run.withUx}
         inProgress={run.state === 'progress'}

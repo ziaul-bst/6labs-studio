@@ -2964,3 +2964,47 @@ textarea { resize: none; font-family: var(--font-body); }
     display: none;
   }
 }
+
+/* ─── Sidebar group branch ───
+   A file-tree connector, drawn per row rather than once down the group: the
+   spine runs behind the rows and every row hooks off it with its own rounded
+   elbow, so each row visibly hangs from the caption instead of merely sitting
+   beside a line. The last row's elbow also terminates the spine — nothing
+   continues past the last child.
+
+   The active row lights its own elbow and its own span of the spine in the
+   group's tone (--branch-ink) — the tint covers exactly that row's height and
+   stops. That replaces the old floating 2px segment, which was inset 4px top
+   and bottom with rounded caps and so read as a break in the line rather than
+   a highlight. */
+.nav-branch::before,
+.nav-branch::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+/* Elbow: down the spine to the row's centre line, then a rounded turn into the
+   row. 14px — the full offset back to the row's own left edge — so the tick
+   lands on the row surface instead of stopping 4px short of it. */
+.nav-branch::before {
+  left: -14px;
+  top: 0;
+  width: 14px;
+  height: 50%;
+  border-left: 2px solid var(--branch-ink, var(--border-subtle));
+  border-bottom: 2px solid var(--branch-ink, var(--border-subtle));
+  border-bottom-left-radius: 8px;
+}
+/* Spine. Runs the row's FULL height, not from the elbow down: the elbow's
+   vertical stops where its corner starts curving away, so a spine picked up at
+   the halfway mark left an 8px hole at every junction. Overlapping the elbow
+   costs nothing — same 2px column, same ink — and the curve still reads because
+   it bends clear of the spine. Absent on the last row, whose elbow is the end
+   of the line. */
+.nav-branch:not([data-branch-last='true'])::after {
+  left: -14px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: var(--branch-ink, var(--border-subtle));
+}

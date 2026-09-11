@@ -237,14 +237,6 @@ export function RunHistoryList({
                 <span className="font-display text-s font-semibold text-text-primary leading-[1.45] line-clamp-2 min-w-0">
                   {run.name}
                 </span>
-                {run.id === highlightId && (
-                  <span
-                    className="inline-flex shrink-0 items-center px-xs py-xxxs rounded-xs font-body text-xs font-medium leading-[1.5]"
-                    style={{ backgroundColor: 'var(--bg-tint)', color: 'var(--text-brand)' }}
-                  >
-                    Just started
-                  </span>
-                )}
                 {inProgress && onWatchLive && (
                   /* The one thing worth doing with a run in flight is watching
                      it — so the row says so, without waiting for a click-through. */

@@ -15,19 +15,15 @@
 import { useEffect } from 'react'
 import { VideoPlayerThumbnail } from '../molecules/VideoPlayerThumbnail'
 import { LibrarySourceBadge } from '../atoms/LibrarySourceBadge'
+import { UserAvatar } from '../atoms/UserAvatar'
 import Button from '../ui/Button'
 import { CloseIcon } from '../icons/CloseIcon'
-import type { LibraryVideo } from './VideoLibraryView'
+import { CURRENT_USER, type LibraryVideo } from './VideoLibraryView'
 
 export interface LibraryVideoLightboxProps {
   /** The clip to play. `null` closes the lightbox. */
   video: LibraryVideo | null
   onClose: () => void
-}
-
-function formatSize(bytes: number): string {
-  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`
-  return `${Math.round(bytes / 1024 / 1024)} MB`
 }
 
 function formatDate(ts: number): string {
@@ -75,9 +71,21 @@ export function LibraryVideoLightbox({ video, onClose }: LibraryVideoLightboxPro
             >
               {video.title}
             </span>
-            <div className="flex items-center gap-xs">
+            <div className="flex items-center gap-xs flex-wrap">
+              {video.uploadedBy && (
+                <span className="flex items-center gap-xxs">
+                  <UserAvatar
+                    name={video.uploadedBy}
+                    isYou={video.uploadedBy === CURRENT_USER}
+                    size={16}
+                  />
+                  <span className="font-body text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {video.uploadedBy === CURRENT_USER ? 'You' : video.uploadedBy}
+                  </span>
+                </span>
+              )}
               <span className="font-body text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                {formatSize(video.sizeBytes)} &middot; {formatDate(video.addedAt)}
+                {formatDate(video.addedAt)}
               </span>
               <LibrarySourceBadge source={video.source} variant="inline" />
             </div>

@@ -14,7 +14,7 @@
  * @figmaUrl        https://www.figma.com/design/i9fxQ6pXrgRITEzopoXpWL/6labs?node-id=1894-18007
  */
 
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { SidebarLabel } from '../atoms/SidebarLabel'
 import { LockIcon } from '../icons/LockIcon'
 
@@ -30,6 +30,8 @@ interface SidebarNavItemProps {
   collapsed?: boolean
   /** Row lives inside a captioned, left-ruled group. */
   nested?: boolean
+  /** Last row of its group — its branch elbow terminates the spine. */
+  branchLast?: boolean
   /** Active / hover colour family. */
   tone?: SidebarNavTone
   /**
@@ -50,6 +52,7 @@ export function SidebarNavItem({
   disabled = false,
   collapsed = false,
   nested = false,
+  branchLast = false,
   tone = 'brand',
   locked = false,
   onClick,
@@ -60,27 +63,34 @@ export function SidebarNavItem({
   const hoverClass = success ? 'nav-hover-success' : 'nav-hover-gradient'
   const inkClass = success ? 'nav-ink-success' : 'nav-ink-brand'
 
+  /* The branch is the nesting cue, so it only exists where the group's caption
+     and rule do — never in the collapsed 60px column. */
+  const branched = nested && !collapsed
+
   return (
     <div
       className={[
         'relative flex items-center w-full group',
         collapsed ? 'h-[44px] px-s py-xxs' : nested ? 'h-[40px] py-xxxs' : 'h-[45px] px-s py-xxs',
-      ].join(' ')}
+        branched ? 'nav-branch' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      data-branch-last={branched && branchLast ? 'true' : undefined}
+      style={
+        branched && active
+          ? ({ '--branch-ink': success ? 'var(--success)' : 'var(--brand)' } as CSSProperties)
+          : undefined
+      }
     >
       {/* Active left indicator bar — 4px brand, rounded right side. A nested
           row's group rule already marks the hierarchy, so it drops the bar. */}
       {active && !nested && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-[36px] bg-brand rounded-tr-[12px] rounded-br-[11px]" />
       )}
-      {/* Nested: the group's 2px rule turns the tone colour beside the active row,
-          so the hierarchy line itself says where you are. Sits exactly over the
-          rule — 12px body padding plus the 2px rule. */}
-      {active && nested && !collapsed && (
-        <div
-          className="absolute -left-[14px] top-[4px] bottom-[4px] w-[2px] rounded-round"
-          style={{ backgroundColor: success ? 'var(--success)' : 'var(--brand)' }}
-        />
-      )}
+      {/* Nested rows carry no indicator of their own: the branch elbow lights in
+          the group's tone instead (see --branch-ink above), so the hierarchy
+          line itself says where you are. */}
 
       {/* Nav item container */}
       <Tag

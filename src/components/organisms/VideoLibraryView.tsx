@@ -104,6 +104,11 @@ export interface LibraryVideo {
   tags: LibraryTag[]
   /** How the clip reached the library — drives the thumbnail badge and the source facet */
   source: VideoUploadSource
+  /**
+   * Who put it there. The library is company-wide, so a clip you did not upload
+   * is the normal case and the card has to say whose it is.
+   */
+  uploadedBy?: string
   /** Release stage the footage is from. Defaults to pre-release. */
   stage?: VideoStage
   /** Which kind of test produced it. Defaults to user test. */
@@ -115,6 +120,15 @@ export interface LibraryVideo {
   /** seeded demo flag: this video's upload will fail */
   willFail?: boolean
 }
+
+/* The signed-in user, matching the sidebar profile. Their own uploads read
+   "You" rather than their name — recognising your own rows in a company-wide
+   library is worth more than consistency with the other rows. */
+export const CURRENT_USER = 'Jonh Wick'
+
+/* Teammates, so the seeded library looks like what a studio actually has:
+   footage from several people, not one. */
+const TEAMMATES = ['Priya Nair', 'Mohit Sharma', 'Elena Roth', 'Dan Whitfield']
 
 const UPLOAD_FAIL_RATE = 0.18
 /** Upload failure, not analysis failure — nothing analyses these clips. */
@@ -156,6 +170,8 @@ function formatDate(ts: number): string {
 
 
 // ── Seed: the artifact's batches, mixed states and every source ──
+let seedUploader = 0
+
 function seedVideos(): LibraryVideo[] {
   const now = Date.now()
   const H = 1000 * 60 * 60
@@ -178,6 +194,12 @@ function seedVideos(): LibraryVideo[] {
   ): LibraryVideo => {
     const stage = o.stage ?? 'pre-release'
     const testType = o.testType ?? 'user-test'
+    /* Rotate through the team unless a fixture names someone. AI-player clips
+       have no human uploader — the test produced them — so they stay blank. */
+    seedUploader += 1
+    const uploadedBy =
+      o.uploadedBy ??
+      (o.source === 'ai-player' ? undefined : TEAMMATES[seedUploader % TEAMMATES.length])
     return {
       id: nextId(),
       title,
@@ -187,6 +209,7 @@ function seedVideos(): LibraryVideo[] {
       progress: 100,
       stage,
       testType,
+      uploadedBy,
       ...o,
       tags: [
         batchTag(o.batch),
@@ -198,10 +221,10 @@ function seedVideos(): LibraryVideo[] {
     }
   }
   return [
-    mk('ut-0912 — first session walkthrough.mp4', 284, '12:04', { source: 'recorder', batch: 'Build V2.2', ago: 3 * H, userTags: ['onboarding'] }),
+    mk('ut-0912 — first session walkthrough.mp4', 284, '12:04', { source: 'recorder', batch: 'Build V2.2', ago: 3 * H, userTags: ['onboarding'], uploadedBy: CURRENT_USER }),
     mk('ut-0911 — first session.mp4', 212, '9:41', { source: 'recorder', batch: 'Build V2.2', ago: 5 * H }),
     mk('ut-0904 — first session.mp4', 260, '11:18', { source: 'recorder', batch: 'Build V2.2', ago: 1 * D + 2 * H }),
-    mk('ut-0910 — tutorial complete.mp4', 190, '8:20', { source: 'upload', batch: 'Tutorial', ago: 6 * H, userTags: ['onboarding'] }),
+    mk('ut-0910 — tutorial complete.mp4', 190, '8:20', { source: 'upload', batch: 'Tutorial', ago: 6 * H, userTags: ['onboarding'], uploadedBy: CURRENT_USER }),
     mk('ut-0899 — tutorial exit.mp4', 168, '7:52', { source: 'upload', batch: 'Tutorial', ago: 1 * D + 5 * H }),
     mk('ut-0908 — returning player.mp4', 341, '15:22', { source: 'cli', batch: 'New event', stage: 'cbt', ago: 8 * H, userTags: ['frost-festival'] }),
     mk('ut-0895 — event shop.mp4', 140, '6:10', { source: 'cli', batch: 'New event', stage: 'cbt', ago: 1 * D + 8 * H }),
@@ -376,6 +399,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
       progress: 0,
       tags: [...(batch ? [batchTag(batch)] : []), ...rest.map(userTag)],
       source: 'upload',
+      uploadedBy: CURRENT_USER,
       batch,
       addedAt: stamp - i,
       willFail: Math.random() < UPLOAD_FAIL_RATE,
@@ -395,6 +419,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
       progress: Math.floor(Math.random() * 30),
       tags: [...(batch ? [batchTag(batch)] : []), ...rest.map(userTag)],
       source: 'cli',
+      uploadedBy: CURRENT_USER,
       batch,
       addedAt: stamp - i,
       willFail: Math.random() < UPLOAD_FAIL_RATE,
@@ -840,6 +865,8 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                             title={v.title}
                             dateLabel={formatDate(v.addedAt)}
                             source={v.source}
+                            uploadedBy={v.uploadedBy}
+                            uploadedByYou={v.uploadedBy === CURRENT_USER}
                             durationLabel={v.durationLabel}
                             thumbnailSrc={v.thumbnailSrc}
                             gradient={gradientFor(v.id)}

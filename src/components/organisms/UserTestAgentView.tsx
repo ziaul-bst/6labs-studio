@@ -176,7 +176,7 @@ export function UserTestAgentView({
       /* The tag fills its own column, so the name is the flow the footage was
          read against — the same shape as the seeded rows. */
       name: gameContext ?? 'User test',
-      detail: `${chosen.length} videos${gameContext ? '' : ' · no game context'} · started just now`,
+      detail: `${chosen.length} videos${gameContext ? '' : ' · no game context'}`,
       meta: tags.join(', ') || 'untagged',
       state: 'progress',
       when: 'now',

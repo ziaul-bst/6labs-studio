@@ -18,6 +18,7 @@ import { CloseIcon } from '../icons/CloseIcon'
 import { CopyIcon } from '../icons/CopyIcon'
 import { CheckIcon } from '../icons/CheckIcon'
 import { UploadIcon } from '../icons/UploadIcon'
+import { SegmentedControl } from '../atoms/SegmentedControl'
 import { ACTIVE_GAME } from '../../lib/activeGame'
 
 // ── Shared upload constants/helpers (imported by VideoLibraryView too) ──
@@ -209,18 +210,19 @@ export function UploadVideosModal({
         <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={handleInput} />
 
         {/* Tabs */}
-        <div className="flex items-center gap-xxs p-xxs rounded-xl shrink-0 w-fit" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}>
-          {([['files', 'Upload files'], ['cli', 'Bulk via CLI']] as const).map(([val, label]) => (
-            <Button
-              key={val}
-              variant={tab === val ? 'secondary' : 'transparent'}
-              size="md"
-              onClick={() => setTab(val)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
+        {/* The shared control, not a pair of Buttons: these are two states of
+            one choice, and a filled button reads as an action to take. */}
+        <SegmentedControl<'files' | 'cli'>
+          className="shrink-0"
+          ariaLabel="Upload method"
+          size="sm"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'files', label: 'Upload files' },
+            { value: 'cli', label: 'Bulk via CLI' },
+          ]}
+        />
 
         {/* Body */}
         <div className="flex flex-col gap-m flex-1 min-h-0 overflow-y-auto">
@@ -385,7 +387,7 @@ function CliTab({
     <div className="flex flex-col gap-m">
       <p className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
         Uploading hundreds of clips? Push them straight from your machine with the 6labs CLI — it runs in the
-        background, retries on failure, and resumes interrupted uploads. Same analysis pipeline as the UI.
+        background, retries on failure, and resumes interrupted uploads.
       </p>
 
       <CodeBlock label="1 · Install" code="npm install -g @6labs/cli" />
@@ -393,7 +395,7 @@ function CliTab({
       <CodeBlock
         label="3 · Upload a folder"
         code={uploadCmd}
-        sublabel={hasTags ? `Using the tags you set: ${cliTags}` : 'Tip: set tags on the “Upload files” tab and they’ll appear here.'}
+        sublabel={hasTags ? `Using the tags you set: ${cliTags}` : undefined}
       />
 
       <div
@@ -402,8 +404,8 @@ function CliTab({
       >
         <span className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
           Globs like <code className="font-mono">./gameplay/**/*.mp4</code> upload nested folders.
-          <code className="font-mono"> --concurrency</code> controls parallel uploads. Each clip then analyzes
-          server-side and turns <span className="font-semibold" style={{ color: 'var(--brand)' }}>Ready</span> on its own.
+          <code className="font-mono"> --concurrency</code> controls parallel uploads. Clips appear in the library
+          as each one finishes.
         </span>
       </div>
 

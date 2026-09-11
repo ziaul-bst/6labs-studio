@@ -36,7 +36,7 @@ export const HISTORY_DEMO_LABELS: Record<HistoryDemoState, string> = {
 export const HISTORY_DEMO_NOTES: Record<HistoryDemoState, string> = {
   seeded: 'The seeded history — a few finished runs.',
   empty: 'Nothing has run yet: the tab shows its empty copy.',
-  progress: 'A run just started sits on top, tinted and spinning, marked "Just started".',
+  progress: 'A run just started sits on top, tinted and spinning, with In progress as its result.',
   failed: 'A run that stopped sits on top — red tile, Failed pill, the reason in its line. Open it for the notice.',
   many: 'Forty-two runs: the list pages, ten a screen, with the range and page count in its footer.',
   reports: 'Questions removed, so the kind filter above the list disappears.',
@@ -99,10 +99,10 @@ export function seedHistory(
             kind: 'report',
             state: 'progress',
             result: undefined,
-            detail: `${first.detail} · started just now`,
+            detail: first.detail,
             when: 'now',
           }
-        : { id: 'demo-progress', name: 'Run', detail: 'started just now', meta: '—', state: 'progress', when: 'now' }
+        : { id: 'demo-progress', name: 'Run', detail: '—', meta: '—', state: 'progress', when: 'now' }
       return { runs: [live, ...base], highlightId: live.id }
     }
     default:

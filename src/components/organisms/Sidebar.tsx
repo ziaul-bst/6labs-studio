@@ -445,9 +445,8 @@ export function Sidebar({
                       'flex flex-col items-start',
                       captioned ? 'ml-[24px] mr-s pl-[12px] w-[calc(100%-36px)]' : 'w-full',
                     ].join(' ')}
-                    style={captioned ? { borderLeft: '2px solid var(--border-subtle)' } : undefined}
                   >
-                    {group.items.map((item) => {
+                    {group.items.map((item, ri) => {
                       const Icon = NAV_ICONS[item.icon]
                       /* Oracle de-highlights while a history thread is the active screen. */
                       const isActive =
@@ -465,6 +464,7 @@ export function Sidebar({
                           locked={lockedNavs.includes(item.nav)}
                           collapsed={collapsed}
                           nested={captioned}
+                          branchLast={ri === group.items.length - 1}
                           tone={group.tone ?? 'brand'}
                           onClick={() => onNavChange?.(item.nav as ActiveNav)}
                         />
@@ -490,15 +490,15 @@ export function Sidebar({
               {historyExpanded && (
                 <div
                   className="flex flex-col items-start ml-[24px] mr-s pl-[12px] w-[calc(100%-36px)]"
-                  style={{ borderLeft: '2px solid var(--border-subtle)' }}
                 >
-                  {displayHistory.map((item) => (
+                  {displayHistory.map((item, ri) => (
                     <SidebarTaskItem
                       key={item.id}
                       query={item.query}
                       active={item.id === activeHistoryId}
                       state={item.state}
                       nested
+                      branchLast={ri === displayHistory.length - 1}
                       onClick={() => onHistoryClick?.(item.id)}
                     />
                   ))}

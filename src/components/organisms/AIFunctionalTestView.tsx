@@ -98,7 +98,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
     const run: TestRunHistoryItem = {
       id: `aif-${Date.now()}`,
       name: runName.trim() || 'AI functional test',
-      detail: `${files.length} file${files.length === 1 ? '' : 's'} · ${files[0].name} · started just now`,
+      detail: `${files.length} file${files.length === 1 ? '' : 's'} · ${files[0].name}`,
       meta: build,
       state: 'progress',
       when: 'now',
@@ -114,7 +114,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
     return (
       <FunctionalReportView
         title={run.name}
-        subtitle={`${run.detail.replace(' · started just now', '')} · build ${run.meta} · executed by AI Player, 3 agents`}
+        subtitle={`${run.detail} · build ${run.meta} · executed by AI Player, 3 agents`}
         mode="ai"
         inProgress={run.state === 'progress'}
         failure={runFailureText(run)}

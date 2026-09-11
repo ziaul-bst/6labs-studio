@@ -39,6 +39,7 @@ import { CheckIcon } from '../icons/CheckIcon'
 import { EventTag } from '../atoms/EventTag'
 import { SystemTag } from '../atoms/SystemTag'
 import { LibrarySourceBadge } from '../atoms/LibrarySourceBadge'
+import { UserAvatar } from '../atoms/UserAvatar'
 import { ClampTags } from './ClampTags'
 import { partitionTags, toLibraryTags, type LibraryTag } from '../../lib/libraryTags'
 import type { VideoUploadSource } from '../../lib/librarySource'
@@ -58,6 +59,14 @@ export interface VideoLibraryCardProps {
   source?: VideoUploadSource
   /** Legacy free-text source, for surfaces with their own source vocabulary */
   sourceLabel?: string
+  /**
+   * Who put the clip in the library. The library is company-wide — everyone
+   * sees everyone's footage — so "whose is this" is a question the card has to
+   * answer without being opened.
+   */
+  uploadedBy?: string
+  /** The uploader is the signed-in user, so the card says "You". */
+  uploadedByYou?: boolean
   durationLabel?: string
   thumbnailSrc?: string
   /** Background gradient for the thumbnail fallback — varied per card for rhythm */
@@ -142,6 +151,8 @@ export function VideoLibraryCard({
   dateLabel,
   source,
   sourceLabel,
+  uploadedBy,
+  uploadedByYou = false,
   durationLabel,
   thumbnailSrc,
   gradient = DEFAULT_GRADIENT,
@@ -303,7 +314,16 @@ export function VideoLibraryCard({
                 <StatusBadge status={status} />
                 {source && <LibrarySourceBadge source={source} variant="inline" className="shrink-0" />}
               </div>
-              <span className="font-body text-xs" style={{ color: 'var(--text-placeholder)' }}>
+              <span className="flex items-center gap-xxs font-body text-xs" style={{ color: 'var(--text-placeholder)' }}>
+                {uploadedBy && (
+                  <>
+                    <UserAvatar name={uploadedBy} isYou={uploadedByYou} size={14} />
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      {uploadedByYou ? 'You' : uploadedBy}
+                    </span>
+                    <span aria-hidden>·</span>
+                  </>
+                )}
                 {metaLine}
               </span>
               {isFailed && errorMessage && (
@@ -503,9 +523,25 @@ export function VideoLibraryCard({
               </div>
             )}
           </div>
-          <span className="font-body text-xs" style={{ color: 'var(--text-placeholder)' }}>
-            {metaLine}
-          </span>
+          <div className="flex items-center gap-xxs min-w-0">
+            {uploadedBy && (
+              <>
+                <UserAvatar name={uploadedBy} isYou={uploadedByYou} size={16} />
+                <span
+                  className="font-body text-xs truncate min-w-0"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  {uploadedByYou ? 'You' : uploadedBy}
+                </span>
+                <span style={{ color: 'var(--text-placeholder)' }} aria-hidden>
+                  ·
+                </span>
+              </>
+            )}
+            <span className="font-body text-xs shrink-0" style={{ color: 'var(--text-placeholder)' }}>
+              {metaLine}
+            </span>
+          </div>
 
           {/* Tags — the only labels on the card. System tags (batch/stage/test)
               take their own line above

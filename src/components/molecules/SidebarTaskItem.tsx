@@ -9,6 +9,8 @@
  * @figmaUrl        https://www.figma.com/design/i9fxQ6pXrgRITEzopoXpWL/6labs?node-id=1900-49896
  */
 
+import type { CSSProperties } from 'react'
+
 type TaskState = 'default' | 'loading' | 'complete'
 
 interface SidebarTaskItemProps {
@@ -17,6 +19,8 @@ interface SidebarTaskItemProps {
   state?: TaskState
   /** Row lives inside a captioned, left-ruled group — same geometry as a nested nav row. */
   nested?: boolean
+  /** Last row of its group — its branch elbow terminates the spine. */
+  branchLast?: boolean
   onClick?: () => void
 }
 
@@ -25,18 +29,24 @@ export function SidebarTaskItem({
   active = false,
   state = 'default',
   nested = false,
+  branchLast = false,
   onClick,
 }: SidebarTaskItemProps) {
   return (
-    <div className={['relative flex items-center w-full group', nested ? 'py-xxxs' : 'px-s py-xxs'].join(' ')}>
+    <div
+      className={[
+        'relative flex items-center w-full group',
+        nested ? 'nav-branch py-xxxs' : 'px-s py-xxs',
+      ].join(' ')}
+      data-branch-last={nested && branchLast ? 'true' : undefined}
+      style={nested && active ? ({ '--branch-ink': 'var(--brand)' } as CSSProperties) : undefined}
+    >
       {/* Active indicator — 4px bar at the sidebar edge, or the group rule lit
           beside the row when nested (same as SidebarNavItem). */}
       {active && !nested && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-[36px] bg-brand rounded-tr-[12px] rounded-br-[11px]" />
       )}
-      {active && nested && (
-        <div className="absolute -left-[14px] top-[4px] bottom-[4px] w-[2px] rounded-round bg-brand" />
-      )}
+      {/* Nested: no bar of its own — the branch elbow lights in brand instead. */}
 
       <a
         className={[

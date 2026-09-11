@@ -156,14 +156,6 @@ function RunRow({
       <div className="flex flex-col gap-xxxs min-w-0">
         <span className="flex items-center gap-xs font-display text-s font-semibold text-text-primary leading-[1.45]">
           {run.name}
-          {highlight && (
-            <span
-              className="inline-flex items-center px-xs py-xxxs rounded-xs font-body text-xs font-medium leading-[1.5]"
-              style={{ backgroundColor: 'var(--bg-tint)', color: 'var(--text-brand)' }}
-            >
-              Just started
-            </span>
-          )}
         </span>
         <span className="font-body text-xs text-text-tertiary leading-[1.5]">{run.subtitle}</span>
       </div>
