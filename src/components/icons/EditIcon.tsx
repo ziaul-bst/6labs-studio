@@ -12,7 +12,11 @@ export function EditIcon({ size = 20, className, 'aria-label': ariaLabel }: Icon
     <svg
       width={size}
       height={size}
-      viewBox="0 0 12.5 12"
+      /* The export came out tight to the artwork, while the rest of the set
+         (Trash, Plus, Close) keeps ~20% optical padding inside the box. Same
+         `size` then drew a visibly larger pencil than the trash beside it, so
+         the box is padded out to 16 and the glyph centred in it. */
+      viewBox="-1.75 -2 16 16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}

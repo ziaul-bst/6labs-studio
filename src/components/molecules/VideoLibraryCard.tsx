@@ -513,12 +513,12 @@ export function VideoLibraryCard({
                 onClick={(e) => e.stopPropagation()}
               >
                 {isReady && (
-                  <Button variant="transparent" size="sm" iconOnly onClick={startEdit} aria-label={`Edit ${title}`}>
-                    <EditIcon size={12} />
+                  <Button variant="transparent" size="md" iconOnly onClick={startEdit} aria-label={`Edit ${title}`}>
+                    <EditIcon size={16} />
                   </Button>
                 )}
-                <Button variant="transparent" size="sm" iconOnly onClick={onDelete} aria-label={`Delete ${title}`}>
-                  <span className="inline-flex video-lib-danger"><TrashIcon size={12} /></span>
+                <Button variant="transparent" size="md" iconOnly onClick={onDelete} aria-label={`Delete ${title}`}>
+                  <span className="inline-flex video-lib-danger"><TrashIcon size={16} /></span>
                 </Button>
               </div>
             )}
