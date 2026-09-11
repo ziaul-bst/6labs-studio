@@ -1898,6 +1898,12 @@ textarea { resize: none; font-family: var(--font-body); }
   box-sizing: border-box;
 }
 
+/* A wider cap for screens whose subject is a frame — the AI session viewer.
+   Same gutters, same centring; only the cap moves. */
+.page-measure.page-measure-wide {
+  max-width: 1440px;
+}
+
 /* The content region always reserves room for its scrollbar, so a screen that
    scrolls and one that does not put the measure on exactly the same pixels. */
 .page-scroll {
@@ -2665,6 +2671,21 @@ textarea { resize: none; font-family: var(--font-body); }
 }
 
 /* Selection bar buttons — text on a dark bar, quiet until hovered */
+/* Dashed "Add tags" pill — the empty user-tag slot on a library card. Dashed
+   and quiet at rest so a grid of untagged clips does not read as forty buttons;
+   it firms up to the brand on hover, like the tag it will become. */
+.video-lib-add-tags {
+  background-color: transparent;
+  border: 1px dashed var(--border-default);
+  color: var(--text-tertiary);
+  transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease;
+}
+.video-lib-add-tags:hover {
+  border-color: var(--brand);
+  color: var(--text-brand);
+  background-color: var(--bg-tint-light);
+}
+
 /* `.library-bar-btn` lived here for the dark selection bar. The bar is a light
    surface now and its actions are real DS Buttons, so the custom chrome is gone. */
 
@@ -2812,7 +2833,7 @@ textarea { resize: none; font-family: var(--font-body); }
    the panel drops under the frame. */
 .agent-session-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 380px;
   align-items: stretch;
 }
 .agent-screen-panel {

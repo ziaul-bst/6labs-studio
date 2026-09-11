@@ -18,9 +18,15 @@
  *     control for source. Stage, test type and status were selects here until
  *     2026-09-09; batch and source are how footage is actually found, and four
  *     dropdowns beside a pill rail read as two filter systems in one card.
- *   - Videos are **grouped** by batch · source · stage ("Build V2.2 · Recorder
- *     app · Pre-release"), which is how a batch was made and how a test will
- *     pick it up. Each group header selects its whole batch.
+ *   - One flat grid, newest first (2026-09-11). Videos were sectioned by
+ *     batch · source · stage until then, which restated the tag rail directly
+ *     above it and the badges on every card, and forced a "Select batch"
+ *     control per header — a third way to do what the rail and the card
+ *     checkboxes already did. Selection is per card plus the bulk bar; there is
+ *     no select-all.
+ *   - A clip nobody has tagged shows a dashed "Add tags" pill where its user
+ *     tags would sit, so an empty tag slot reads as an invitation instead of
+ *     as nothing.
  *   - Tags carry their ORIGIN (2026-09-10). System tags — the batch or build a
  *     clip came in on — are applied by the platform and render outlined with
  *     their facet ("Batch · Build V2.2"); user tags are free text somebody
@@ -50,10 +56,10 @@ import { VideosEmptyState } from '../molecules/VideosEmptyState'
 import { showToast } from '../atoms/Toast'
 import { FilterPill } from '../atoms/FilterPill'
 import { SegmentedControl } from '../atoms/SegmentedControl'
+import Checkbox from '../ui/Checkbox'
 import { TagOverflowMenu } from '../molecules/TagOverflowMenu'
 import Input from '../ui/Input'
 import Button from '../ui/Button'
-import Checkbox from '../ui/Checkbox'
 import { VideoLibraryIcon } from '../icons/VideoLibraryIcon'
 import { UploadIcon } from '../icons/UploadIcon'
 import { CloseIcon } from '../icons/CloseIcon'
@@ -63,7 +69,6 @@ import { SearchIcon } from '../icons/SearchIcon'
 import {
   SOURCE_ORDER,
   SOURCE_SHORT,
-  STAGE_LABEL,
   type LibraryTestType,
   type VideoStage,
   type VideoUploadSource,
@@ -149,9 +154,6 @@ function formatDate(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-const stageOf = (v: LibraryVideo): VideoStage => v.stage ?? 'pre-release'
-const batchOf = (v: LibraryVideo): string =>
-  v.batch ?? v.tags.find((t) => t.facet === 'batch')?.label ?? v.tags[0]?.label ?? 'Untagged'
 
 // ── Seed: the artifact's batches, mixed states and every source ──
 function seedVideos(): LibraryVideo[] {
@@ -300,7 +302,10 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
      a pill rail read as two filter systems stacked. */
   const [sourceFacet, setSourceFacet] = useState<Facet<VideoUploadSource>>('all')
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set())
-  const [tagDialogOpen, setTagDialogOpen] = useState(false)
+  /* Which clips the tag dialog will write to. The bulk bar hands it the whole
+     selection, a card's "Add tags" pill hands it just that clip — one dialog
+     either way, so the two paths cannot drift apart. */
+  const [tagTargetIds, setTagTargetIds] = useState<string[] | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [dropFiles, setDropFiles] = useState<File[] | undefined>(undefined)
   /* Player lightbox. Tracked by id, not by object, so a clip that finishes
@@ -436,16 +441,20 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     })
     setDeleteIds(null)
   }
+  /* Scoped to `shown`, never to the whole library: "select all" under an active
+     filter has to mean the clips you can see, or it silently picks up footage
+     the filter was hiding. */
+  const setAllShownSelected = (on: boolean) =>
+    setSelectedIds((prev) => {
+      const n = new Set(prev)
+      shown.forEach((v) => (on ? n.add(v.id) : n.delete(v.id)))
+      return n
+    })
+
   const toggleSelect = (id: string) =>
     setSelectedIds((prev) => {
       const n = new Set(prev)
       n.has(id) ? n.delete(id) : n.add(id)
-      return n
-    })
-  const setGroupSelected = (ids: string[], on: boolean) =>
-    setSelectedIds((prev) => {
-      const n = new Set(prev)
-      ids.forEach((id) => (on ? n.add(id) : n.delete(id)))
       return n
     })
 
@@ -453,8 +462,8 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
      user-origin: a batch is assigned at ingest, not applied by hand later. A
      label a clip already carries as a system tag is skipped, so you never end
      up with "Batch · Build V2.2" and a loose "Build V2.2" on one card. */
-  const addTagsToSelection = (tags: string[]) => {
-    const target = new Set(selectedIds)
+  const addTagsToTarget = (tags: string[]) => {
+    const target = new Set(tagTargetIds ?? [])
     setVideos((prev) =>
       prev.map((v) => {
         if (!target.has(v.id)) return v
@@ -538,25 +547,20 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     setActiveTags(new Set())
   }
 
-  /** Groups — batch · source · stage, newest batch first. */
-  const groups = useMemo(() => {
-    const map = new Map<string, { key: string; title: string; videos: LibraryVideo[]; newest: number }>()
-    filtered.forEach((v) => {
-      const key = `${batchOf(v)}|${v.source}|${stageOf(v)}`
-      const g = map.get(key) ?? {
-        key,
-        title: `${batchOf(v)} · ${SOURCE_SHORT[v.source]} · ${STAGE_LABEL[stageOf(v)]}`,
-        videos: [],
-        newest: 0,
-      }
-      g.videos.push(v)
-      g.newest = Math.max(g.newest, v.addedAt)
-      map.set(key, g)
-    })
-    return [...map.values()]
-      .sort((a, b) => b.newest - a.newest)
-      .map((g) => ({ ...g, videos: g.videos.sort((a, b) => b.addedAt - a.addedAt) }))
-  }, [filtered])
+  /* One flat, newest-first grid. The library used to section by
+     batch · source · stage, which duplicated the tag rail directly above it —
+     the rail already reaches a batch in one click, and every clip carries its
+     batch and source on the card. The sections also forced a "Select batch"
+     control per header, a second way to do what the rail plus the card
+     checkboxes already did. */
+  const shown = useMemo(
+    () => [...filtered].sort((a, b) => b.addedAt - a.addedAt),
+    [filtered],
+  )
+
+  const shownSelectedCount = shown.reduce((n, v) => n + (selectedIds.has(v.id) ? 1 : 0), 0)
+  const allShownSelected = shown.length > 0 && shownSelectedCount === shown.length
+  const someShownSelected = shownSelectedCount > 0
 
   const selectedList = videos.filter((v) => selectedIds.has(v.id))
   /* Only an in-flight upload is unusable now, so the bar counts what is still
@@ -724,16 +728,32 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                       backgroundColor: 'var(--bg-page-pale)',
                     }}
                   >
-                    <div className="library-search w-[320px] max-w-full">
-                      <Input
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search sessions"
-                        aria-label="Search sessions"
-                        size="lg"
-                        leftIcon={<SearchIcon size={20} />}
-                      />
-                    </div>
+                    {/* One select-all for the filtered set, leading the row:
+                        it sits above the column of card checkboxes it controls,
+                        which is where anyone looks for it. The rule after it
+                        separates the one control that ACTS on the collection
+                        from the two that only narrow it. */}
+                    {shown.length > 0 && (
+                      <>
+                        <label className="flex items-center gap-xs shrink-0 cursor-pointer">
+                          <Checkbox
+                            checked={allShownSelected}
+                            indeterminate={someShownSelected && !allShownSelected}
+                            onChange={() => setAllShownSelected(!allShownSelected)}
+                            aria-label={allShownSelected ? 'Deselect all shown videos' : 'Select all shown videos'}
+                          />
+                          <span className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
+                            {allShownSelected ? 'Deselect all' : `Select all ${shown.length}`}
+                          </span>
+                        </label>
+                        <span
+                          className="w-px h-[20px] shrink-0 -mx-s"
+                          style={{ backgroundColor: 'var(--border-default)' }}
+                          aria-hidden
+                        />
+                      </>
+                    )}
+
                     <div className="flex items-center gap-s flex-wrap">
                       <span
                         className="font-body text-s leading-[1.5] shrink-0"
@@ -754,6 +774,21 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                       />
                     </div>
                     <span className="flex-1" />
+
+                    {/* Search sits right, opposite the selection control: the
+                        left of the row acts on the collection, the right of it
+                        searches. `shrink` so the field gives way before the
+                        source segments wrap. */}
+                    <div className="library-search w-[320px] max-w-full shrink">
+                      <Input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search sessions"
+                        aria-label="Search sessions"
+                        size="lg"
+                        leftIcon={<SearchIcon size={20} />}
+                      />
+                    </div>
                   </div>
 
                   {/* The one-click way out of a filtered view — only while filters are on */}
@@ -768,9 +803,9 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                     </div>
                   )}
 
-                  {/* Collection — grouped by batch · source · stage */}
+                  {/* Collection — one flat grid, newest first */}
                   <div className="flex flex-col gap-xl px-m pt-m pb-l w-full" data-selecting={selecting ? 'true' : 'false'}>
-                    {groups.length === 0 ? (
+                    {shown.length === 0 ? (
                       /* Same fallback, wording and way out as the session
                          picker — an empty result should not feel like a
                          different product depending on where you hit it. */
@@ -797,71 +832,32 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                         }
                       />
                     ) : (
-                      groups.map((g) => {
-                        const ids = g.videos.map((v) => v.id)
-                        const chosen = ids.filter((id) => selectedIds.has(id)).length
-                        const all = chosen === ids.length
-                        return (
-                          <section key={g.key} className="flex flex-col gap-m w-full" aria-label={g.title}>
-                            <div className="flex items-center gap-s pb-xs" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                              <Checkbox
-                                checked={all}
-                                indeterminate={chosen > 0 && !all}
-                                onChange={() => setGroupSelected(ids, !all)}
-                                aria-label={`Select all in ${g.title}`}
-                              />
-                              {/* Two type sizes on one line: baseline-aligned, not
-                                  box-centred. items-center on the row centres each
-                                  span's own line-box, and because the sizes carry
-                                  different line-heights that drifts the smaller
-                                  text ~1px above the title's baseline. The
-                                  checkbox still wants centring, so only the text
-                                  runs go in here. */}
-                              <div className="flex items-baseline gap-s min-w-0">
-                                <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
-                                  {g.title}
-                                </span>
-                                <span className="font-body text-s text-text-tertiary whitespace-nowrap">
-                                  {g.videos.length} {g.videos.length === 1 ? 'session' : 'sessions'}
-                                </span>
-                              </div>
-                              <span className="flex-1" />
-                              <button
-                                type="button"
-                                onClick={() => setGroupSelected(ids, !all)}
-                                className="font-body text-xs font-semibold text-text-brand hover:underline"
-                              >
-                                {all ? 'Deselect batch' : 'Select batch'}
-                              </button>
-                            </div>
-                            <div className="grid gap-l w-full" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-                              {g.videos.map((v) => (
-                                <VideoLibraryCard
-                                  key={v.id}
-                                  layout="grid"
-                                  title={v.title}
-                                  dateLabel={formatDate(v.addedAt)}
-                                  source={v.source}
-                                  durationLabel={v.durationLabel}
-                                  thumbnailSrc={v.thumbnailSrc}
-                                  gradient={gradientFor(v.id)}
-                                  status={v.status}
-                                  progress={v.progress}
-                                  tags={v.tags}
-                                  errorMessage={v.error}
-                                  selected={selectedIds.has(v.id)}
-                                  checkboxVisibility="hover"
-                                  onToggleSelect={() => toggleSelect(v.id)}
-                                  onDelete={() => setDeleteIds([v.id])}
-                                  onRetry={() => retry(v.id)}
-                                  onSaveMeta={(next) => updateMeta(v.id, next)}
-                                  onOpen={() => setSelectedId(v.id)}
-                                />
-                              ))}
-                            </div>
-                          </section>
-                        )
-                      })
+                      <div className="grid gap-l w-full" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                        {shown.map((v) => (
+                          <VideoLibraryCard
+                            key={v.id}
+                            layout="grid"
+                            title={v.title}
+                            dateLabel={formatDate(v.addedAt)}
+                            source={v.source}
+                            durationLabel={v.durationLabel}
+                            thumbnailSrc={v.thumbnailSrc}
+                            gradient={gradientFor(v.id)}
+                            status={v.status}
+                            progress={v.progress}
+                            tags={v.tags}
+                            errorMessage={v.error}
+                            selected={selectedIds.has(v.id)}
+                            checkboxVisibility="always"
+                            onToggleSelect={() => toggleSelect(v.id)}
+                            onDelete={() => setDeleteIds([v.id])}
+                            onRetry={() => retry(v.id)}
+                            onSaveMeta={(next) => updateMeta(v.id, next)}
+                            onAddTags={() => setTagTargetIds([v.id])}
+                            onOpen={() => setSelectedId(v.id)}
+                          />
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -872,11 +868,11 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
             {/* Suggestions are the user vocabulary only — offering "Build V2.2"
                 here would invite hand-applying a batch, which ingest owns. */}
             <AddTagsDialog
-              isOpen={tagDialogOpen}
-              onClose={() => setTagDialogOpen(false)}
-              count={selectedIds.size}
+              isOpen={tagTargetIds !== null}
+              onClose={() => setTagTargetIds(null)}
+              count={tagTargetIds?.length ?? 0}
               suggestions={allTags.filter((t) => originByTag[t] === 'user')}
-              onConfirm={addTagsToSelection}
+              onConfirm={addTagsToTarget}
             />
 
             {/* ── Delete confirmation ── */}
@@ -950,7 +946,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                 variant="secondary"
                 size="md"
                 leftIcon={<PlusIcon size={16} />}
-                onClick={() => setTagDialogOpen(true)}
+                onClick={() => setTagTargetIds([...selectedIds])}
               >
                 Add tag
               </Button>

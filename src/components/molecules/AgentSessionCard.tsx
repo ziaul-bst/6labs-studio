@@ -1,11 +1,9 @@
 /**
  * AgentSessionCard — one AI player's session in a behavioural run's Videos tab.
  *
- * A session is a recording *and* an analysis: the thumbnail is the screen the
- * agent is on (or ended on), and the body says how far it got and how many
- * screens were flagged — because the flagged screens are what the report is
- * made of. That is the one number a reviewer scans a grid of twenty for, so it
- * is the only number in the body that takes colour.
+ * The thumbnail is a frame from the session — the screen the agent is on
+ * while it plays, a mid-session screen once it has finished — and the body
+ * says how far it got. The card judges nothing; the report does that.
  *
  * Live and finished sessions share one card. Live adds a pulsing LIVE badge and
  * a thin progress rule under the thumbnail; finished shows a play affordance
@@ -16,7 +14,7 @@
  */
 
 import { PlayIcon } from '../icons/PlayIcon'
-import { PERSONA_TONE, flaggedCount } from '../../lib/mocks/testing'
+import { PERSONA_TONE } from '../../lib/mocks/testing'
 import type { AgentSession } from '../../lib/types/testing'
 
 export interface AgentSessionCardProps {
@@ -30,10 +28,10 @@ export interface AgentSessionCardProps {
 export function AgentSessionCard({ session, onOpen, hidePersona = false, className }: AgentSessionCardProps) {
   const live = session.status === 'live'
   const latest = session.steps[Math.max(0, session.reached - 1)]
-  /* A live card shows where the agent is; a finished one shows its first
-     flagged screen — the frame a reviewer is most likely opening it for. */
-  const current = live ? latest : (session.steps.find((s) => s.flag) ?? latest)
-  const flagged = flaggedCount(session)
+  /* A live card shows where the agent is; a finished one shows a screen from
+     the middle of its session, varied per agent so a grid of twenty reads as
+     twenty recordings rather than one. */
+  const current = live ? latest : session.steps[Math.min(session.steps.length - 1, 2 + (session.index % 6))]
   const tone = PERSONA_TONE[session.persona] ?? 'var(--text-secondary)'
   const title = hidePersona ? `Agent ${session.index + 1}` : `${session.persona} · agent ${session.index + 1}`
 
@@ -41,7 +39,7 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
     <button
       type="button"
       onClick={() => onOpen?.(session)}
-      aria-label={`${title}, ${live ? `playing, screen ${session.reached} of ${session.steps.length}` : session.durationLabel}, ${flagged} flagged`}
+      aria-label={`${title}, ${live ? `playing, screen ${session.reached} of ${session.steps.length}` : session.durationLabel}`}
       className={[
         'agent-session-card flex flex-col w-full text-left rounded-2xl overflow-hidden',
         className,
@@ -100,11 +98,7 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
           <span className="font-display text-s font-semibold text-text-primary leading-[1.45] truncate">{title}</span>
         </span>
         <span className="font-body text-xs text-text-tertiary leading-[1.5] truncate">
-          {live ? `Playing · ${current.screen}` : `${session.steps.length} screens`}
-          {' · '}
-          <span className={flagged > 0 ? 'issue-amber-ink font-medium' : undefined}>
-            {flagged === 0 ? 'nothing flagged' : `${flagged} flagged${live ? ' so far' : ''}`}
-          </span>
+          {live ? `Playing · ${current.screen}` : `${session.steps.length} screens · ${session.personaDetail}`}
         </span>
       </span>
     </button>

@@ -34,6 +34,7 @@ import Button from '../ui/Button'
 import Checkbox from '../ui/Checkbox'
 import { TrashIcon } from '../icons/TrashIcon'
 import { EditIcon } from '../icons/EditIcon'
+import { PlusIcon } from '../icons/PlusIcon'
 import { CheckIcon } from '../icons/CheckIcon'
 import { EventTag } from '../atoms/EventTag'
 import { SystemTag } from '../atoms/SystemTag'
@@ -77,6 +78,13 @@ export interface VideoLibraryCardProps {
   onRetry?: () => void
   /** `tags` carries the edited USER tags only — system tags are not editable here */
   onSaveMeta?: (next: { title: string; tags: string[] }) => void
+  /**
+   * Tagging entry point for a clip nobody has tagged yet. Given a handler, a
+   * dashed pill takes the place the user tags would occupy — same shape and
+   * spot, so the empty slot reads as "this is where tags go" rather than as
+   * nothing. Omit it where tagging is not the job (the run-setup picker).
+   */
+  onAddTags?: () => void
   /**
    * Thumbnail click (fires for any status). What it means is the host's call:
    * the Library opens the player, the run-setup picker toggles selection — so
@@ -146,6 +154,7 @@ export function VideoLibraryCard({
   onDelete,
   onRetry,
   onSaveMeta,
+  onAddTags,
   onOpen,
   showRowActions = true,
   checkboxVisibility = 'always',
@@ -502,7 +511,7 @@ export function VideoLibraryCard({
               take their own line above
               the user's, unclamped: there are only ever a couple and they are
               the axis a test picks its footage along. */}
-          {libraryTags.length > 0 && (
+          {(libraryTags.length > 0 || onAddTags) && (
             <div className="flex flex-col gap-xxs pt-xs w-full min-w-0">
               {systemTags.length > 0 && (
                 <div className="flex flex-wrap gap-xxs w-full min-w-0">
@@ -511,12 +520,30 @@ export function VideoLibraryCard({
                   ))}
                 </div>
               )}
-              {userLabels.length > 0 && (
+              {userLabels.length > 0 ? (
                 <ClampTags
                   items={userLabels}
                   maxRows={2}
                   renderItem={(t) => <EventTag key={`up-${t}`} label={t} className="!rounded-[6px]" />}
                 />
+              ) : (
+                onAddTags && (
+                  <div className="flex flex-wrap gap-xxs w-full min-w-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        /* The card body opens the player; this must not. */
+                        e.stopPropagation()
+                        onAddTags()
+                      }}
+                      className="video-lib-add-tags inline-flex items-center gap-xxxs px-s py-[3px] rounded-[6px] font-body text-2xs font-medium tracking-[0.2px] leading-[16px] whitespace-nowrap"
+                      aria-label={`Add tags to ${title}`}
+                    >
+                      <PlusIcon size={12} />
+                      Add tags
+                    </button>
+                  </div>
+                )
               )}
             </div>
           )}

@@ -4,9 +4,8 @@
  * Report is what the run concluded; Videos is what it concluded it *from* —
  * every AI player's session, analysed screen by screen. The two tabs are the
  * same evidence at two zoom levels, and the screen says so: the report opens
- * with what it was built from, each finding's clips open the exact screen in
- * the exact session, and the Videos tab explains that flagged screens are
- * what became findings.
+ * with what it was built from, and each finding's clips open the exact screen
+ * in the exact session.
  *
  * While the run is still playing, the report is not pretended: the Report tab
  * shows the count of sessions done and points at the live sessions instead.
@@ -30,9 +29,8 @@ import Button from '../ui/Button'
 import Input from '../ui/Input'
 import { DownloadIcon } from '../icons/DownloadIcon'
 import { SearchIcon } from '../icons/SearchIcon'
-import { ChevronIcon } from '../icons/ChevronIcon'
 import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
-import { PERSONA_DETAIL, PERSONA_TONE, flaggedCount, type AgentClipRef } from '../../lib/mocks/testing'
+import { PERSONA_DETAIL, PERSONA_TONE, type AgentClipRef } from '../../lib/mocks/testing'
 import { TESTING_ACCENT_VARS } from '../../lib/studioAreas'
 import type { AgentSession, AIBehaviouralRunMeta, TestRunHistoryItem } from '../../lib/types/testing'
 import type { UserTestIssue } from '../../lib/types/userTest'
@@ -57,7 +55,6 @@ export interface AIBehaviouralRunViewProps {
 type IssueFilter = 'all' | 'bug' | 'friction'
 
 export type VideosStatusFilter = 'all' | 'live' | 'done'
-export type VideosLayout = 'grid' | 'list'
 
 export function AIBehaviouralRunView({
   run,
@@ -74,12 +71,12 @@ export function AIBehaviouralRunView({
   const failure = runFailureText(run)
   const done = sessions.filter((s) => s.status === 'done').length
   const screensAnalysed = sessions.reduce((acc, s) => acc + s.reached, 0)
-  const flaggedMoments = sessions.reduce((acc, s) => acc + flaggedCount(s), 0)
   const liveCount = sessions.length - done
+  /* The session a reader is pointed at while the run plays — the furthest-along live one. */
+  const liveSession = [...sessions].filter((s) => s.status === 'live').sort((a, b) => b.reached - a.reached)[0]
 
   /* The Videos tab's controls live in the tab row, so their state lives here. */
   const [status, setStatus] = useState<VideosStatusFilter>('all')
-  const [layout, setLayout] = useState<VideosLayout>('grid')
   const [persona, setPersona] = useState<string>('all')
   const [query, setQuery] = useState('')
 
@@ -150,6 +147,32 @@ export function AIBehaviouralRunView({
             />
           </header>
 
+          {inProgress && liveSession && (
+            /* While the run plays, the way into it is one click from anywhere:
+               how many agents are on the build right now, and a live session. */
+            <div
+              className="flex items-center gap-s w-full rounded-xl px-l py-s"
+              style={{ backgroundColor: 'var(--bg-tint-light)', border: '1px solid var(--border-tint)' }}
+              role="status"
+            >
+              <i className="agent-live-dot text-text-brand shrink-0" aria-hidden />
+              <span className="font-body text-s text-text-primary leading-[1.5]">
+                <span className="font-semibold">{liveCount} AI {liveCount === 1 ? 'player is' : 'players are'} playing now</span>
+                {' · '}
+                {done} of {meta.agents} sessions finished
+              </span>
+              <span className="flex-1" />
+              <button
+                type="button"
+                onClick={() => onOpenSession(liveSession.id)}
+                className="inline-flex items-center gap-xxs font-body text-s font-semibold text-text-brand leading-[1.5] hover:underline whitespace-nowrap"
+              >
+                Watch agent {liveSession.index + 1} live
+                <span aria-hidden>→</span>
+              </button>
+            </div>
+          )}
+
           <TestingTabs<AIBehaviouralRunTab>
             ariaLabel="Run sections"
             className="mt-xs"
@@ -183,20 +206,6 @@ export function AIBehaviouralRunView({
                 </>
               )}
               <span className="flex-1" />
-              {/* Same 40px as the pills and the search, and the search takes
-                  the control's 12px radius (see .library-search), so the row
-                  reads as one set of controls. */}
-              <SegmentedControl<VideosLayout>
-                ariaLabel="Layout"
-                size="lg"
-                tone="contrast"
-                value={layout}
-                onChange={setLayout}
-                options={[
-                  { value: 'grid', label: 'Grid' },
-                  { value: 'list', label: 'List' },
-                ]}
-              />
               <div className="library-search shrink-0 w-[300px]">
                 <Input
                   size="lg"
@@ -225,7 +234,8 @@ export function AIBehaviouralRunView({
               <ReportPending
                 done={done}
                 total={meta.agents}
-                flagged={flaggedMoments}
+                liveLabel={liveSession ? `Watch agent ${liveSession.index + 1} live` : undefined}
+                onWatchLive={liveSession ? () => onOpenSession(liveSession.id) : undefined}
                 onWatch={() => onTabChange('videos')}
               />
             ) : (
@@ -235,7 +245,6 @@ export function AIBehaviouralRunView({
                 sessions={sessions}
                 issues={issues}
                 screensAnalysed={screensAnalysed}
-                flaggedMoments={flaggedMoments}
                 onSeeSessions={() => onTabChange('videos')}
                 onOpenSession={onOpenSession}
               />
@@ -244,7 +253,6 @@ export function AIBehaviouralRunView({
             <VideosBody
               sessions={sessions}
               persona={persona}
-              layout={layout}
               status={status}
               query={query}
               onOpenSession={(s) => onOpenSession(s.id)}
@@ -261,12 +269,14 @@ export function AIBehaviouralRunView({
 function ReportPending({
   done,
   total,
-  flagged,
+  liveLabel,
+  onWatchLive,
   onWatch,
 }: {
   done: number
   total: number
-  flagged: number
+  liveLabel?: string
+  onWatchLive?: () => void
   onWatch: () => void
 }) {
   return (
@@ -285,18 +295,20 @@ function ReportPending({
           {done} of {total} sessions done
         </span>
         <ProgressBar value={(done / total) * 100} className="flex-1" />
-        <span className={['font-body text-s whitespace-nowrap', flagged ? 'issue-amber-ink font-medium' : 'text-text-tertiary'].join(' ')}>
-          {flagged} {flagged === 1 ? 'moment' : 'moments'} flagged so far
-        </span>
       </div>
       <p className="font-body text-s text-text-secondary leading-[1.65] max-w-[80ch] m-0">
         Every session is analysed screen by screen as it plays. Flagged screens become the report's
         findings, ranked by how many agents hit them — so the report cannot be written until the
         last agent has played.
       </p>
-      <div>
+      <div className="flex items-center gap-xs">
+        {onWatchLive && liveLabel && (
+          <Button variant="primary" size="md" onClick={onWatchLive}>
+            {liveLabel}
+          </Button>
+        )}
         <Button variant="secondary" size="md" onClick={onWatch}>
-          Watch the sessions live
+          All sessions
         </Button>
       </div>
     </div>
@@ -309,7 +321,6 @@ function ReportBody({
   sessions,
   issues,
   screensAnalysed,
-  flaggedMoments,
   onSeeSessions,
   onOpenSession,
 }: {
@@ -318,7 +329,6 @@ function ReportBody({
   sessions: AgentSession[]
   issues: AgentIssue[]
   screensAnalysed: number
-  flaggedMoments: number
   onSeeSessions: () => void
   onOpenSession: (sessionId: string, stepIndex?: number) => void
 }) {
@@ -342,7 +352,7 @@ function ReportBody({
       >
         <div className="flex flex-col gap-xxxs min-w-0 flex-1">
           <span className="font-display text-s font-semibold text-text-primary leading-[1.45]">
-            Built from {sessions.length} sessions · {screensAnalysed} screens analysed · {flaggedMoments} moments flagged
+            Built from {sessions.length} sessions · {screensAnalysed} screens analysed
           </span>
           <span className="font-body text-xs text-text-tertiary leading-[1.5]">
             Each finding below cites the screen it was seen on. Open a clip to see the agent's reasoning at that moment.
@@ -442,20 +452,18 @@ function ReportBody({
 
 /**
  * One list in one container, cut by the pills above it: persona is the run's
- * own dimension, so it is a filter rather than a set of sections. Grid shows
- * the frame each session is opened for; list is the denser scan.
+ * own dimension, so it is a filter rather than a set of sections. Cards show
+ * a frame from each session — the thing a session is opened for.
  */
 function VideosBody({
   sessions,
   persona,
-  layout,
   status,
   query,
   onOpenSession,
 }: {
   sessions: AgentSession[]
   persona: string
-  layout: VideosLayout
   status: VideosStatusFilter
   query: string
   onOpenSession: (session: AgentSession) => void
@@ -469,7 +477,6 @@ function VideosBody({
         (!q || `${s.persona} agent ${s.index + 1} ${s.steps[s.reached - 1]?.screen ?? ''}`.toLowerCase().includes(q)),
     )
   }, [sessions, persona, status, query])
-  const flagged = shown.reduce((acc, s) => acc + flaggedCount(s), 0)
 
   return (
     <section
@@ -482,7 +489,7 @@ function VideosBody({
           {persona === 'all' ? 'All sessions' : `${persona} sessions`}
         </span>
         <span className="font-body text-xs text-text-tertiary leading-[1.5]">
-          {shown.length} of {sessions.length} · <span className={flagged ? 'issue-amber-ink font-medium' : ''}>{flagged} flagged</span>
+          {shown.length} of {sessions.length}
         </span>
         {persona !== 'all' && PERSONA_DETAIL[persona] && (
           <>
@@ -493,8 +500,6 @@ function VideosBody({
       </div>
       {shown.length === 0 ? (
         <p className="font-body text-s text-text-tertiary leading-[1.6] px-l pb-l m-0">No sessions match.</p>
-      ) : layout === 'list' ? (
-        <SessionRows sessions={shown} onOpen={onOpenSession} />
       ) : (
         <div
           className="grid gap-m px-l pb-l pt-m"
@@ -506,97 +511,6 @@ function VideosBody({
         </div>
       )}
     </section>
-  )
-}
-
-/* Fixed widths for every column but the name — see RunHistoryList for why. */
-const ROW_GRID = '72px minmax(0, 1fr) 132px 96px 88px 88px 20px'
-
-function SessionRows({ sessions, onOpen }: { sessions: AgentSession[]; onOpen: (s: AgentSession) => void }) {
-  return (
-    <div className="flex flex-col w-full" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-      <div
-        className="grid items-center gap-m px-l pt-s pb-xs"
-        style={{ gridTemplateColumns: ROW_GRID, borderBottom: '1px solid var(--border-subtle)' }}
-        role="row"
-      >
-        <span aria-hidden />
-        <ColHead>Session</ColHead>
-        <ColHead>Status</ColHead>
-        <ColHead>Screens</ColHead>
-        <ColHead>Flagged</ColHead>
-        <ColHead>Length</ColHead>
-        <span aria-hidden />
-      </div>
-      {sessions.map((s, i) => {
-        const live = s.status === 'live'
-        const current = s.steps[Math.max(0, s.reached - 1)]
-        const poster = live ? current : (s.steps.find((st) => st.flag) ?? current)
-        const flagged = flaggedCount(s)
-        return (
-          <div
-            key={s.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => onOpen(s)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onOpen(s)
-              }
-            }}
-            className="run-history-row grid items-center gap-m px-l py-xs cursor-pointer"
-            style={{ gridTemplateColumns: ROW_GRID, borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)' }}
-          >
-            <span className="relative block w-[72px] h-[44px] rounded-m overflow-hidden" style={{ background: poster.scene }} aria-hidden>
-              {live && (
-                <i className="absolute left-0 right-0 bottom-0 block h-[3px]" style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}>
-                  <i className="block h-full" style={{ width: `${(s.reached / s.steps.length) * 100}%`, backgroundColor: 'var(--brand)' }} />
-                </i>
-              )}
-            </span>
-            <span className="flex flex-col gap-xxxs min-w-0">
-              <span className="flex items-center gap-xs min-w-0">
-                <i className="shrink-0 w-[8px] h-[8px] rounded-round" style={{ backgroundColor: PERSONA_TONE[s.persona] ?? 'var(--text-secondary)' }} aria-hidden />
-                <span className="font-display text-s font-semibold text-text-primary leading-[1.45] truncate">
-                  {s.persona} · agent {s.index + 1}
-                </span>
-              </span>
-              {live && (
-                <span className="font-body text-xs text-text-tertiary leading-[1.5] truncate">On {current.screen}</span>
-              )}
-            </span>
-            {live ? (
-              <span
-                className="inline-flex items-center gap-xs justify-self-start px-s py-xxs rounded-round font-body text-xs font-semibold whitespace-nowrap"
-                style={{ backgroundColor: 'var(--bg-tint)', color: 'var(--text-brand)' }}
-              >
-                <i className="agent-live-dot" aria-hidden />
-                Live
-              </span>
-            ) : (
-              <span className="font-body text-s text-text-tertiary leading-[1.5]">Finished</span>
-            )}
-            <span className="font-body text-s text-text-secondary leading-[1.5] whitespace-nowrap">
-              {live ? `${s.reached} of ${s.steps.length}` : s.steps.length}
-            </span>
-            <span className={['font-body text-s leading-[1.5]', flagged ? 'issue-amber-ink font-semibold' : 'text-text-tertiary'].join(' ')}>
-              {flagged || '—'}
-            </span>
-            <span className="font-body text-s text-text-tertiary leading-[1.5] whitespace-nowrap">{s.durationLabel}</span>
-            <ChevronIcon size={16} className="text-text-tertiary" />
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function ColHead({ children }: { children: ReactNode }) {
-  return (
-    <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5] truncate" role="columnheader">
-      {children}
-    </span>
   )
 }
 

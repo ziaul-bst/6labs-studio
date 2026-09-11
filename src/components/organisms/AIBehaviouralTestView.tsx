@@ -231,15 +231,10 @@ export function AIBehaviouralTestView({
           runName={activeRun.name}
           meta={activeMeta}
           instructions={instructions.trim() || DEFAULT_INSTRUCTIONS}
-          findings={Object.fromEntries(issues.map((i) => [i.id, { rank: i.rank, title: i.title }]))}
           initialStep={openSession?.step}
           onBack={() => {
             setOpenSession(null)
             setRunTab('videos')
-          }}
-          onOpenFinding={() => {
-            setOpenSession(null)
-            setRunTab('report')
           }}
           className={className}
         />
@@ -492,6 +487,16 @@ export function AIBehaviouralTestView({
             setOpenSession(null)
             setRunTab(run.state === 'progress' ? 'videos' : 'report')
             setOpenRun(run)
+          }}
+          /* Straight into the furthest-along live session of a run in flight —
+             the same session the run screen's live strip points at. */
+          onWatchLive={(run) => {
+            const live = buildAgentSessions(run.id, metaForRun(run), liveReached)
+              .filter((s) => s.status === 'live')
+              .sort((a, b) => b.reached - a.reached)[0]
+            setRunTab('videos')
+            setOpenRun(run)
+            setOpenSession(live ? { id: live.id } : null)
           }}
         />
       )}

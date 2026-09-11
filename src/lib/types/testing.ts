@@ -99,10 +99,14 @@ export type SessionLength = '15' | '30' | '60' | 'custom'
 export interface AgentStep {
   /** Screen the agent was on, in the game's own vocabulary — "Tutorial › Furnace". */
   screen: string
-  /** What the agent believed was going on, in the persona's voice. */
+  /** What was on the screen — the observation the reasoning starts from. */
+  saw: string
+  /** Why it chose the action, in the persona's voice. */
   reasoning: string
   /** What it decided to do next. */
   action: string
+  /** What the observe step after the action returned — "Observed 5000 ms · dialog appeared". */
+  observed?: string
   /** Seconds into the session when this screen was reached. */
   atSec: number
   /** Fill for the stand-in frame — real builds ship a still here. */

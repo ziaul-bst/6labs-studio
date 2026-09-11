@@ -37,6 +37,11 @@ import type { TestRunHistoryItem, TestRunKind, TestRunResult } from '../../lib/t
 export interface RunHistoryListProps {
   runs: TestRunHistoryItem[]
   onOpen?: (run: TestRunHistoryItem) => void
+  /**
+   * A way straight into a run that is still playing — the AI tests can show
+   * the live session. Rendered as a link on in-progress rows only.
+   */
+  onWatchLive?: (run: TestRunHistoryItem) => void
   /** Run to mark as just-created, so the list shows evidence something happened. */
   highlightId?: string | null
   /**
@@ -83,6 +88,7 @@ const MIXED_NAME_LABEL: Record<KindFilter, string> = {
 export function RunHistoryList({
   runs,
   onOpen,
+  onWatchLive,
   highlightId,
   metaLabel = 'Tag',
   nameLabel,
@@ -238,6 +244,21 @@ export function RunHistoryList({
                   >
                     Just started
                   </span>
+                )}
+                {inProgress && onWatchLive && (
+                  /* The one thing worth doing with a run in flight is watching
+                     it — so the row says so, without waiting for a click-through. */
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onWatchLive(run)
+                    }}
+                    className="inline-flex shrink-0 items-center gap-xxs font-body text-xs font-semibold text-text-brand leading-[1.5] hover:underline whitespace-nowrap"
+                  >
+                    <i className="agent-live-dot" aria-hidden />
+                    Watch live
+                  </button>
                 )}
               </span>
               {/* A failed row gives its line to why it stopped — that is the

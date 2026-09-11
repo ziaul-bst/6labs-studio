@@ -4,14 +4,12 @@
  *
  * The value of this screen is seeing a frame and its reading together, so the
  * two are the hero: the recording on the left, and beside it — at the same
- * height, in one panel — what the agent saw on *this* screen, what it did, and
- * whether the moment was flagged and which finding it became. Scrub the video
- * and the panel follows; step the panel and the video follows.
+ * height, in one panel — what the agent saw on *this* screen and what it did.
+ * Scrub the video and the panel follows; step the panel and the video follows.
  *
- * Everything else is secondary and sits below: a compact table of every
- * screen in order (time, screen, action, flag) for scanning the whole session
- * and jumping to a moment. Nothing there repeats the panel — the panel is
- * where a screen is read in full.
+ * Under the transport every screen sits as a frame in a filmstrip — the
+ * timeline, read by eye — and the frame you are on is outlined. Nothing on
+ * this screen judges a moment; the report does that.
  *
  * A live session is the same screen with fewer rows: screens the agent has
  * not reached yet are not listed, and the cursor rides the newest screen
@@ -20,15 +18,15 @@
  * Code-first prototype — from the PM artifact (screen s48), no Figma source yet.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PageTopbar } from '../molecules/PageTopbar'
 import { RunFacts } from '../molecules/RunFacts'
-import { IssueKindTag } from '../atoms/IssueKindTag'
 import Button from '../ui/Button'
 import { PlayIcon } from '../icons/PlayIcon'
 import { ChevronIcon } from '../icons/ChevronIcon'
-import { PERSONA_TONE, flaggedCount, formatSessionTime } from '../../lib/mocks/testing'
+import { CheckIcon } from '../icons/CheckIcon'
+import { PERSONA_TONE, formatSessionTime } from '../../lib/mocks/testing'
 import type { AgentSession, AIBehaviouralRunMeta } from '../../lib/types/testing'
 
 export interface AIAgentSessionViewProps {
@@ -37,30 +35,21 @@ export interface AIAgentSessionViewProps {
   meta: AIBehaviouralRunMeta
   /** The players' brief for this run, if one was given. */
   instructions?: string
-  /** Rank and title per issue id, so a flag can name the finding it became. */
-  findings: Record<string, { rank: number; title: string }>
   /** Screen to land on — a clip in the report arrives here. */
   initialStep?: number
   onBack: () => void
-  /** Opens the run's report at a finding. */
-  onOpenFinding?: (issueId: string) => void
   className?: string
 }
 
 const PLAY_MS = 1800
-
-/* Fixed widths for every column but the screen name — see RunHistoryList. */
-const ROW_GRID = '56px 52px minmax(0, 1.1fr) minmax(0, 1.4fr) 92px 20px'
 
 export function AIAgentSessionView({
   session,
   runName,
   meta,
   instructions,
-  findings,
   initialStep,
   onBack,
-  onOpenFinding,
   className,
 }: AIAgentSessionViewProps) {
   const live = session.status === 'live'
@@ -70,11 +59,10 @@ export function AIAgentSessionView({
   const [idx, setIdx] = useState(() => Math.min(initialStep ?? (live ? last : 0), last))
   const [playing, setPlaying] = useState(initialStep === undefined)
   const [following, setFollowing] = useState(live && initialStep === undefined)
+  const stripRef = useRef<HTMLDivElement>(null)
   const step = session.steps[idx]
   const tone = PERSONA_TONE[session.persona] ?? 'var(--text-secondary)'
-  const flagged = flaggedCount(session)
   const durationSec = session.steps[total - 1].atSec + 20
-  const finding = step.flag ? findings[step.flag.issueId] : undefined
 
   /* Following live: the cursor rides the newest screen as the run reaches it. */
   useEffect(() => {
@@ -111,6 +99,17 @@ export function AIAgentSessionView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, last])
 
+  /* Keep the current frame in view in the filmstrip — scrolling only the
+     strip, never the page. */
+  useEffect(() => {
+    const box = stripRef.current
+    const el = box?.querySelector<HTMLElement>('[data-active="true"]')
+    if (!box || !el) return
+    const b = box.getBoundingClientRect()
+    const r = el.getBoundingClientRect()
+    box.scrollTo({ left: box.scrollLeft + (r.left - b.left) - (b.width - r.width) / 2, behavior: 'smooth' })
+  }, [idx])
+
   const timeLabel = `${formatSessionTime(step.atSec)} / ${live ? formatSessionTime(session.steps[last].atSec) : formatSessionTime(durationSec)}`
 
   return (
@@ -146,58 +145,53 @@ export function AIAgentSessionView({
       />
 
       <div className="flex-1 w-full">
-        <div className="flex flex-col gap-m w-full page-measure mx-auto pt-l pb-xxl3">
+        {/* Wider than the reading measure: the frame is the point of this
+            screen, and the panel beside it needs room to breathe. */}
+        <div className="flex flex-col gap-m w-full page-measure page-measure-wide mx-auto pt-l pb-xxl3">
           {/* ── The hero: recording and the reading of the current screen ── */}
           <section
             className="flex flex-col w-full rounded-2xl overflow-hidden"
             style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
           >
-            {/* Who is playing, under what brief. Identity and the two run facts
-                share a row with room between them; the brief gets a line of
-                its own, at reading weight, and wraps rather than truncates —
-                it is the one thing the reader needs to judge every action. */}
+            {/* Who is playing, and the two run facts, on one row: identity
+                left, facts right. The brief sits under the frame, where it can
+                run long without pushing the video down. */}
             <header
-              className="flex flex-col gap-m w-full min-w-0 px-xl py-l"
+              className="flex items-center gap-xl w-full min-w-0 flex-wrap px-xl py-l"
               style={{ borderBottom: '1px solid var(--border-subtle)' }}
             >
-              <div className="flex items-center gap-xl w-full min-w-0 flex-wrap">
-                <div className="flex items-center gap-m shrink-0 min-w-0">
-                  <span
-                    className="flex items-center justify-center shrink-0 w-[44px] h-[44px] rounded-xl text-white"
-                    style={{ backgroundColor: tone }}
-                    aria-hidden
-                  >
-                    <PersonaGlyph />
-                  </span>
-                  <div className="flex flex-col gap-xxxs min-w-0">
-                    <span className="font-display text-m font-semibold text-text-primary leading-[1.35]">
-                      {session.persona} · agent {session.index + 1} of {meta.agents}
-                    </span>
-                    <span className="font-body text-s text-text-tertiary leading-[1.5]">{session.personaDetail}</span>
-                  </div>
-                </div>
-                <span className="flex-1" />
-                <RunFacts
-                  className="w-auto shrink-0 gap-x-xxl"
-                  facts={[
-                    { label: 'Build', value: meta.build },
-                    { label: 'Session length', value: meta.lengthLabel },
-                  ]}
-                />
-              </div>
-              {instructions && (
-                /* The brief, quoted: it is the players' own words for the run,
-                   so it reads as a citation rather than another fact row. */
-                <blockquote
-                  className="flex flex-col gap-xxs w-full min-w-0 m-0 px-m py-s rounded-xl"
-                  style={{ backgroundColor: 'var(--bg-tint-light)', borderLeft: '3px solid var(--border-tint)' }}
+              <div className="flex items-center gap-m shrink-0 min-w-0">
+                <span
+                  className="flex items-center justify-center shrink-0 w-[44px] h-[44px] rounded-xl text-white"
+                  style={{ backgroundColor: tone }}
+                  aria-hidden
                 >
-                  <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
-                    Instructions to the players
+                  <PersonaGlyph />
+                </span>
+                <div className="flex flex-col gap-xxxs min-w-0">
+                  <span className="flex items-center gap-s font-display text-m font-semibold text-text-primary leading-[1.35]">
+                    {session.persona} · agent {session.index + 1} of {meta.agents}
+                    {live && (
+                      <span
+                        className="inline-flex items-center gap-xxs px-xs py-xxxs rounded-round font-body text-xs font-semibold"
+                        style={{ backgroundColor: 'var(--bg-tint)', color: 'var(--text-brand)' }}
+                      >
+                        <i className="agent-live-dot" aria-hidden />
+                        AI playing now
+                      </span>
+                    )}
                   </span>
-                  <p className="font-body text-s text-text-secondary leading-[1.6] m-0 max-w-[90ch]">“{instructions}”</p>
-                </blockquote>
-              )}
+                  <span className="font-body text-s text-text-tertiary leading-[1.5]">{session.personaDetail}</span>
+                </div>
+              </div>
+              <span className="flex-1" />
+              <RunFacts
+                className="w-auto shrink-0 gap-x-xxl"
+                facts={[
+                  { label: 'Build', value: meta.build },
+                  { label: 'Session length', value: meta.lengthLabel },
+                ]}
+              />
             </header>
 
             <div className="agent-session-layout w-full">
@@ -207,11 +201,23 @@ export function AIAgentSessionView({
                   className="agent-frame relative w-full overflow-hidden"
                   style={{ aspectRatio: '16 / 9', background: step.scene, transition: 'background 300ms ease' }}
                 >
-                  <span className="absolute left-m top-s flex gap-xs" aria-hidden>
-                    <i className="block w-[54px] h-[12px] rounded-xs" style={{ backgroundColor: 'rgba(255,220,130,0.5)' }} />
-                    <i className="block w-[36px] h-[12px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
-                    <i className="block w-[36px] h-[12px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
-                  </span>
+                  {live ? (
+                    /* The one place a reader must not mistake a recording for a
+                       replay: the frame itself says an AI is playing it now. */
+                    <span
+                      className="absolute left-m top-s inline-flex items-center gap-xs px-s py-xxs rounded-round font-display text-xs font-semibold uppercase tracking-[0.08em] text-white"
+                      style={{ backgroundColor: 'rgba(15,27,51,0.72)' }}
+                    >
+                      <i className="agent-live-dot" style={{ color: 'var(--error)' }} aria-hidden />
+                      AI playing · live
+                    </span>
+                  ) : (
+                    <span className="absolute left-m top-s flex gap-xs" aria-hidden>
+                      <i className="block w-[54px] h-[12px] rounded-xs" style={{ backgroundColor: 'rgba(255,220,130,0.5)' }} />
+                      <i className="block w-[36px] h-[12px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
+                      <i className="block w-[36px] h-[12px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
+                    </span>
+                  )}
                   <span
                     className="absolute right-m top-s px-xs py-xxxs rounded-s font-code text-xs text-white"
                     style={{ backgroundColor: 'rgba(15,27,51,0.72)' }}
@@ -234,8 +240,8 @@ export function AIAgentSessionView({
                   </span>
                 </div>
 
-                {/* Transport — the scrub carries the flagged moments, so the
-                    shape of the session is readable before pressing play. */}
+                {/* Transport, then the filmstrip: the same timeline twice — once
+                    as a bar to scrub, once as frames to read. */}
                 <div
                   className="flex items-center gap-s px-m h-[56px]"
                   style={{ borderTop: '1px solid var(--border-subtle)' }}
@@ -269,30 +275,51 @@ export function AIAgentSessionView({
                       className="absolute left-0 top-0 h-full rounded-round"
                       style={{ width: `${((idx + 1) / total) * 100}%`, backgroundColor: 'var(--brand)', transition: 'width 300ms ease' }}
                     />
-                    {session.steps.slice(0, reached).map((s, i) =>
-                      s.flag ? (
-                        <b
-                          key={i}
-                          className="absolute top-[-3px] w-[12px] h-[12px] rounded-round -translate-x-1/2"
-                          style={{
-                            left: `${((i + 0.5) / total) * 100}%`,
-                            backgroundColor: s.flag.kind === 'bug' ? 'var(--error)' : 'var(--warning)',
-                            border: '2px solid var(--bg-elements)',
-                          }}
-                          aria-hidden
-                        />
-                      ) : null,
-                    )}
                   </div>
                   <span className="font-body text-xs text-text-tertiary whitespace-nowrap">
                     Screen {idx + 1} of {live ? `${reached} · ${total} planned` : total}
                   </span>
                 </div>
+
+                <div ref={stripRef} className="agent-filmstrip flex gap-xs overflow-x-auto px-m pb-m" aria-label="Frames">
+                  {session.steps.map((s, i) => {
+                    const future = i >= reached
+                    const active = i === idx
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={future}
+                        data-active={active}
+                        onClick={() => select(i)}
+                        aria-label={`Screen ${i + 1}, ${s.screen}`}
+                        title={s.screen}
+                        className="relative shrink-0 w-[104px] h-[62px] rounded-m overflow-hidden"
+                        style={{
+                          background: s.scene,
+                          opacity: future ? 0.3 : active ? 1 : 0.72,
+                          outline: active ? '2px solid var(--brand)' : '2px solid transparent',
+                          outlineOffset: -2,
+                          cursor: future ? 'default' : 'pointer',
+                        }}
+                      >
+                        <span
+                          className="absolute left-xxs bottom-xxs px-xxs rounded-xs font-code text-2xs text-white"
+                          style={{ backgroundColor: 'rgba(15,27,51,0.6)' }}
+                        >
+                          {formatSessionTime(s.atSec)}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
-              {/* The reading of this screen. Hierarchy: which screen, then what
-                  the agent saw and did, then — only when it matters — the flag
-                  and the finding it fed. */}
+              {/* The reading of this screen, in the order the agent lived it:
+                  what it saw (plain), why it decided (its own voice, set apart
+                  on a pale ground), what it did (bold — the one line the eye
+                  lands on) and what that produced (green, small). Three
+                  weights, so a reader can scan straight to any one of them. */}
               <aside
                 className="agent-screen-panel flex flex-col min-w-0"
                 aria-label="Analysis of the current screen"
@@ -303,50 +330,39 @@ export function AIAgentSessionView({
                     <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
                       Screen {idx + 1} · {formatSessionTime(step.atSec)}
                     </span>
-                    <span className="flex items-center gap-s flex-wrap">
-                      <h2 className="font-display text-l font-semibold text-text-primary leading-[1.25] tracking-[-0.01em] m-0">
-                        {step.screen}
-                      </h2>
-                      {step.flag && <IssueKindTag kind={step.flag.kind} />}
-                    </span>
+                    <h2 className="font-display text-l font-semibold text-text-primary leading-[1.25] tracking-[-0.01em] m-0">
+                      {step.screen}
+                    </h2>
                   </div>
 
-                  <Reading label="What the agent saw">{step.reasoning}</Reading>
-                  <Reading label="What it did">
-                    <span className="font-display font-semibold text-text-primary">{step.action}</span>
-                  </Reading>
+                  <Reading label="Saw">{step.saw}</Reading>
 
-                  {step.flag ? (
-                    <div
-                      className="flex flex-col gap-xs rounded-xl px-m py-s"
-                      style={{
-                        backgroundColor: step.flag.kind === 'bug' ? 'var(--error-bg)' : 'var(--warning-bg)',
-                      }}
-                    >
-                      <span
-                        className={['font-body text-s leading-[1.55]', step.flag.kind === 'bug' ? '' : 'issue-amber-ink'].join(' ')}
-                        style={step.flag.kind === 'bug' ? { color: 'var(--error)' } : undefined}
-                      >
-                        {step.flag.note}
+                  <div
+                    className="flex flex-col gap-xxxs rounded-xl px-m py-s"
+                    style={{ backgroundColor: 'var(--bg-page-pale)', borderLeft: '3px solid var(--border-default)' }}
+                  >
+                    <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
+                      Reasoning
+                    </span>
+                    <span className="font-body text-s text-text-primary leading-[1.6]">“{step.reasoning}”</span>
+                  </div>
+
+                  <div className="flex flex-col gap-xxs">
+                    <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
+                      Did
+                    </span>
+                    <span className="inline-flex items-start gap-xs font-display text-m font-semibold text-text-primary leading-[1.4]">
+                      <span className="text-text-tertiary shrink-0" aria-hidden>→</span>
+                      {step.action}
+                    </span>
+                    {step.observed && (
+                      <span className="inline-flex items-center gap-xxs font-body text-xs font-medium leading-[1.5]" style={{ color: 'var(--success)' }}>
+                        <CheckIcon size={12} />
+                        {step.observed}
                       </span>
-                      {finding ? (
-                        <button
-                          type="button"
-                          onClick={() => onOpenFinding?.(step.flag!.issueId)}
-                          className="inline-flex items-center gap-xxs self-start max-w-full font-body text-s font-semibold text-text-brand leading-[1.5] hover:underline min-w-0"
-                        >
-                          <span className="truncate">Finding #{finding.rank} · {finding.title}</span>
-                          <ChevronIcon size={12} className="shrink-0" />
-                        </button>
-                      ) : (
-                        <span className="font-body text-xs text-text-tertiary leading-[1.5]">
-                          Becomes a finding once every session has finished.
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="font-body text-xs text-text-tertiary leading-[1.5]">Nothing flagged on this screen.</span>
-                  )}
+                    )}
+                  </div>
+
                 </div>
 
                 {/* Same 56px as the transport beside it, so the two rows read
@@ -382,74 +398,22 @@ export function AIAgentSessionView({
                 </div>
               </aside>
             </div>
+
+            {instructions && (
+              /* The brief, quoted, at the foot of the card: it can run to a
+                 paragraph without moving the frame. */
+              <blockquote
+                className="flex flex-col gap-xxs w-full min-w-0 m-0 px-xl py-m"
+                style={{ backgroundColor: 'var(--bg-tint-light)', borderTop: '1px solid var(--border-subtle)' }}
+              >
+                <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
+                  Instructions to the players
+                </span>
+                <p className="font-body text-s text-text-secondary leading-[1.6] m-0 max-w-[110ch]">“{instructions}”</p>
+              </blockquote>
+            )}
           </section>
 
-          {/* ── Every screen, in order ── */}
-          <section
-            className="flex flex-col w-full rounded-2xl overflow-hidden"
-            style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
-            aria-label="All screens in this session"
-          >
-            <div className="flex items-baseline gap-xs px-l pt-l pb-m">
-              <h2 className="font-display text-s font-semibold text-text-primary leading-[1.5] m-0">Screen by screen</h2>
-              <span className="font-body text-xs text-text-tertiary leading-[1.5]">
-                {reached}{live ? ` of ${total}` : ''} screens ·{' '}
-                <span className={flagged ? 'issue-amber-ink font-medium' : ''}>{flagged} flagged</span>
-              </span>
-            </div>
-            <div
-              className="grid items-center gap-m px-l pb-xs"
-              style={{ gridTemplateColumns: ROW_GRID, borderBottom: '1px solid var(--border-subtle)' }}
-              role="row"
-            >
-              <span aria-hidden />
-              <ColHead>Time</ColHead>
-              <ColHead>Screen</ColHead>
-              <ColHead>What it did</ColHead>
-              <ColHead>Flag</ColHead>
-              <span aria-hidden />
-            </div>
-            <div className="flex flex-col w-full">
-              {session.steps.slice(0, reached).map((s, i) => {
-                const active = i === idx
-                return (
-                  <div
-                    key={i}
-                    role="button"
-                    tabIndex={0}
-                    data-active={active}
-                    onClick={() => select(i)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') select(i)
-                    }}
-                    className="agent-step-row grid items-center gap-m px-l py-xs cursor-pointer"
-                    style={{
-                      gridTemplateColumns: ROW_GRID,
-                      borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)',
-                      boxShadow: active ? 'inset 3px 0 0 var(--brand)' : undefined,
-                    }}
-                  >
-                    <span className="block w-[56px] h-[34px] rounded-s" style={{ background: s.scene }} aria-hidden />
-                    <span className="font-code text-xs text-text-tertiary leading-[1.5]">{formatSessionTime(s.atSec)}</span>
-                    <span className="font-display text-s font-semibold text-text-primary leading-[1.45] truncate">{s.screen}</span>
-                    <span className="font-body text-s text-text-secondary leading-[1.5] truncate">{s.action}</span>
-                    <span className="flex items-center min-w-0">
-                      {s.flag ? <IssueKindTag kind={s.flag.kind} /> : <span className="font-body text-s text-text-tertiary">—</span>}
-                    </span>
-                    <ChevronIcon size={16} className="text-text-tertiary" />
-                  </div>
-                )
-              })}
-              {live && (
-                <div className="flex items-center gap-s px-l py-m" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                  <span className="testing-spinner-sm shrink-0" aria-hidden />
-                  <span className="font-body text-xs text-text-tertiary leading-[1.5]">
-                    Playing screen {reached + 1} of {total}…
-                  </span>
-                </div>
-              )}
-            </div>
-          </section>
         </div>
       </div>
     </div>
@@ -462,14 +426,6 @@ function Reading({ label, children }: { label: string; children: ReactNode }) {
       <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">{label}</span>
       <span className="font-body text-s text-text-secondary leading-[1.6]">{children}</span>
     </div>
-  )
-}
-
-function ColHead({ children }: { children: ReactNode }) {
-  return (
-    <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5] truncate" role="columnheader">
-      {children}
-    </span>
   )
 }
 

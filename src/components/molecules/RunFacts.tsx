@@ -28,7 +28,7 @@ export interface RunFactsProps {
 
 export function RunFacts({ facts, className }: RunFactsProps) {
   return (
-    <dl className={['flex flex-wrap items-start gap-x-xl gap-y-s m-0 w-full min-w-0', className].filter(Boolean).join(' ')}>
+    <dl className={['flex flex-wrap items-start gap-x-xl gap-y-s m-0 min-w-0', className].filter(Boolean).join(' ')}>
       {facts.map((f) => (
         <div key={f.label} className={['flex flex-col gap-xxxs min-w-0', f.grow ? 'flex-1 basis-[240px]' : ''].filter(Boolean).join(' ')}>
           <dt className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5] whitespace-nowrap">

@@ -1,12 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { AIAgentSessionView } from './AIAgentSessionView'
-import { AI_BEHAVIOURAL_HISTORY, AI_BEHAVIOURAL_RUN_META, buildAgentIssues, buildAgentSessions } from '../../lib/mocks/testing'
+import { AI_BEHAVIOURAL_HISTORY, AI_BEHAVIOURAL_RUN_META, buildAgentSessions } from '../../lib/mocks/testing'
 
 const run = AI_BEHAVIOURAL_HISTORY[0]
 const meta = AI_BEHAVIOURAL_RUN_META[run.id]
 const sessions = buildAgentSessions(run.id, meta)
-const issues = buildAgentIssues(sessions, 9)
-const findings = Object.fromEntries(issues.map((i) => [i.id, { rank: i.rank, title: i.title }]))
 const liveSessions = buildAgentSessions('demo-running', { ...meta, finished: 12 }, 6)
 
 const storyMeta = {
@@ -19,7 +17,6 @@ const storyMeta = {
     runName: run.name,
     meta,
     instructions: 'Focus on the Frost Festival event. Try the battle pass upgrade path if it appears.',
-    findings,
     onBack: () => {},
   },
 } satisfies Meta<typeof AIAgentSessionView>
@@ -27,11 +24,11 @@ const storyMeta = {
 export default storyMeta
 type Story = StoryObj<typeof storyMeta>
 
-/** A finished session — frame, transport with flags marked, and the analysis rail. */
+/** A finished session — frame, transport, filmstrip, and the reading of the current screen. */
 export const Finished: Story = {}
 
-/** Arrived from a clip in the report — lands on the flagged screen, paused. */
+/** Arrived from a clip in the report — lands on that screen, paused. */
 export const FromReportClip: Story = { args: { initialStep: 3 } }
 
-/** A session still playing — only the reached screens are listed; following live. */
+/** A session still playing — frames the agent has not reached are dimmed; following live. */
 export const Live: Story = { args: { session: liveSessions[14] } }
