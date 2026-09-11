@@ -1,12 +1,24 @@
 /**
  * Sidebar — Primary navigation panel for 6labs Studio.
- * Variants: Expanded (280px), Collapsed (60px icon-only).
+ * Variants: Expanded (300px), Collapsed (60px icon-only).
+ * 300 rather than 280 (2026-09-09): the Intelligence / Testing segment and the
+ * longer Testing row labels need the room once translated.
  * Animates between states with CSS transition.
+ *
+ * The sidebar is **area-driven**: its nav, context and history sections are all
+ * derived from the active area's config in `lib/studioAreas.ts`, so Intelligence
+ * and Testing share one component and one data shape rather than being two
+ * structural variants. The area switch itself renders only when the account is
+ * entitled to more than one area — see AreaSegment.
  *
  * Interactions:
  *  - Header: collapse icon (expanded) / expand icon on hover (collapsed)
- *  - Game card: opens game selector dropdown
- *  - Footer profile: opens language selector overlay
+ *  - Area segment: switches area, sidebar contents follow
+ *  - Game card: opens the game selector dropdown (`sidebar-top`), sits in the
+ *    footer row beside the avatar (`footer-inline`), or lives inside the
+ *    footer profile menu (`footer-menu`)
+ *  - Footer profile: language overlay, or the profile menu — which carries the
+ *    game section only when the game has no control of its own
  *
  * @figmaComponent  Sidebar
  * @figmaNode       2466:48531
@@ -14,8 +26,7 @@
  * @figmaUrl        https://www.figma.com/design/i9fxQ6pXrgRITEzopoXpWL/6labs?node-id=2466-48531
  */
 
-import { useState, useRef, useEffect } from 'react'
-import { HomeIcon } from '../icons/HomeIcon'
+import { useState, useRef, useEffect, type ComponentType } from 'react'
 import { RadiologistIcon } from '../icons/RadiologistIcon'
 import { OracleIcon } from '../icons/OracleIcon'
 import { ForecasterIcon } from '../icons/ForecasterIcon'
@@ -34,9 +45,64 @@ import { GameSelectorDropdown } from '../molecules/GameSelectorDropdown'
 import { SidebarNavItem } from '../molecules/SidebarNavItem'
 import { SidebarTaskItem } from '../molecules/SidebarTaskItem'
 import { SidebarProfile } from '../molecules/SidebarProfile'
+import { SidebarProfileMenu } from '../molecules/SidebarProfileMenu'
+import { SidebarFooterGame } from '../molecules/SidebarFooterGame'
 import { LanguageSelector } from '../molecules/LanguageSelector'
+import { AreaSegment } from '../molecules/AreaSegment'
+import { MembersIcon } from '../icons/MembersIcon'
+import { QueryIcon } from '../icons/QueryIcon'
+import { GridIcon } from '../icons/GridIcon'
+import { FunctionalTestIcon } from '../icons/FunctionalTestIcon'
+import { AIPlayerIcon } from '../icons/AIPlayerIcon'
+import { AgencyTestIcon } from '../icons/AgencyTestIcon'
+import { BetaTestIcon } from '../icons/BetaTestIcon'
+import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
+import { AIScaleIcon } from '../icons/AIScaleIcon'
+import { TestCaseGenIcon } from '../icons/TestCaseGenIcon'
+import { LocalizationIcon } from '../icons/LocalizationIcon'
+import type { IconProps } from '../icons/types'
+import {
+  AREA_NAV,
+  type AreaEntitlement,
+  type GamePlacement,
+  type NavIconKey,
+  type NavTone,
+  type StudioArea,
+} from '../../lib/studioAreas'
 
-type ActiveNav = 'home' | 'barista' | 'library' | 'radiologist' | 'oracle' | 'forecaster' | 'coach' | 'guardian' | 'specialized' | 'uploads' | 'connectors'
+type ActiveNav =
+  | 'home' | 'barista' | 'library' | 'radiologist' | 'oracle' | 'forecaster'
+  | 'coach' | 'guardian' | 'specialized' | 'uploads' | 'connectors'
+  | 'testing-home' | 'functional-test' | 'agency-test' | 'user-test' | 'beta-test'
+  | 'ai-functional-test' | 'ai-behavioural-test' | 'ai-scale-test' | 'test-case-gen' | 'lqa'
+
+
+/**
+ * Nav icons, resolved from the area config's string keys so `studioAreas.ts`
+ * stays free of JSX. Each area's landing row gets its own icon — `query` for
+ * Intelligence, `overview` for Testing — so the two never read as the same
+ * "Home" in the collapsed 60px column.
+ */
+const NAV_ICONS: Record<NavIconKey, ComponentType<IconProps>> = {
+  query: QueryIcon,
+  overview: GridIcon,
+  oracle: OracleIcon,
+  radiologist: RadiologistIcon,
+  forecaster: ForecasterIcon,
+  specialized: SpecializedAgentsIcon,
+  uploads: UploadIcon,
+  connectors: ConnectorIcon,
+  library: VideoLibraryIcon,
+  'functional-test': FunctionalTestIcon,
+  'agency-test': AgencyTestIcon,
+  'user-test': MembersIcon,
+  'beta-test': BetaTestIcon,
+  'ai-functional-test': AIPlayerIcon,
+  'ai-behavioural-test': AIBehaviouralIcon,
+  'ai-scale-test': AIScaleIcon,
+  'test-case-gen': TestCaseGenIcon,
+  lqa: LocalizationIcon,
+}
 
 const DEFAULT_HISTORY_ITEMS: HistoryItem[] = [
   { id: 'h1', query: 'Show me players who got booyah' },
@@ -44,6 +110,9 @@ const DEFAULT_HISTORY_ITEMS: HistoryItem[] = [
   { id: 'h3', query: 'Show me players who played the most matches' },
   { id: 'h4', query: 'Show me players with the best squad win rate' },
 ]
+
+/** Expanded width. Exported so the page shell and stories stay in step. */
+export const SIDEBAR_WIDTH = 300
 
 export interface HistoryItem {
   id: string
@@ -120,6 +189,19 @@ interface SidebarProps {
   activeHistoryId?: string | null
   /** Called when a history item is clicked */
   onHistoryClick?: (id: string) => void
+  /**
+   * Areas the account can see. Fewer than two renders no area segment at all —
+   * that is the whole single-area treatment.
+   */
+  areas?: AreaEntitlement[]
+  /** Active area. The nav, context and history sections derive from it. */
+  area?: StudioArea
+  onAreaChange?: (area: StudioArea) => void
+  /** Under PM review — see NavReviewSwitcher. */
+  gamePlacement?: GamePlacement
+  /** Nav ids sold separately and not on this plan — rows stay, marked with a lock. */
+  lockedNavs?: string[]
+  onLogout?: () => void
 }
 
 export function Sidebar({
@@ -136,16 +218,45 @@ export function Sidebar({
   historyItems,
   activeHistoryId,
   onHistoryClick,
+  areas = [{ area: 'intelligence', entitlement: 'entitled' }, { area: 'testing', entitlement: 'entitled' }],
+  area = 'intelligence',
+  onAreaChange,
+  gamePlacement = 'sidebar-top',
+  lockedNavs = [],
+  onLogout,
 }: SidebarProps) {
   const displayHistory = historyItems ?? DEFAULT_HISTORY_ITEMS
   const hasActiveHistory = !!activeHistoryId
-  const [agentsExpanded, setAgentsExpanded] = useState(true)
+  /* Collapsed groups, by label. Every group starts open; the state is per group
+     so folding AI testing never touches Human testing or Core Agents. */
+  const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set())
+  const isGroupOpen = (label: string) => !closedGroups.has(label)
+  const toggleGroup = (label: string) =>
+    setClosedGroups((prev) => {
+      const next = new Set(prev)
+      next.has(label) ? next.delete(label) : next.add(label)
+      return next
+    })
   const [gameDropdownOpen, setGameDropdownOpen] = useState(false)
   const [langSelectorOpen, setLangSelectorOpen] = useState(false)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [historyExpanded, setHistoryExpanded] = useState(true)
   const [headerHovered, setHeaderHovered] = useState(false)
 
   const gameCardRef = useRef<HTMLDivElement>(null)
   const profileRef = useRef<HTMLDivElement>(null)
+
+  const navConfig = AREA_NAV[area]
+  const gameInSidebar = gamePlacement === 'sidebar-top'
+  /* Game as its own control in the footer row, beside the avatar. */
+  const gameBesideProfile = gamePlacement === 'footer-inline'
+  /* Game hidden inside the profile menu, with the profile row as its indicator. */
+  const gameInProfileMenu = gamePlacement === 'footer-menu'
+  /* One entitled area means there is no switch at all, so no slot for one. */
+  const showSegment = areas.length > 1
+  /* Testing has no Oracle threads of its own yet — its history is run-shaped. */
+  const historyConfig =
+    navConfig.history?.kind === 'oracle-threads' ? navConfig.history : null
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -168,7 +279,7 @@ export function Sidebar({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [gameDropdownOpen, langSelectorOpen])
 
-  const width = collapsed ? 60 : 280
+  const width = collapsed ? 60 : SIDEBAR_WIDTH
 
   return (
     <div
@@ -218,187 +329,250 @@ export function Sidebar({
         )}
       </div>
 
-      {/* ── Sidebar Items ── */}
+      {/* -- Sidebar Items -- */}
       <div className="flex flex-1 flex-col gap-s items-start min-h-0 w-full overflow-hidden">
 
-        {/* Game context card */}
-        <div className="shrink-0 w-full relative" ref={gameCardRef}>
-          {collapsed ? (
-            <div className="flex flex-col items-start w-full">
-              <button
-                className="flex gap-xs items-start p-xs shrink-0 w-full cursor-pointer relative"
-                style={{ backgroundColor: 'var(--bg-tint-light)' }}
-                onClick={() => setGameDropdownOpen(!gameDropdownOpen)}
-              >
-                <div className="relative shrink-0 w-[24px] h-[24px]">
-                  <div className="absolute inset-0 rounded-[4px] overflow-hidden">
-                    <div className="absolute inset-0 bg-[#1f1637] rounded-[4px]" />
-                    {gameImageUrl && (
-                      <img src={gameImageUrl} alt={gameName} className="absolute inset-0 w-full h-full object-cover rounded-[4px]" />
-                    )}
+        {/* Scope block: game, then area inside it.
+            One region owns the whole hierarchy -- game -> area -> agent -- so the
+            switch can never be mistaken for a filter on the list below it. */}
+        {(gameInSidebar || showSegment) && (
+          <div className="flex flex-col items-start shrink-0 w-full">
+
+            {/* Game context -- a plain chip with one game, a selector at 2+ */}
+            {gameInSidebar && (
+              <div className="shrink-0 w-full relative" ref={gameCardRef}>
+                {collapsed ? (
+                  <div className="flex flex-col items-start w-full">
+                    <button
+                      className="flex gap-xs items-start p-xs shrink-0 w-full cursor-pointer relative"
+                      style={{ backgroundColor: 'var(--bg-tint-light)' }}
+                      onClick={() => AVAILABLE_GAMES.length > 1 && setGameDropdownOpen(!gameDropdownOpen)}
+                      aria-label={gameName}
+                    >
+                      <div className="relative shrink-0 w-[24px] h-[24px]">
+                        <div className="absolute inset-0 rounded-[4px] overflow-hidden">
+                          <div className="absolute inset-0 bg-[#1f1637] rounded-[4px]" />
+                          {gameImageUrl && (
+                            <img src={gameImageUrl} alt={gameName} className="absolute inset-0 w-full h-full object-cover rounded-[4px]" />
+                          )}
+                        </div>
+                      </div>
+                      {AVAILABLE_GAMES.length > 1 && (
+                        <DropdownArrowIcon size={16} className="absolute right-xs top-1/2 -translate-y-1/2 text-text-brand" />
+                      )}
+                    </button>
                   </div>
-                </div>
-                <DropdownArrowIcon size={16} className="absolute right-xs top-1/2 -translate-y-1/2 text-text-brand" />
-              </button>
-            </div>
-          ) : (
-            <div className="px-s">
-              <GameSelector
-                name={gameName}
-                genre={gameGenre}
-                imageUrl={gameImageUrl}
-                variant="default"
-                onClick={() => setGameDropdownOpen(!gameDropdownOpen)}
-              />
-            </div>
-          )}
+                ) : (
+                  <div className="px-s">
+                    <GameSelector
+                      name={gameName}
+                      genre={gameGenre}
+                      imageUrl={gameImageUrl}
+                      /* Single-game accounts get a label, not a control. */
+                      variant={AVAILABLE_GAMES.length > 1 ? 'default' : 'list'}
+                      onClick={
+                        AVAILABLE_GAMES.length > 1
+                          ? () => setGameDropdownOpen(!gameDropdownOpen)
+                          : undefined
+                      }
+                    />
+                  </div>
+                )}
 
-          {/* Game dropdown */}
-          {gameDropdownOpen && (
-            <GameSelectorDropdown
-              games={AVAILABLE_GAMES}
-              collapsed={collapsed}
-              anchorRef={gameCardRef}
-              onSelect={(game) => {
-                onGameChange?.(game)
-                setGameDropdownOpen(false)
-              }}
-              onClose={() => setGameDropdownOpen(false)}
-            />
-          )}
-        </div>
-
-        {/* ── Main Navigation ── */}
-        <div className="flex flex-col items-start shrink-0 w-full">
-          <SidebarNavItem
-            label="Home"
-            icon={<HomeIcon size={20} />}
-            active={activeNav === 'home'}
-            onClick={() => onNavChange?.('home')}
-            collapsed={collapsed}
-          />
-          <SidebarNavItem
-            label="Library"
-            icon={<VideoLibraryIcon size={20} />}
-            active={activeNav === 'library'}
-            onClick={() => onNavChange?.('library')}
-            collapsed={collapsed}
-          />
-        </div>
-
-        {/* ── Scrollable content area ── */}
-        <div className="flex flex-1 flex-col gap-s items-start min-h-0 overflow-y-auto overflow-x-hidden w-full pb-s">
-
-          {/* Core Agents section — hidden when collapsed */}
-          {!collapsed && (
-            <div className="flex flex-col items-start shrink-0 w-full pb-xs">
-              <div
-                className="flex gap-xs items-start pl-s pr-l shrink-0 w-full cursor-pointer"
-                onClick={() => setAgentsExpanded(!agentsExpanded)}
-              >
-                <p className="flex-1 font-display text-xs font-semibold text-text-tertiary leading-[1.5]">
-                  Core Agents
-                </p>
-                <ChevronIcon
-                  direction={agentsExpanded ? 'down' : 'right'}
-                  size={16}
-                  className="text-text-tertiary"
-                />
-              </div>
-
-              {agentsExpanded && (
-                <div className="flex flex-col items-start w-full">
-                  <SidebarNavItem label="Radiologist" icon={<RadiologistIcon size={20} />} active={activeNav === 'radiologist'} onClick={() => onNavChange?.('radiologist')} />
-                  <SidebarNavItem label="Oracle" icon={<OracleIcon size={20} />} active={activeNav === 'oracle' && !hasActiveHistory} onClick={() => onNavChange?.('oracle')} />
-                  <SidebarNavItem label="Forecaster" icon={<ForecasterIcon size={20} />} active={activeNav === 'forecaster'} badge="COMING SOON" badgeVariant="outlined" disabled />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Specialized Agents hub — single entry to the agent card grid */}
-          <div className="flex flex-col items-start shrink-0 w-full">
-            <SidebarNavItem
-              label="Specialized Agents"
-              icon={<SpecializedAgentsIcon size={20} />}
-              active={activeNav === 'specialized'}
-              onClick={() => onNavChange?.('specialized')}
-              collapsed={collapsed}
-            />
-          </div>
-
-          {/* Context section */}
-          <div className="flex flex-col items-start shrink-0 w-full">
-            {!collapsed && (
-              <div className="flex gap-xs items-start pl-s pr-xs shrink-0 w-full">
-                <p className="flex-1 font-display text-xs font-semibold text-text-tertiary leading-[1.5]">
-                  Context
-                </p>
+                {gameDropdownOpen && (
+                  <GameSelectorDropdown
+                    games={AVAILABLE_GAMES}
+                    collapsed={collapsed}
+                    anchorRef={gameCardRef}
+                    onSelect={(game) => {
+                      onGameChange?.(game)
+                      setGameDropdownOpen(false)
+                    }}
+                    onClose={() => setGameDropdownOpen(false)}
+                  />
+                )}
               </div>
             )}
-            <div className="flex flex-col items-start w-full">
-              <SidebarNavItem label="Uploads" icon={<UploadIcon size={20} />} active={activeNav === 'uploads'} onClick={() => onNavChange?.('uploads')} collapsed={collapsed} />
-              <SidebarNavItem label="Connectors" icon={<ConnectorIcon size={20} />} active={activeNav === 'connectors'} onClick={() => onNavChange?.('connectors')} collapsed={collapsed} />
-            </div>
-          </div>
 
-          {/* History section — hidden when collapsed */}
-          {!collapsed && (
-            <div className="flex flex-col items-start shrink-0 w-full">
-              <div className="flex gap-xs items-start pl-s pr-l shrink-0 w-full">
-                <p className="flex-1 font-display text-xs font-semibold text-text-tertiary leading-[1.5]">
-                  History
-                </p>
-                <ChevronIcon direction="down" size={16} className="text-text-tertiary" />
+            {/* Area switch -- renders nothing when the account has one area */}
+            {showSegment && (
+              <div className={gameInSidebar ? 'w-full mt-xs' : 'w-full'}>
+                <AreaSegment
+                  areas={areas}
+                  active={area}
+                  onChange={onAreaChange}
+                  collapsed={collapsed}
+                />
               </div>
-              <div className="flex flex-col items-start w-full">
-                {displayHistory.map((item) => (
-                  <SidebarTaskItem
-                    key={item.id}
-                    query={item.query}
-                    active={item.id === activeHistoryId}
-                    state={item.state}
-                    onClick={() => onHistoryClick?.(item.id)}
+            )}
+
+            {/* Rule separating global scope from the area's own nav. mt-m (16px)
+                matches the space below it -- the container's 12px gap plus the
+                nav row's own 4px top padding -- so the divider sits centred. */}
+            <div className="h-px w-full mt-m" style={{ backgroundColor: 'var(--border-subtle)' }} />
+          </div>
+        )}
+
+        {/* Area navigation -- derived from AREA_NAV[area].
+            Captioned groups render in the 1.1 style: a small-caps caption with a
+            tone dot over a top rule, then the rows indented behind a 2px left
+            rule. Collapsed, captions and rules go and the icons simply stack. */}
+        <div className="flex flex-1 flex-col items-start min-h-0 overflow-y-auto overflow-x-hidden w-full pb-s">
+
+          {navConfig.groups.map((group, gi) => {
+            const isCollapsibleGroup = Boolean(group.collapsible) && !collapsed
+            const groupOpen = !isCollapsibleGroup || isGroupOpen(group.label ?? '')
+            const captioned = Boolean(group.label) && !collapsed
+
+            return (
+              <div
+                key={group.label ?? 'group-' + gi}
+                className={['flex flex-col items-start shrink-0 w-full', captioned ? 'mt-s' : ''].join(' ')}
+              >
+                {captioned && group.label && (
+                  <GroupCaption
+                    label={group.label}
+                    tone={group.captionTone}
+                    collapsible={isCollapsibleGroup}
+                    open={isGroupOpen(group.label)}
+                    onToggle={() => toggleGroup(group.label!)}
                   />
-                ))}
+                )}
+
+                {groupOpen && (
+                  <div
+                    className={[
+                      'flex flex-col items-start',
+                      captioned ? 'ml-[24px] mr-s pl-[12px] w-[calc(100%-36px)]' : 'w-full',
+                    ].join(' ')}
+                    style={captioned ? { borderLeft: '2px solid var(--border-subtle)' } : undefined}
+                  >
+                    {group.items.map((item) => {
+                      const Icon = NAV_ICONS[item.icon]
+                      /* Oracle de-highlights while a history thread is the active screen. */
+                      const isActive =
+                        activeNav === item.nav && !(item.nav === 'oracle' && hasActiveHistory)
+                      return (
+                        <SidebarNavItem
+                          key={item.nav}
+                          label={item.label}
+                          icon={<Icon size={20} />}
+                          active={isActive}
+                          badge={item.badge}
+                          /* 1.1 style: a quiet filled tag, no outline. */
+                          badgeVariant={item.badge ? 'default' : undefined}
+                          disabled={item.disabled}
+                          locked={lockedNavs.includes(item.nav)}
+                          collapsed={collapsed}
+                          nested={captioned}
+                          tone={group.tone ?? 'brand'}
+                          onClick={() => onNavChange?.(item.nav as ActiveNav)}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
               </div>
+            )
+          })}
+
+          {/* History -- area-scoped, so Oracle threads never show in Testing.
+              Hidden entirely when there is nothing in it: a lone caption over an
+              empty list reads as a loading failure, not as a new workspace. */}
+          {historyConfig && !collapsed && displayHistory.length > 0 && (
+            <div className="flex flex-col items-start shrink-0 w-full mt-s">
+              <GroupCaption
+                label={historyConfig.label}
+                collapsible
+                open={historyExpanded}
+                onToggle={() => setHistoryExpanded(!historyExpanded)}
+              />
+              {historyExpanded && (
+                <div
+                  className="flex flex-col items-start ml-[24px] mr-s pl-[12px] w-[calc(100%-36px)]"
+                  style={{ borderLeft: '2px solid var(--border-subtle)' }}
+                >
+                  {displayHistory.map((item) => (
+                    <SidebarTaskItem
+                      key={item.id}
+                      query={item.query}
+                      active={item.id === activeHistoryId}
+                      state={item.state}
+                      nested
+                      onClick={() => onHistoryClick?.(item.id)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
 
       </div>
 
-      {/* ── Footer ── */}
+      {/* Footer -- profile, plus the game control in the two footer placements */}
       <div
         className={[
           'flex flex-col items-start justify-center overflow-visible shrink-0 relative',
           'border-t border-border-subtle',
           collapsed
             ? 'gap-m py-m w-[60px]'
-            : 'gap-m px-s py-m w-[280px]',
+            : 'gap-m px-s py-m w-[300px]',
         ].join(' ')}
         ref={profileRef}
       >
-        <div className={collapsed ? 'flex flex-col gap-xs items-center justify-center pb-s w-full' : 'flex gap-xs items-center w-full'}>
+        <div
+          className={
+            collapsed
+              ? 'flex flex-col gap-xs items-center justify-center pb-s w-full'
+              : 'flex gap-xs items-center w-full'
+          }
+        >
+          {/* footer-inline: game is a real control here, so the avatar shrinks
+              to an icon and the account options move behind it. */}
+          {gameBesideProfile && (
+            <SidebarFooterGame
+              games={AVAILABLE_GAMES}
+              activeGame={{ name: gameName, genre: gameGenre, imageUrl: gameImageUrl }}
+              onSelectGame={(game) => onGameChange?.(game)}
+              collapsed={collapsed}
+            />
+          )}
+
           <SidebarProfile
             name="Jonh Wick"
             initials="JW"
             language={language}
+            /* Persistent scope indicator -- only when the game has no control. */
+            gameName={gameInProfileMenu ? gameName : undefined}
+            avatarOnly={gameBesideProfile && !collapsed}
             collapsed={collapsed}
-            className={collapsed ? undefined : 'flex-1 min-w-0'}
-            onClick={() => setLangSelectorOpen(!langSelectorOpen)}
+            className={collapsed || gameBesideProfile ? undefined : 'flex-1 min-w-0'}
+            onClick={() =>
+              gameInSidebar
+                ? setLangSelectorOpen(!langSelectorOpen)
+                : setProfileMenuOpen(!profileMenuOpen)
+            }
           />
-          <Button
-            variant="tertiary"
-            size="md"
-            iconOnly
-            aria-label="Logout"
-          >
-            <LogoutIcon size={24} />
-          </Button>
+
+          {/* Logout stays a direct action only while the profile row is just a
+              language trigger. Both footer placements move it into the menu. */}
+          {gameInSidebar && (
+            <Button
+              variant="tertiary"
+              size="md"
+              iconOnly
+              aria-label="Logout"
+              onClick={onLogout}
+            >
+              <LogoutIcon size={24} />
+            </Button>
+          )}
         </div>
 
-        {/* Language selector overlay */}
+        {/* Language selector overlay -- sidebar-top placement only. In the footer
+            placements language is a submenu of the profile menu instead, so it
+            can never be left hanging with its parent gone. */}
         {langSelectorOpen && (
           <LanguageSelector
             currentLanguage={language}
@@ -410,7 +584,93 @@ export function Sidebar({
             anchorRef={profileRef}
           />
         )}
+
+        {/* Profile menu -- both footer placements. The game section appears only
+            when the game has no control outside the menu. */}
+        {profileMenuOpen && (
+          <SidebarProfileMenu
+            anchorRef={profileRef}
+            games={AVAILABLE_GAMES}
+            activeGame={{ name: gameName, genre: gameGenre, imageUrl: gameImageUrl }}
+            showGame={gameInProfileMenu}
+            onSelectGame={(game) => {
+              onGameChange?.(game)
+              setProfileMenuOpen(false)
+            }}
+            language={language}
+            onSelectLanguage={(lang) => {
+              onLanguageChange?.(lang)
+              setProfileMenuOpen(false)
+            }}
+            onLogout={() => {
+              setProfileMenuOpen(false)
+              onLogout?.()
+            }}
+            onClose={() => setProfileMenuOpen(false)}
+          />
+        )}
       </div>
+    </div>
+  )
+}
+
+/** Caption ink per group tone — the same inks the Testing Overview's group
+ *  headings use, so "Human testing" reads blue and "AI player testing" green in both
+ *  places. Intelligence's groups take their own tones from the same scale. */
+const CAPTION_TONE_INK: Record<NavTone, string> = {
+  brand: 'var(--brand)',
+  purple: 'var(--purple)',
+  success: 'var(--success)',
+  neutral: 'var(--text-tertiary)',
+}
+
+/**
+ * Group caption — small caps, sitting on the same left edge as the group's
+ * rule below it. No dot and no horizontal rule: the caption carries its group's
+ * tone as ink instead, which is what tells two captions apart at a glance, and
+ * the indented body with its 2px left rule shows the grouping.
+ * The chevron appears only when the group folds.
+ */
+function GroupCaption({
+  label,
+  tone = 'neutral',
+  collapsible,
+  open,
+  onToggle,
+}: {
+  label: string
+  tone?: NavTone
+  collapsible?: boolean
+  open?: boolean
+  onToggle?: () => void
+}) {
+  const ink = CAPTION_TONE_INK[tone]
+  const Tag = collapsible ? 'button' : 'div'
+  return (
+    <div className="w-full px-s">
+      <Tag
+        type={collapsible ? 'button' : undefined}
+        onClick={collapsible ? onToggle : undefined}
+        className={[
+          'flex items-center gap-xs w-full pt-xs pb-xs pl-s pr-xs text-left',
+          collapsible ? 'cursor-pointer' : '',
+        ].join(' ')}
+        aria-expanded={collapsible ? open : undefined}
+      >
+        <span
+          className="flex-1 font-display text-xs font-semibold uppercase tracking-[0.08em] leading-[1.5] truncate"
+          style={{ color: ink }}
+        >
+          {label}
+        </span>
+        {collapsible && (
+          /* Chevron takes the caption's ink via currentColor, so the row reads
+             as one coloured unit rather than a tinted label beside grey chrome. */
+          <span className="flex items-center" style={{ color: ink }}>
+            <ChevronIcon direction={open ? 'down' : 'right'} size={16} />
+          </span>
+        )}
+      </Tag>
     </div>
   )
 }

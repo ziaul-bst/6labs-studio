@@ -10,13 +10,14 @@
  * @figmaUrl        https://www.figma.com/design/i9fxQ6pXrgRITEzopoXpWL/6labs?node-id=6419-74744
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AgentPageHeader } from '../molecules/AgentPageHeader'
 import { ContextUploader } from '../molecules/ContextUploader'
 import { ContextUploaderMini } from '../molecules/ContextUploaderMini'
 import { ContextFileCard, type UploadStatus } from '../molecules/ContextFileCard'
 import { PopupModal } from '../molecules/PopupModal'
 import { UploadIcon } from '../icons/UploadIcon'
+import { uploadsFilesFor, useUploadsDemoState } from '../../lib/uploadsDemoState'
 
 interface UploadedFile {
   id: string
@@ -46,8 +47,20 @@ function formatDate(): string {
 }
 
 export function ContextUploadsView({ className }: { className?: string }) {
-  const [files, setFiles] = useState<UploadedFile[]>([])
+  /* Every screen past "empty" needs a file, so the reviewer state pill seeds
+     the list — see lib/uploadsDemoState. Re-seeds on change, and anything the
+     reviewer uploads by hand afterwards survives until the next switch. */
+  const demoState = useUploadsDemoState()
+  const [files, setFiles] = useState<UploadedFile[]>(() => uploadsFilesFor(demoState))
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null)
+
+  const seededFor = useRef(demoState)
+  useEffect(() => {
+    if (seededFor.current === demoState) return
+    seededFor.current = demoState
+    setFiles(uploadsFilesFor(demoState))
+    setDeleteTarget(null)
+  }, [demoState])
 
   const isEmpty = files.length === 0
 
@@ -118,7 +131,7 @@ export function ContextUploadsView({ className }: { className?: string }) {
 
   return (
     <div
-      className={['flex flex-col items-center w-full max-w-[800px] mx-auto', className]
+      className={['flex flex-col items-center page-measure', className]
         .filter(Boolean)
         .join(' ')}
     >

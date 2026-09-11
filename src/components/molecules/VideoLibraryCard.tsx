@@ -1,15 +1,29 @@
 /**
  * VideoLibraryCard — media card for a single uploaded gameplay video in the
- * Library. Carries the full analysis lifecycle so game devs can see, at a
- * glance, which videos Radiologist & Oracle can already reference.
+ * Gameplay Library.
  *
- * Status model: 'uploading' → 'processing' → 'ready' | 'failed'
- *   - uploading:  progress bar + % (transfer in flight)
- *   - processing: indeterminate "Analyzing" — LLM indexing, NOT yet referenceable
- *   - ready:      green badge + "Available to agents", clickable
- *   - failed:     error message + Retry (re-runs analysis, no re-upload)
+ * Status model: 'uploading' → 'ready' | 'failed'
+ *   - uploading: progress bar + % (transfer in flight)
+ *   - ready:     duration + play affordance, clickable. NO badge — nothing
+ *                works on a library clip after upload, so "ready" is simply
+ *                the resting state and a badge on every card said nothing.
+ *   - failed:    error message + Retry (re-runs the upload)
  *
- * Non-ready cards are dimmed and non-interactive (agents only use Ready videos).
+ * There is no analysing state (removed 2026-09-10): no AI runs over library
+ * footage, so a clip is either still arriving or it is here.
+ *
+ * The body is deliberately thin — title, date, tags — so a grid of forty clips
+ * stays scannable.
+ *
+ * Source rides the thumbnail as a badge rather than the meta line, because a
+ * library mixes five ingest paths and "which of these is AI footage" is a
+ * scanning question, not a reading one. Tags carry their origin in the pill
+ * itself: outlined + facet prefix for the batch/build the platform assigned,
+ * filled bare label for what a person typed.
+ *
+ * Row actions (edit / delete) reveal on hover over the thumbnail rather than
+ * taking a permanent footer row. The select checkbox does NOT hide on hover —
+ * it is the only entry point to the bulk action bar, so it stays at rest.
  *
  * Code-first prototype — no Figma source yet.
  */
@@ -21,68 +35,88 @@ import Checkbox from '../ui/Checkbox'
 import { TrashIcon } from '../icons/TrashIcon'
 import { EditIcon } from '../icons/EditIcon'
 import { CheckIcon } from '../icons/CheckIcon'
-import { RadiologistIcon } from '../icons/RadiologistIcon'
-import { OracleIcon } from '../icons/OracleIcon'
 import { EventTag } from '../atoms/EventTag'
-import { AiTag } from '../atoms/AiTag'
+import { SystemTag } from '../atoms/SystemTag'
+import { LibrarySourceBadge } from '../atoms/LibrarySourceBadge'
 import { ClampTags } from './ClampTags'
+import { partitionTags, toLibraryTags, type LibraryTag } from '../../lib/libraryTags'
+import type { VideoUploadSource } from '../../lib/librarySource'
 
-export type VideoStatus = 'uploading' | 'processing' | 'ready' | 'failed'
+export type VideoStatus = 'uploading' | 'ready' | 'failed'
 
 export interface VideoLibraryCardProps {
   /** grid = vertical media card; list = horizontal row for dense scanning */
   layout?: 'grid' | 'list'
   title: string
-  sizeLabel: string
   dateLabel: string
+  /**
+   * Where the clip came from — rendered as a badge on the thumbnail. Preferred
+   * over `sourceLabel`; when both are given the badge wins and the meta line
+   * drops the label rather than saying it twice.
+   */
+  source?: VideoUploadSource
+  /** Legacy free-text source, for surfaces with their own source vocabulary */
+  sourceLabel?: string
   durationLabel?: string
   thumbnailSrc?: string
   /** Background gradient for the thumbnail fallback — varied per card for rhythm */
   gradient?: string
   status: VideoStatus
   progress: number
-  /** User-added tags (entered at upload) — neutral pills */
-  tags?: string[]
-  /** AI-extracted tags (from the LLM) — sparkle pills, shown only once ready */
-  aiTags?: string[]
-  /** AI-generated summary (from the LLM) — shown on the card once ready */
-  aiSummary?: string
-  description?: string
+  /**
+   * The clip's tags. `LibraryTag[]` carries origin — system tags (batch, stage,
+   * test type) render outlined with their facet, user tags render as filled
+   * neutral pills. Bare strings are treated as user tags.
+   */
+  tags?: (string | LibraryTag)[]
   errorMessage?: string
-  /** Selection (bulk actions) */
+  /** Selection (bulk actions) — the checkbox is always visible, so the bulk bar is findable */
   selected?: boolean
-  /** Force the select checkbox to stay visible (selection mode active) */
-  selectionVisible?: boolean
   onToggleSelect?: () => void
   onDelete?: () => void
   onRetry?: () => void
-  onSaveMeta?: (next: { title: string; description: string; tags: string[] }) => void
-  /** Opens the details side panel (fires for any status) */
+  /** `tags` carries the edited USER tags only — system tags are not editable here */
+  onSaveMeta?: (next: { title: string; tags: string[] }) => void
+  /**
+   * Thumbnail click (fires for any status). What it means is the host's call:
+   * the Library opens the player, the run-setup picker toggles selection — so
+   * the card no longer ships a tooltip claiming either.
+   */
   onOpen?: () => void
+  /**
+   * Hover edit/delete affordances. Off when the card is being used to *pick*
+   * rather than to manage — a run-setup picker has no business deleting a clip
+   * out of the library.
+   */
+  showRowActions?: boolean
+  /**
+   * `hover` keeps the thumbnail clean at rest: the checkbox appears on hover,
+   * when the card is selected, or while any selection is active (the host sets
+   * `data-selecting` on the grid). Pickers keep `always`, since selecting is the
+   * whole job there.
+   */
+  checkboxVisibility?: 'always' | 'hover'
   className?: string
 }
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg, #1770EF 0%, #7B4CFF 100%)'
 
-const STATUS_META: Record<VideoStatus, { color: string; label: string }> = {
+/* Only the two states worth announcing. Ready is the resting state and carries
+   no badge — see the status model above. */
+const STATUS_META: Partial<Record<VideoStatus, { color: string; label: string }>> = {
   uploading: { color: 'var(--brand)', label: 'UPLOADING' },
-  processing: { color: 'var(--warning)', label: 'ANALYZING' },
-  ready: { color: 'var(--success)', label: 'READY' },
   failed: { color: 'var(--error)', label: 'FAILED' },
 }
 
 function StatusBadge({ status }: { status: VideoStatus }) {
   const s = STATUS_META[status]
+  if (!s) return null
   return (
     <span
       className="video-lib-badge inline-flex items-center gap-xxs px-xs py-xxxs rounded-round font-display text-2xs font-semibold uppercase tracking-[0.12em] leading-[1.5] shrink-0"
       style={{ color: s.color }}
     >
-      {status === 'processing' ? (
-        <span className="video-lib-spinner" aria-hidden />
-      ) : (
-        <span className="video-lib-dot" style={{ backgroundColor: s.color }} aria-hidden />
-      )}
+      <span className="video-lib-dot" style={{ backgroundColor: s.color }} aria-hidden />
       {s.label}
     </span>
   )
@@ -94,65 +128,53 @@ const PlayGlyph = () => (
   </svg>
 )
 
-/** Ready-state indicator: an overlapping stack of the agent icons that can use this video */
-const AgentAvailability = () => (
-  <span
-    className="inline-flex items-center shrink-0"
-    aria-label="Available to Radiologist and Oracle"
-  >
-    <span className="video-lib-agent-chip" style={{ color: 'var(--brand)' }}>
-      <RadiologistIcon size={16} />
-      <span className="video-lib-tip">Radiologist</span>
-    </span>
-    <span className="video-lib-agent-chip -ml-[8px]" style={{ color: '#7B4CFF' }}>
-      <OracleIcon size={16} />
-      <span className="video-lib-tip">Oracle</span>
-    </span>
-  </span>
-)
-
 export function VideoLibraryCard({
   layout = 'grid',
   title,
-  sizeLabel,
   dateLabel,
+  source,
+  sourceLabel,
   durationLabel,
   thumbnailSrc,
   gradient = DEFAULT_GRADIENT,
   status,
   progress,
   tags = [],
-  aiTags = [],
-  aiSummary,
-  description,
   errorMessage,
   selected = false,
-  selectionVisible = false,
   onToggleSelect,
   onDelete,
   onRetry,
   onSaveMeta,
   onOpen,
+  showRowActions = true,
+  checkboxVisibility = 'always',
   className,
 }: VideoLibraryCardProps) {
+  const libraryTags = toLibraryTags(tags)
+  const { system: systemTags, user: userTags } = partitionTags(libraryTags)
+  const userLabels = userTags.map((t) => t.label)
+
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState(title)
-  const [draftTags, setDraftTags] = useState(tags.join(', '))
+  const [draftTags, setDraftTags] = useState(userLabels.join(', '))
 
   const isReady = status === 'ready'
   const isFailed = status === 'failed'
   const isUploading = status === 'uploading'
-  const isProcessing = status === 'processing'
+
+  /* Source is on the badge when we have the real facet; the meta line only
+     falls back to free text for callers with their own source vocabulary. */
+  const metaLine = [dateLabel, source ? null : sourceLabel].filter(Boolean).join(' · ')
 
   const startEdit = () => {
     setDraftTitle(title)
-    setDraftTags(tags.join(', '))
+    setDraftTags(userLabels.join(', '))
     setEditing(true)
   }
   const saveEdit = () => {
     onSaveMeta?.({
       title: draftTitle.trim() || title,
-      description: description ?? '',
       tags: draftTags
         .split(',')
         .map((t) => t.trim())
@@ -174,7 +196,7 @@ export function VideoLibraryCard({
         <div
           className="relative shrink-0 w-[168px] self-stretch min-h-[94px] overflow-hidden cursor-pointer"
           onClick={onOpen}
-          title={isReady ? undefined : 'Available to agents once analysis completes'}
+          title={isReady ? undefined : 'Available once the upload finishes'}
         >
           {thumbnailSrc ? (
             <img src={thumbnailSrc} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -192,26 +214,8 @@ export function VideoLibraryCard({
             </div>
           )}
 
-          {/* analyzing treatment — scan line + compact frosted spinner chip */}
-          {isProcessing && (
-            <>
-              <div className="video-lib-scanline" aria-hidden />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="video-lib-analyzing-chip !gap-0 !px-xs !py-xs">
-                  <span className="video-lib-spinner-light" aria-hidden />
-                </span>
-              </div>
-            </>
-          )}
-
           {/* select checkbox */}
-          <div
-            className={[
-              'absolute top-xs left-xs transition-opacity duration-150',
-              selected || selectionVisible ? 'opacity-100' : 'opacity-0 group-hover/lib:opacity-100',
-            ].join(' ')}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="absolute top-xs left-xs" onClick={(e) => e.stopPropagation()}>
             <span className="video-lib-check-bg">
               <Checkbox checked={selected} onChange={() => onToggleSelect?.()} aria-label={`Select ${title}`} />
             </span>
@@ -246,14 +250,26 @@ export function VideoLibraryCard({
             </div>
             <div className="flex flex-col gap-xxs">
               <label className="font-display text-2xs font-semibold uppercase tracking-[0.06em]" style={{ color: 'var(--text-tertiary)' }}>
-                Tags
+                Your tags
               </label>
               <Input
                 value={draftTags}
                 onChange={(e) => setDraftTags(e.target.value)}
                 placeholder="Tags, comma separated"
-                aria-label="Tags"
+                aria-label="Your tags"
               />
+              {/* Batch and build came with the clip — shown so the edit box
+                  never reads as the whole tag set. */}
+              {systemTags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-xxs pt-xxs">
+                  <span className="font-body text-2xs" style={{ color: 'var(--text-tertiary)' }}>
+                    Assigned at upload
+                  </span>
+                  {systemTags.map((t) => (
+                    <SystemTag key={`sys-edit-${t.facet}-${t.label}`} tag={t} />
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-end gap-xs">
               <Button variant="outline" size="md" onClick={() => setEditing(false)}>
@@ -276,44 +292,32 @@ export function VideoLibraryCard({
                   {title}
                 </span>
                 <StatusBadge status={status} />
+                {source && <LibrarySourceBadge source={source} variant="inline" className="shrink-0" />}
               </div>
               <span className="font-body text-xs" style={{ color: 'var(--text-placeholder)' }}>
-                {sizeLabel} &middot; {dateLabel}
+                {metaLine}
               </span>
-              {isReady ? (
-                <AgentAvailability />
-              ) : (
-                <span
-                  className="inline-flex items-center gap-xxs font-body text-2xs truncate"
-                  style={{ color: isFailed ? 'var(--error)' : 'var(--text-tertiary)' }}
-                >
-                  {isProcessing && (
-                    <>
-                      <span className="video-lib-spinner shrink-0" aria-hidden />
-                      Analyzing — agents will use this once ready
-                    </>
-                  )}
-                  {isUploading && 'Uploading…'}
-                  {isFailed && (errorMessage ?? 'Re-analyze to use')}
+              {isFailed && errorMessage && (
+                <span className="font-body text-2xs truncate" style={{ color: 'var(--error)' }}>
+                  {errorMessage}
                 </span>
               )}
             </div>
 
-            {/* Tags — AI-extracted (sparkle, ready only) then upload (neutral). Hidden on narrow widths. */}
-            {((isReady && aiTags.length > 0) || tags.length > 0) && (
-              <div className="hidden lg:flex items-center gap-xxs shrink-0 max-w-[260px] flex-wrap justify-end">
-                {isReady && aiTags.slice(0, 2).map((t) => <AiTag key={`ai-${t}`} label={t} />)}
-                {tags.slice(0, 2).map((t) => <EventTag key={`up-${t}`} label={t} />)}
-                {(() => {
-                  const extra =
-                    (isReady ? aiTags.length - Math.min(2, aiTags.length) : 0) +
-                    (tags.length - Math.min(2, tags.length))
-                  return extra > 0 ? (
-                    <span className="font-body text-2xs" style={{ color: 'var(--text-tertiary)' }}>
-                      +{extra}
-                    </span>
-                  ) : null
-                })()}
+            {/* Tags — system (outlined, facet-prefixed) lead, then the user's own */}
+            {libraryTags.length > 0 && (
+              <div className="hidden lg:flex items-center gap-xxs shrink-0 max-w-[300px] flex-wrap justify-end">
+                {systemTags.slice(0, 2).map((t) => (
+                  <SystemTag key={`sys-${t.facet}-${t.label}`} tag={t} />
+                ))}
+                {userLabels.slice(0, 2).map((t) => (
+                  <EventTag key={`up-${t}`} label={t} />
+                ))}
+                {libraryTags.length > 4 && (
+                  <span className="font-body text-2xs" style={{ color: 'var(--text-tertiary)' }}>
+                    +{libraryTags.length - 4}
+                  </span>
+                )}
               </div>
             )}
 
@@ -324,12 +328,12 @@ export function VideoLibraryCard({
                   Retry
                 </Button>
               )}
-              {isReady && (
+              {showRowActions && isReady && (
                 <Button variant="transparent" size="md" iconOnly onClick={startEdit} aria-label="Edit details">
                   <EditIcon size={16} />
                 </Button>
               )}
-              {!isUploading && (
+              {showRowActions && !isUploading && (
                 <Button variant="transparent" size="md" iconOnly onClick={onDelete} aria-label="Delete video">
                   <TrashIcon size={16} />
                 </Button>
@@ -352,7 +356,7 @@ export function VideoLibraryCard({
       <div
         className="relative aspect-video w-full shrink-0 overflow-hidden cursor-pointer"
         onClick={onOpen}
-        title={isReady ? 'Open details' : 'Open details — analysis in progress'}
+        title={isReady ? undefined : 'Available once the upload finishes'}
       >
         {/* base layer */}
         {thumbnailSrc ? (
@@ -376,27 +380,10 @@ export function VideoLibraryCard({
           </div>
         )}
 
-        {/* analyzing treatment — sweeping scan line + frosted chip */}
-        {isProcessing && (
-          <>
-            <div className="video-lib-scanline" aria-hidden />
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <span className="video-lib-analyzing-chip">
-                <span className="video-lib-spinner-light" aria-hidden />
-                <span className="font-display text-2xs font-semibold uppercase tracking-[0.12em] text-white">
-                  Analyzing video…
-                </span>
-              </span>
-            </div>
-          </>
-        )}
-
-        {/* select checkbox — top-left, on hover or when selection active */}
+        {/* select checkbox — on hover / when selected / while selecting, or always for pickers */}
         <div
-          className={[
-            'absolute top-s left-s transition-opacity duration-150',
-            selected || selectionVisible ? 'opacity-100' : 'opacity-0 group-hover/lib:opacity-100',
-          ].join(' ')}
+          className="video-lib-check absolute top-s left-s"
+          data-visibility={checkboxVisibility}
           onClick={(e) => e.stopPropagation()}
         >
           <span className="video-lib-check-bg">
@@ -404,11 +391,16 @@ export function VideoLibraryCard({
           </span>
         </div>
 
-        {/* status badge — top-right (hidden while analyzing: the center chip already says it) */}
-        {!isProcessing && (
-          <div className="absolute top-s right-s">
-            <StatusBadge status={status} />
-          </div>
+        {/* status badge — top-right. Renders nothing at rest: only uploading
+            and failed have anything to say. */}
+        <div className="absolute top-s right-s">
+          <StatusBadge status={status} />
+        </div>
+
+        {/* source — bottom-left, over the scrim; duration takes the right corner.
+            Not top-left: the checkbox owns that corner while selecting. */}
+        {source && !isUploading && (
+          <LibrarySourceBadge source={source} variant="overlay" className="absolute bottom-s left-s z-[2]" />
         )}
 
         {/* duration — bottom-right, only meaningful when ready */}
@@ -445,14 +437,26 @@ export function VideoLibraryCard({
           </div>
           <div className="flex flex-col gap-xxs">
             <label className="font-display text-2xs font-semibold uppercase tracking-[0.06em]" style={{ color: 'var(--text-tertiary)' }}>
-              Tags
+              Your tags
             </label>
             <Input
               value={draftTags}
               onChange={(e) => setDraftTags(e.target.value)}
               placeholder="Tags, comma separated"
-              aria-label="Tags"
+              aria-label="Your tags"
             />
+            {/* Batch and build came with the clip — shown so the edit box
+                never reads as the whole tag set. */}
+            {systemTags.length > 0 && (
+              <div className="flex flex-wrap items-center gap-xxs pt-xxs">
+                <span className="font-body text-2xs" style={{ color: 'var(--text-tertiary)' }}>
+                  Assigned at upload
+                </span>
+                {systemTags.map((t) => (
+                  <SystemTag key={`sys-edit-${t.facet}-${t.label}`} tag={t} />
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-end gap-xs">
             <Button variant="outline" size="md" onClick={() => setEditing(false)}>
@@ -465,94 +469,71 @@ export function VideoLibraryCard({
         </div>
       ) : (
         <div className="flex flex-col gap-xxs p-m min-w-0">
-          <span
-            className="font-display text-s font-semibold line-clamp-2"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            {title}
-          </span>
+          <div className="flex items-start gap-xs min-w-0">
+            <span
+              className="flex-1 min-w-0 font-display text-s font-semibold line-clamp-2"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              {title}
+            </span>
+            {/* edit / delete — quiet, hover-revealed, and off the thumbnail so they
+                never compete with the play affordance, the badge or the checkbox */}
+            {showRowActions && !isUploading && (
+              <div
+                className="video-lib-row-actions flex items-center gap-xxxs shrink-0 -mt-xxxs -mr-xs"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {isReady && (
+                  <Button variant="transparent" size="sm" iconOnly onClick={startEdit} aria-label={`Edit ${title}`}>
+                    <EditIcon size={12} />
+                  </Button>
+                )}
+                <Button variant="transparent" size="sm" iconOnly onClick={onDelete} aria-label={`Delete ${title}`}>
+                  <span className="inline-flex video-lib-danger"><TrashIcon size={12} /></span>
+                </Button>
+              </div>
+            )}
+          </div>
           <span className="font-body text-xs" style={{ color: 'var(--text-placeholder)' }}>
-            {sizeLabel} &middot; {dateLabel}
+            {metaLine}
           </span>
 
-          {/* tags — upload (neutral) on its own row, then AI-extracted (sparkle) on up to 2 rows */}
-          {(tags.length > 0 || (isReady && aiTags.length > 0)) && (
+          {/* Tags — the only labels on the card. System tags (batch/stage/test)
+              take their own line above
+              the user's, unclamped: there are only ever a couple and they are
+              the axis a test picks its footage along. */}
+          {libraryTags.length > 0 && (
             <div className="flex flex-col gap-xxs pt-xs w-full min-w-0">
-              {tags.length > 0 && (
+              {systemTags.length > 0 && (
+                <div className="flex flex-wrap gap-xxs w-full min-w-0">
+                  {systemTags.map((t) => (
+                    <SystemTag key={`sys-${t.facet}-${t.label}`} tag={t} className="!rounded-[6px]" />
+                  ))}
+                </div>
+              )}
+              {userLabels.length > 0 && (
                 <ClampTags
-                  items={tags}
-                  maxRows={1}
+                  items={userLabels}
+                  maxRows={2}
                   renderItem={(t) => <EventTag key={`up-${t}`} label={t} className="!rounded-[6px]" />}
                 />
               )}
-              {isReady && aiTags.length > 0 && (
-                <ClampTags
-                  items={aiTags}
-                  maxRows={2}
-                  renderItem={(t) => <AiTag key={`ai-${t}`} label={t} className="!rounded-[6px]" />}
-                />
+            </div>
+          )}
+
+          {/* failed error + retry */}
+          {isFailed && (
+            <div className="flex flex-col gap-s pt-xs">
+              {errorMessage && (
+                <p className="font-body text-xs leading-[1.5]" style={{ color: 'var(--error)' }}>
+                  {errorMessage}
+                </p>
               )}
-            </div>
-          )}
-
-          {/* AI summary — generated from the video by the LLM, shown once ready */}
-          {isReady && aiSummary && (
-            <p
-              className="font-body text-xs leading-[1.5] line-clamp-3 pt-xs"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {aiSummary}
-            </p>
-          )}
-
-          {/* analysis in progress — shimmer placeholder where the AI summary will appear */}
-          {isProcessing && (
-            <div className="flex flex-col gap-xs pt-xs" aria-hidden>
-              <span className="video-lib-skeleton w-full" />
-              <span className="video-lib-skeleton w-[70%]" />
-            </div>
-          )}
-
-          {/* failed error */}
-          {isFailed && errorMessage && (
-            <p className="font-body text-xs leading-[1.5] pt-xxs" style={{ color: 'var(--error)' }}>
-              {errorMessage}
-            </p>
-          )}
-
-          {/* ── Footer / status caption + actions ── */}
-          <div className="flex items-center gap-xs pt-s mt-auto min-w-0">
-            {isReady ? (
-              <span className="flex-1 min-w-0"><AgentAvailability /></span>
-            ) : (
-              <span className="flex-1 min-w-0 inline-flex items-center gap-xxs font-body text-2xs truncate" style={{ color: 'var(--text-tertiary)' }}>
-                {isProcessing && (
-                  <>
-                    <span className="video-lib-spinner shrink-0" aria-hidden />
-                    Analyzing — agents will use this once ready
-                  </>
-                )}
-                {isUploading && 'Uploading…'}
-                {isFailed && 'Re-analyze to use'}
-              </span>
-            )}
-
-            {isFailed && (
-              <Button variant="outline" size="md" onClick={onRetry}>
+              <Button variant="outline" size="md" className="self-start" onClick={onRetry}>
                 Retry
               </Button>
-            )}
-            {isReady && (
-              <Button variant="transparent" size="md" iconOnly onClick={startEdit} aria-label="Edit details">
-                <EditIcon size={16} />
-              </Button>
-            )}
-            {!isUploading && (
-              <Button variant="transparent" size="md" iconOnly onClick={onDelete} aria-label="Delete video">
-                <TrashIcon size={16} />
-              </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -12,13 +12,21 @@ import { useState, useRef, useCallback } from 'react'
 import { CalendarIcon } from '../icons/CalendarIcon'
 import { ClockIcon } from '../icons/ClockIcon'
 import { EventTag } from '../atoms/EventTag'
+import { AiTag } from '../atoms/AiTag'
+import { SourceBadge } from '../atoms/SourceBadge'
+import type { VideoSource } from '../../lib/types/radiologist'
 
 interface VideoCardProps {
   sessionId: string
   date: string
   duration: string
   description: string
+  /** Origin of the video — shown as an overlay badge; 'live' is treated as default */
+  source?: VideoSource
+  /** User-added tags (entered at upload) — rendered as neutral pills */
   tags: string[]
+  /** AI-extracted tags (from the LLM) — rendered with a sparkle/tinted pill */
+  aiTags?: string[]
   thumbnailSrc?: string
   /** Video URL — on hover, plays muted preview. Falls back to static thumbnail if omitted. */
   videoSrc?: string
@@ -32,15 +40,19 @@ export function VideoCard({
   date,
   duration,
   description,
+  source = 'live',
   tags,
+  aiTags = [],
   thumbnailSrc,
   videoSrc,
   selected = false,
   onClick,
   className,
 }: VideoCardProps) {
-  const displayTags = tags.slice(0, 2)
-  const extraCount = tags.length - displayTags.length
+  // AI tags lead (sparkle pills), then user upload tags (neutral pills).
+  const aiShown = aiTags.slice(0, 2)
+  const uploadShown = tags.slice(0, 2)
+  const extraCount = aiTags.length - aiShown.length + (tags.length - uploadShown.length)
   const [hovering, setHovering] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -98,6 +110,9 @@ export function VideoCard({
         {/* Dark overlay */}
         <div className="absolute inset-0 bg-black/20" />
 
+        {/* Source badge — top-left */}
+        <SourceBadge source={source} variant="overlay" className="absolute left-[8px] top-[8px] z-[2]" />
+
         {/* Top gradient for time */}
         <div
           className="absolute top-0 left-0 right-0 h-[40px]"
@@ -137,14 +152,15 @@ export function VideoCard({
             {description}
           </p>
 
-          {/* Tags */}
+          {/* Tags — AI-extracted (sparkle) lead, then user upload tags (neutral) */}
           <div className="flex flex-wrap gap-xxs items-center">
-            {displayTags.map((tag) => (
-              <EventTag key={tag} label={tag} />
+            {aiShown.map((tag) => (
+              <AiTag key={`ai-${tag}`} label={tag} />
             ))}
-            {extraCount > 0 && (
-              <EventTag label={`+${extraCount}`} />
-            )}
+            {uploadShown.map((tag) => (
+              <EventTag key={`up-${tag}`} label={tag} />
+            ))}
+            {extraCount > 0 && <EventTag label={`+${extraCount}`} />}
           </div>
         </div>
       </div>

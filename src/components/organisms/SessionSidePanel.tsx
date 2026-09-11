@@ -36,13 +36,26 @@ import { EventTimelineItem } from '../molecules/EventTimelineItem'
 import { SessionInfoCard } from '../molecules/SessionInfoCard'
 import { GameplayStatsCard } from '../molecules/GameplayStatsCard'
 import { UserProfileCard } from '../molecules/UserProfileCard'
+import { SessionInstructionsCard } from '../molecules/SessionInstructionsCard'
+import { OracleExcerptCard } from '../molecules/OracleExcerptCard'
+import { ExcerptCollapsible } from '../molecules/ExcerptCollapsible'
+import { SourceBadge } from '../atoms/SourceBadge'
+import { EventTag } from '../atoms/EventTag'
+import { AiTag } from '../atoms/AiTag'
 import { EVENT_ICON_MAP } from '../icons/events'
 import type { SessionData, SessionEvent } from '../../lib/types/radiologist'
+import type { OracleExcerpt } from '../../lib/types/excerpt'
 
 interface SessionSidePanelProps {
   session: SessionData
   onClose: () => void
   onViewDetail: () => void
+  /**
+   * Set when the panel opened from an Oracle result. The excerpt then leads the
+   * body — a query-specific answer outranks the generic AI summary. Absent when
+   * the user simply browsed to this session.
+   */
+  excerpt?: OracleExcerpt
   className?: string
 }
 
@@ -60,12 +73,20 @@ function parseDuration(dur: string): number {
   return parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0]
 }
 
-export function SessionSidePanel({ session, onClose, onViewDetail, className }: SessionSidePanelProps) {
+export function SessionSidePanel({
+  session,
+  onClose,
+  onViewDetail,
+  excerpt,
+  className,
+}: SessionSidePanelProps) {
   const [showAllEvents, setShowAllEvents] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [videoTime, setVideoTime] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const totalDuration = parseDuration(session.duration)
+  const source = session.source ?? 'live'
+
 
   /** Look up game-specific event icon by type */
   const getEventIcon = useCallback((type: string) => {
@@ -121,29 +142,85 @@ export function SessionSidePanel({ session, onClose, onViewDetail, className }: 
         className="shrink-0 overflow-hidden z-[3]"
         style={{ padding: '20px 16px 0' }}
       >
-        <VideoPlayerThumbnail
-          thumbnailSrc={session.thumbnailSrc}
-          duration={session.duration}
-          events={session.events}
-          showControls
-          currentTime={videoTime}
-          isPlaying={isPlaying}
-          totalDuration={totalDuration}
-          onPlayPause={() => setIsPlaying(!isPlaying)}
-          onSeek={(pct) => setVideoTime((pct / 100) * totalDuration)}
-          onEventSeek={handleEventSeek}
-        />
+        <div className="relative">
+          <VideoPlayerThumbnail
+            thumbnailSrc={session.thumbnailSrc}
+            duration={session.duration}
+            events={session.events}
+            showControls
+            currentTime={videoTime}
+            isPlaying={isPlaying}
+            totalDuration={totalDuration}
+            onPlayPause={() => setIsPlaying(!isPlaying)}
+            onSeek={(pct) => setVideoTime((pct / 100) * totalDuration)}
+            onEventSeek={handleEventSeek}
+          />
+          <SourceBadge source={source} variant="overlay" className="absolute left-[8px] top-[8px] z-[2]" />
+        </div>
         {/* Divider line — Figma: w=388, h=0, border */}
         <div className="mt-m" style={{ borderBottom: '1px solid var(--border-default)' }} />
       </div>
 
       {/* ── Scrollable content — Figma: flex-1, overflow-y-auto, z=2 ── */}
       <div className="flex-1 min-h-0 overflow-y-auto flyout-scrollbar overflow-x-hidden z-[2]">
+        {/* Oracle excerpt — pinned above the summary when the panel came from Oracle */}
+        {excerpt && (
+          <div style={{ paddingLeft: '16px', paddingRight: '32px', paddingTop: '20px' }}>
+            <ExcerptCollapsible dense>
+              <OracleExcerptCard
+                excerpt={excerpt}
+                onSeek={setVideoTime}
+                dense
+                headerMode="none"
+              />
+            </ExcerptCollapsible>
+          </div>
+        )}
+
         {/* AI Summary */}
         <AITextSummary
           text={session.aiSummary}
           highlightedPhrases={session.highlightedPhrases}
         />
+
+        {/* Tags — AI-extracted (sparkle) lead, then user upload tags (neutral) */}
+        {((session.aiTags?.length ?? 0) > 0 || session.tags.length > 0) && (
+          <div className="flex flex-col gap-s" style={{ paddingLeft: '16px', paddingRight: '32px', paddingTop: '20px' }}>
+            {session.aiTags && session.aiTags.length > 0 && (
+              <div className="flex flex-wrap gap-xxs">
+                {session.aiTags.map((t) => (
+                  <AiTag key={`ai-${t}`} label={t} className="!rounded-[6px]" />
+                ))}
+              </div>
+            )}
+            {session.tags.length > 0 && (
+              <div className="flex flex-wrap gap-xxs">
+                {session.tags.map((t) => (
+                  <EventTag key={`up-${t}`} label={t} className="!rounded-[6px]" />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Session Instructions — AI Player sessions only.
+            paddingBottom matches the top: the divider that follows sat flush
+            against this card while every other section had 20px of air. */}
+        {source === 'ai-player' && session.sessionInstructions && (
+          <div
+            style={{
+              paddingLeft: '16px',
+              paddingRight: '32px',
+              paddingTop: '20px',
+              paddingBottom: '20px',
+            }}
+          >
+            <SessionInstructionsCard
+              instructions={session.sessionInstructions}
+              persona={session.userProfile.persona}
+            />
+          </div>
+        )}
 
         {/* Divider between AI Summary and Detected Events — visible in Figma */}
         <div style={{ margin: '0 16px', borderBottom: '1px solid var(--border-default)' }} />
@@ -198,6 +275,7 @@ export function SessionSidePanel({ session, onClose, onViewDetail, className }: 
 
         {/* Session Info */}
         <SessionInfoCard
+          source={source}
           duration={session.duration}
           region={session.region}
           platform={session.platform}

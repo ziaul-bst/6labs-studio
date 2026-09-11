@@ -22,25 +22,33 @@ import { OracleAgentView } from '../components/organisms/OracleAgentView'
 import { RadiologistAgentView } from '../components/organisms/RadiologistAgentView'
 import { RadiologistResultsView } from '../components/organisms/RadiologistResultsView'
 import { SessionDetailsPage } from '../components/organisms/SessionDetailsPage'
+import type { ChatMessage } from '../components/organisms/OracleChatView'
+import type { Citation } from '../lib/types/citation'
+import type { OracleExcerpt, ExcerptPlacement, ExcerptShape } from '../lib/types/excerpt'
+import { MOCK_EXCERPTS } from '../lib/mocks/excerpts'
+import { DEFAULT_ORACLE_HISTORY, SEEDED_ORACLE_THREADS } from '../lib/mocks/oracle-threads'
 import { ContextUploadsView } from '../components/organisms/ContextUploadsView'
 import { SpecializedAgentsView } from '../components/organisms/SpecializedAgentsView'
 import { VideoLibraryView } from '../components/organisms/VideoLibraryView'
 import { getLibraryTagOptions, filterLibraryByTags } from '../lib/librarySessions'
+import { MOCK_SESSIONS } from '../lib/mocks/radiologist-sessions'
 import { ContextConnectorsView, CONNECTORS } from '../components/organisms/ContextConnectorsView'
 import { ConnectorDetailView } from '../components/organisms/ConnectorDetailView'
 import {
   BigQueryOnboardingModal,
   type BigQueryOnboardingState,
 } from '../components/organisms/BigQueryOnboardingModal'
-import { BigQueryDetailView } from '../components/organisms/BigQueryDetailView'
+import { SharedConnectorDetail } from '../components/organisms/SharedConnectorDetail'
 import {
   SnowflakeOnboardingModal,
   type SnowflakeOnboardingState,
 } from '../components/organisms/SnowflakeOnboardingModal'
-import { SnowflakeDetailView } from '../components/organisms/SnowflakeDetailView'
 import {
   disconnectBigQuery,
   getMockBigQueryConnection,
+  getSharedBigQueryConnection,
+  getSharedSnowflakeConnection,
+  SHARED_CONNECTION_OWNER,
   markBigQueryConnected,
   markBigQuerySyncComplete,
   onConnectorOnboardingRequest,
@@ -62,8 +70,106 @@ import { BaristaTaskCreateDialog } from '../components/organisms/BaristaTaskCrea
 import { BaristaTaskDetailPage } from '../components/organisms/BaristaTaskDetailPage'
 import { BaristaPage } from '../components/organisms/BaristaPage'
 import { useBarista } from '../state/BaristaContext'
+import { AreaLockedPitch } from '../components/organisms/AreaLockedPitch'
+import { TestLockedPitch } from '../components/organisms/TestLockedPitch'
+import { ContactSalesDialog } from '../components/molecules/ContactSalesDialog'
+import { StateMachineDock, type StateMachineDockRow } from '../components/organisms/StateMachineDock'
+import { TESTING_PLAN_LABELS } from '../lib/studioAreas'
+import {
+  LIBRARY_DEMO_LABELS,
+  LIBRARY_DEMO_NOTES,
+  LIBRARY_DEMO_STATES,
+  type LibraryDemoState,
+} from '../lib/libraryDemoState'
+import {
+  HISTORY_DEMO_LABELS,
+  HISTORY_DEMO_NOTES,
+  HISTORY_DEMO_STATES,
+  HISTORY_DEMO_STATES_REPORTS_ONLY,
+  setHistoryDemoState,
+  useHistoryDemoState,
+  type HistoryDemoState,
+} from '../lib/historyDemoState'
+import { setLibraryDemoState, useLibraryDemoState } from '../lib/libraryDemoState'
+import {
+  RUN_DEMO_LABELS,
+  RUN_DEMO_NOTES,
+  RUN_DEMO_STATES,
+  RUN_DEMO_STATES_NO_THREAD,
+  setRunDemoState,
+  useRunDemoState,
+  type RunDemoState,
+} from '../lib/runDemoState'
+import {
+  BUILDS_DEMO_LABELS,
+  BUILDS_DEMO_NOTES,
+  BUILDS_DEMO_STATES,
+  setBuildsDemoState,
+  useBuildsDemoState,
+  type BuildsDemoState,
+} from '../lib/buildsDemoState'
+import {
+  UPLOADS_DEMO_LABELS,
+  UPLOADS_DEMO_NOTES,
+  UPLOADS_DEMO_STATES,
+  setUploadsDemoState,
+  useUploadsDemoState,
+  type UploadsDemoState,
+} from '../lib/uploadsDemoState'
+import {
+  ORACLE_DEMO_LABELS,
+  ORACLE_DEMO_NOTES,
+  ORACLE_DEMO_STATES,
+  ORACLE_DEMO_THREAD_ID,
+  RADIOLOGIST_DEMO_LABELS,
+  RADIOLOGIST_DEMO_NOTES,
+  RADIOLOGIST_DEMO_STATES,
+  type OracleDemoState,
+  type RadiologistDemoState,
+} from '../lib/screenDemoStates'
+import {
+  CONNECTORS_DEMO_LABELS,
+  CONNECTORS_DEMO_NOTES,
+  CONNECTORS_DEMO_STATES,
+  setConnectorsDemoState,
+  useConnectorsDemoState,
+  type ConnectorsDemoState,
+} from '../lib/connectorsDemoState'
 
-type ActiveNav = 'home' | 'barista' | 'library' | 'radiologist' | 'oracle' | 'forecaster' | 'coach' | 'guardian' | 'specialized' | 'uploads' | 'connectors'
+/* Where the library fixture is observable: the Library itself, and the two
+   tests whose run-setup picker reads from it. Anywhere else the pill would be
+   chrome for something off screen. */
+const LIBRARY_STATE_NAVS = new Set<ActiveNav>(['library', 'user-test', 'functional-test'])
+/** Tests with a History tab the StateMachineDock can reseed. */
+const HISTORY_STATE_NAVS = new Set<ActiveNav>(['user-test', 'functional-test', 'ai-functional-test', 'ai-behavioural-test'])
+import { TestingOverview } from '../components/organisms/TestingOverview'
+import { FunctionalTestView } from '../components/organisms/FunctionalTestView'
+import { AIFunctionalTestView } from '../components/organisms/AIFunctionalTestView'
+import { AIBehaviouralTestView } from '../components/organisms/AIBehaviouralTestView'
+import { UserTestAgentView, type UserTestScreen } from '../components/organisms/UserTestAgentView'
+import {
+  areaOfNav,
+  ENTITLEMENT_PRESETS,
+  isEntitled,
+  includedTestLabels,
+  isTestLocked,
+  landingNav,
+  lockedTests,
+  TESTING_PLAN_PRESETS,
+  TESTING_TESTS,
+  type TestingPlanKey,
+  type TestingTestMeta,
+  type GamePlacement,
+  type StudioArea,
+} from '../lib/studioAreas'
+
+type ActiveNav =
+  | 'home' | 'barista' | 'library' | 'radiologist' | 'oracle' | 'forecaster'
+  | 'coach' | 'guardian' | 'specialized' | 'uploads' | 'connectors' | 'excerpt-review'
+  // Testing area (revamp 2026-09-09). The SOON rows are in the union so the
+  // sidebar callback type-checks; they are disabled and never navigate.
+  | 'testing-home' | 'functional-test' | 'agency-test' | 'user-test' | 'beta-test'
+  | 'ai-functional-test' | 'ai-behavioural-test' | 'ai-scale-test' | 'test-case-gen' | 'lqa'
 type RadiologistView = 'home' | 'results' | 'details'
 
 // ── URL-hash navigation (deep-link + reload support) ───────────────────────────
@@ -72,18 +178,81 @@ type RadiologistView = 'home' | 'results' | 'details'
 // and a reload restores the same screen instead of dropping back to Home.
 const HASH_NAVS: ActiveNav[] = [
   'home', 'library', 'radiologist', 'oracle', 'forecaster', 'specialized', 'uploads', 'connectors',
+  'excerpt-review',
 ]
+
+/**
+ * Testing navs live under a `#/testing/...` prefix (and `#/testing` for its
+ * Overview), which leaves every existing Intelligence deep link untouched. Nav
+ * ids are unique per area, so the area itself never has to be stored in the
+ * hash — `areaOfNav` derives it. `uploads` is shared by both areas, so it keeps
+ * the area it was reached from.
+ */
+const TESTING_HASH_NAVS: ActiveNav[] = [
+  'functional-test', 'user-test', 'ai-functional-test', 'ai-behavioural-test',
+  'library', 'uploads',
+]
+
+/**
+ * `#/excerpt-review/<placement>/<shape>` — lands straight on the Oracle Excerpt
+ * review screen so reviewers skip the Oracle query and its loading state, and so
+ * a specific variant can be shared by copying the address bar.
+ */
+const EXCERPT_SHAPES: ExcerptShape[] = [
+  'attributes-text', 'events', 'text', 'attributes', 'transcript-points', 'transcript-text',
+]
+
+/**
+ * `#/radiologist/results` and `#/radiologist/panel` land on the results view —
+ * the latter with the first session's side panel already open — so reviewers can
+ * reach the panel without typing and submitting a query.
+ */
+function parseRadiologistSub(): 'results' | 'panel' | null {
+  const raw = window.location.hash.replace(/^#\/?/, '')
+  const [seg, sub] = raw.split('/')
+  if (seg !== 'radiologist') return null
+  return sub === 'panel' ? 'panel' : sub === 'results' ? 'results' : null
+}
+
+/** Query shown when arriving by deep link, since none was typed. */
+const REVIEW_QUERY = 'guild help requests'
+
+function parseExcerptReviewHash(): { placement: ExcerptPlacement; shape: ExcerptShape } {
+  const raw = window.location.hash.replace(/^#\/?/, '')
+  const [, p, sh] = raw.split('/')
+  return {
+    placement: p === 'rail' ? 'rail' : 'banner',
+    shape: (EXCERPT_SHAPES as string[]).includes(sh) ? (sh as ExcerptShape) : 'attributes-text',
+  }
+}
 
 function parseNavHash(): { nav: ActiveNav; agentId: string | null } {
   const raw = window.location.hash.replace(/^#\/?/, '')
   const [seg, sub] = raw.split('/')
+  if (seg === 'testing') {
+    // `#/testing` is the Overview. Anything unknown (including the pre-revamp
+    // `runs` and `ai-player`) lands there too rather than on a blank screen.
+    if (sub && (TESTING_HASH_NAVS as string[]).includes(sub)) return { nav: sub as ActiveNav, agentId: null }
+    return { nav: landingNav('testing') as ActiveNav, agentId: null }
+  }
   if (seg === 'specialized') return { nav: 'specialized', agentId: sub || null }
   if ((HASH_NAVS as string[]).includes(seg)) return { nav: seg as ActiveNav, agentId: null }
   return { nav: 'home', agentId: null }
 }
 
-function navToHash(nav: ActiveNav, agentId: string | null): string {
+function navToHash(
+  nav: ActiveNav,
+  agentId: string | null,
+  review?: { placement: ExcerptPlacement; shape: ExcerptShape },
+  radiologistSub?: 'results' | 'panel' | null,
+): string {
   if (nav === 'specialized') return agentId ? `#/specialized/${agentId}` : '#/specialized'
+  if (nav === 'excerpt-review' && review) {
+    return `#/excerpt-review/${review.placement}/${review.shape}`
+  }
+  if (nav === 'radiologist' && radiologistSub) return `#/radiologist/${radiologistSub}`
+  if (nav === 'testing-home') return '#/testing'
+  if (areaOfNav(nav) === 'testing') return `#/testing/${nav}`
   if (nav === 'home') return '#/'
   return `#/${nav}`
 }
@@ -120,12 +289,32 @@ function runBigQueryOnboardingSteps({
     tableCount: number
     verdict: 'GREEN' | 'YELLOW' | 'RED'
     verdictReason: string
+    needsDescriptions: number
   }) => void
   onError: (stepIndex: number, errorMessage?: string) => void
 }) {
   let stepIndex = 0
   const advance = () => {
     onStep(stepIndex)
+    // Duplicate guard — this project/service-account is already connected
+    // company-wide. Match every identity the shared connection is known by
+    // (project id, full SA email, SA name) since the UI surfaces the SA name.
+    if (stepIndex === 1) {
+      const sharedBq = getSharedBigQueryConnection()
+      const sharedIds = [
+        sharedBq.projectId,
+        ...(sharedBq.saEmail ? [sharedBq.saEmail, sharedBq.saEmail.split('@')[0]] : []),
+      ].map((s) => s.toLowerCase())
+      if (sharedIds.includes(projectId.trim().toLowerCase())) {
+        onError(
+          1,
+          `This BigQuery project is already connected company-wide by ${SHARED_CONNECTION_OWNER.name}.\n` +
+            `• New tables missing? Refresh the connection on the Connections page.\n` +
+            `• Want a new connection? Use a different service account.`,
+        )
+        return
+      }
+    }
     // Prototype-only "happy path" — fail at step 1 if the user typed a clearly
     // bogus project ID, so the error state is reachable without code edits.
     if (stepIndex === 1 && /not-?found|fake|test-error/i.test(projectId)) {
@@ -153,6 +342,7 @@ function runBigQueryOnboardingSteps({
           tableCount: mock.tables.length,
           verdict: mock.verdict,
           verdictReason: mock.verdictReason,
+          needsDescriptions: problemTableCount,
         })
       }, 1400)
       return
@@ -190,6 +380,7 @@ function runSnowflakeOnboardingSteps({
     tableCount: number
     verdict: 'GREEN' | 'YELLOW' | 'RED'
     verdictReason: string
+    needsDescriptions: number
   }) => void
   onError: (stepIndex: number, errorMessage?: string) => void
 }) {
@@ -203,6 +394,26 @@ function runSnowflakeOnboardingSteps({
     if (stepIndex === 1 && /not-?found|fake|test-error/i.test(details.accountIdentifier)) {
       onError(1)
       return
+    }
+    // Duplicate guard — this account/user is already connected company-wide.
+    // Match both the account identifier and the username, since the UI presents
+    // connections by their username.
+    {
+      const sharedSf = getSharedSnowflakeConnection()
+      if (
+        stepIndex === 1 &&
+        sharedSf.kind !== 'not-connected' &&
+        (details.accountIdentifier.trim().toLowerCase() === sharedSf.accountIdentifier.toLowerCase() ||
+          details.username.trim().toLowerCase() === sharedSf.username.toLowerCase())
+      ) {
+        onError(
+          1,
+          `This Snowflake account is already connected company-wide by ${SHARED_CONNECTION_OWNER.name}.\n` +
+            `• New tables missing? Refresh the connection on the Connections page.\n` +
+            `• Want a new connection? Use a different username.`,
+        )
+        return
+      }
     }
     if (stepIndex === 2 && /write|admin|editor|owner/i.test(details.username)) {
       onError(
@@ -225,6 +436,7 @@ function runSnowflakeOnboardingSteps({
           tableCount: mock.tables.length,
           verdict: mock.verdict,
           verdictReason: mock.verdictReason,
+          needsDescriptions: problemTableCount,
         })
       }, 1400)
       return
@@ -240,9 +452,80 @@ function runSnowflakeOnboardingSteps({
 export function HomePage() {
   const barista = useBarista()
   const [activeNav, setActiveNav] = useState<ActiveNav>(() => parseNavHash().nav)
+  const libraryDemoState = useLibraryDemoState()
+  const connectorsDemoState = useConnectorsDemoState()
+  const uploadsDemoState = useUploadsDemoState()
+  const runDemoState = useRunDemoState()
+  const buildsDemoState = useBuildsDemoState()
+  /* Which tab the current test view is on. The dock offers Run or History,
+     never both — they drive different halves of the same screen, and showing
+     the one you are not looking at is just noise. Reset per nav so a test
+     opened fresh is never described by the previous test's tab. */
+  const [testingTab, setTestingTab] = useState<'new' | 'history'>('new')
+  useEffect(() => setTestingTab('new'), [activeNav])
+  /* Whether the session-picker popup is open. The Library fixture only changes
+     what that popup offers, so the row appears with it and goes with it. */
+  const [pickerOpen, setPickerOpen] = useState(false)
+  useEffect(() => setPickerOpen(false), [activeNav])
+  /* Oracle and Radiologist state already lives in this component, so these two
+     rows keep only their own selection and drive the existing setters. */
+  const [oracleDemoState, setOracleDemoState] = useState<OracleDemoState>('seeded')
+  /* Bumped to remount OracleAgentView when a preset needs its internal message
+     list discarded — the store alone cannot pull it back to the launcher. */
+  const [oracleViewKey, setOracleViewKey] = useState(0)
+  const [radiologistDemoState, setRadiologistDemoState] = useState<RadiologistDemoState>('home')
+  const historyDemoState = useHistoryDemoState()
+  /**
+   * The active area. Derived from the nav on every change, so it can never
+   * disagree with the screen — `uploads` is shared between areas and is the one
+   * nav that leaves it alone.
+   */
+  const [area, setArea] = useState<StudioArea>(() => areaOfNav(parseNavHash().nav) ?? 'intelligence')
+  /**
+   * Which User Test screen is showing. Held here, not in the view, because the
+   * page gradient is painted on the content region and never scrolls — it has
+   * to know whether User Test is on a landing screen or inside a run.
+   */
+  const [userTestScreen, setUserTestScreen] = useState<UserTestScreen>('home')
+  /** Same idea for the other tests — 'home' paints the gradient, anything else is a run. */
+  const [testingSubScreen, setTestingSubScreen] = useState<'home' | 'report' | 'thread' | 'run' | 'session'>('home')
+
+  /* Only on the composer screen does the tab exist. Inside a run the tab bar is
+     gone, so the run is what the dock should describe, whatever the last tab was. */
+  const onTestHomeScreen =
+    activeNav === 'user-test' ? userTestScreen === 'home' : testingSubScreen === 'home'
+  const onHistoryTab = testingTab === 'history' && onTestHomeScreen
+  /* The library fixture only changes what the session picker offers, so inside
+     a test the row belongs to the popup, not the screen behind it: it appears
+     when the picker opens and goes when it closes. On the Library page itself
+     the row is always on, because there the fixture IS the screen. */
+  const showLibraryRow =
+    area === 'testing' &&
+    LIBRARY_STATE_NAVS.has(activeNav) &&
+    (activeNav === 'library' || pickerOpen)
+  /* Decided: the game switcher lives inside the footer profile menu. */
+  const gamePlacement: GamePlacement = 'footer-menu'
+  /* Entitlement is an account fact, not a session choice. Swap this constant to
+     review the single-area or purchasable shapes. */
+  const areas = ENTITLEMENT_PRESETS.both
+  const areaEntitled = isEntitled(areas, area)
+  /* Tests are sold separately. In the product this is an account fact; here it
+     is switchable from the state machine dock so PMs and developers can see
+     both the unlocked product and what a smaller plan sees. Unlocked is the
+     default: the whole product is the baseline, and `locked` — one test locked
+     per group — is the variation you go looking for. */
+  const [testingPlanKey, setTestingPlanKey] = useState<TestingPlanKey>('unlocked')
+  const testingPlan = TESTING_PLAN_PRESETS[testingPlanKey]
+  const lockedTestIds = lockedTests(testingPlan)
+  const activeTestLocked = isTestLocked(testingPlan, activeNav)
+  /* "Contact sales" has no in-product purchase behind it — tests are
+     enabled per workspace by our team — so it resolves to the support
+     address instead of a fake "request sent" confirmation. */
+  const [contactSalesTest, setContactSalesTest] = useState<TestingTestMeta | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [language, setLanguage] = useState('EN')
-  const [heroAgent, setHeroAgent] = useState<Agent>('radiologist')
+  /* Oracle is the default entry point on New Query. */
+  const [heroAgent, setHeroAgent] = useState<Agent>('oracle')
   // Console source (sources popup) — 'library' switches the Radiologist gallery
   // to the videos available in the Library
   const [consoleSource, setConsoleSource] = useState('bluestacks')
@@ -255,17 +538,8 @@ export function HomePage() {
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null)
   // Specialized Agents hub: null = card grid, set = that agent's chat flow.
   const [specializedAgentId, setSpecializedAgentId] = useState<string | null>(() => parseNavHash().agentId)
-
-  // Mirror the primary view into the URL hash so the address bar tracks
-  // navigation and reloads restore the current screen.
-  useEffect(() => {
-    if (window.location.hash.startsWith('#/design-system')) return
-    const target = navToHash(activeNav, specializedAgentId)
-    const cur = window.location.hash
-    const curIsHome = cur === '' || cur === '#' || cur === '#/'
-    if (cur === target || (target === '#/' && curIsHome)) return
-    window.location.hash = target
-  }, [activeNav, specializedAgentId])
+  /** Placement + shape under review, mirrored into the hash so a variant is shareable. */
+  const [reviewState, setReviewState] = useState(() => parseExcerptReviewHash())
 
   // React to deep links, manual hash edits, and browser back/forward.
   useEffect(() => {
@@ -274,10 +548,31 @@ export function HomePage() {
       const { nav, agentId } = parseNavHash()
       setActiveNav((prev) => (prev === nav ? prev : nav))
       setSpecializedAgentId((prev) => (prev === agentId ? prev : agentId))
+      if (nav === 'excerpt-review') setReviewState(parseExcerptReviewHash())
+      // Restore the radiologist sub-view too. Without this, a hash change into
+      // `#/radiologist/panel` on an already-mounted app left the view on 'home',
+      // and the writer effect below promptly overwrote the link back to
+      // `#/radiologist` — so the deep link only worked on a full page load.
+      const sub = parseRadiologistSub()
+      if (nav === 'radiologist' && sub) {
+        setRadiologistView('results')
+        setSearchQuery((prev) => prev || REVIEW_QUERY)
+        if (sub === 'panel') {
+          setSelectedSession((prev) => prev ?? MOCK_SESSIONS[0])
+          setFlyoutOpen(true)
+        }
+      }
     }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+  // Area follows the nav — one source of truth, so a deep link into a Testing
+  // screen switches the sidebar with it and back/forward stays consistent.
+  useEffect(() => {
+    const navArea = areaOfNav(activeNav)
+    if (navArea && navArea !== area) setArea(navArea)
+  }, [activeNav, area])
+
   // Unsaved-changes guard for the connector detail view.
   const [connectorDirty, setConnectorDirty] = useState(false)
   const [pendingExit, setPendingExit] = useState<(() => void) | null>(null)
@@ -304,6 +599,7 @@ export function HomePage() {
     tableCount: number
     verdict: 'GREEN' | 'YELLOW' | 'RED'
     verdictReason: string
+    needsDescriptions?: number
   } | null>(null)
   const bigQueryConnection = useBigQueryConnection()
 
@@ -324,6 +620,7 @@ export function HomePage() {
     tableCount: number
     verdict: 'GREEN' | 'YELLOW' | 'RED'
     verdictReason: string
+    needsDescriptions?: number
   } | null>(null)
   const snowflakeConnection = useSnowflakeConnection()
 
@@ -349,15 +646,29 @@ export function HomePage() {
   }, [])
 
   // ── Oracle history state ──
-  const [oracleHistory, setOracleHistory] = useState<HistoryItem[]>([])
+  /**
+   * Oracle thread store, owned here so conversations survive OracleAgentView
+   * unmounting when a citation navigates to its evidence and back.
+   */
+  /* Seeded so the sidebar's History works on a fresh session. It used to render
+     four mock labels with no threads behind them, so clicking one navigated to
+     Oracle and then silently did nothing. */
+  const [oracleThreads, setOracleThreads] = useState<Record<string, ChatMessage[]>>(SEEDED_ORACLE_THREADS)
+  const [oracleHistory, setOracleHistory] = useState<HistoryItem[]>(DEFAULT_ORACLE_HISTORY)
   const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null)
 
   const handleOracleQuerySubmit = (id: string, query: string) => {
     const newItem: HistoryItem = { id, query, state: 'loading' }
     setOracleHistory((prev) => [newItem, ...prev])
+    /* A running query is already a reading surface — see the ground's
+       data-depth below. The thread id only lands on completion, so without
+       this flag the pastel mesh stays under the pipeline and then swaps to the
+       detail trace the moment the answer appears. */
+    setOracleRunning(true)
   }
 
   const handleOracleQueryComplete = (id: string) => {
+    setOracleRunning(false)
     setOracleHistory((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, state: 'complete' } : item,
@@ -376,10 +687,110 @@ export function HomePage() {
   }
 
   // ── Radiologist flow state ──
-  const [radiologistView, setRadiologistView] = useState<RadiologistView>('home')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedSession, setSelectedSession] = useState<SessionData | null>(null)
-  const [flyoutOpen, setFlyoutOpen] = useState(false)
+  // Seeded from the hash so `#/radiologist/results` and `#/radiologist/panel`
+  // land on those screens directly.
+  const [radiologistView, setRadiologistView] = useState<RadiologistView>(() =>
+    parseRadiologistSub() ? 'results' : 'home',
+  )
+  const [searchQuery, setSearchQuery] = useState(() =>
+    parseRadiologistSub() ? REVIEW_QUERY : '',
+  )
+  const [selectedSession, setSelectedSession] = useState<SessionData | null>(() =>
+    parseRadiologistSub() === 'panel' ? MOCK_SESSIONS[0] : null,
+  )
+  const [flyoutOpen, setFlyoutOpen] = useState(() => parseRadiologistSub() === 'panel')
+
+  /* ── State machine dock: Oracle ──
+     These drive the same state the product does, so a reviewer lands on the
+     real screen rather than a mock of it. See lib/screenDemoStates. */
+  /** A query is in flight, and no thread id exists for it yet. */
+  const [oracleRunning, setOracleRunning] = useState(false)
+
+  const applyOracleDemoState = (next: OracleDemoState) => {
+    setOracleDemoState(next)
+    if (next === 'first-run') {
+      setOracleRunning(false)
+      /* A brand-new workspace: clearing history too is the point — the sidebar
+         section goes with it. OracleAgentView keeps its own messages, so the
+         open thread has to be closed the way onExitThread does it, by dropping
+         the active id and remounting the view. */
+      setOracleThreads({})
+      setOracleHistory([])
+      setActiveHistoryId(null)
+      setOracleViewKey((k) => k + 1)
+      return
+    }
+    setOracleRunning(next === 'thinking')
+    if (next === 'thinking') {
+      const question =
+        DEFAULT_ORACLE_HISTORY.find((h) => h.id === ORACLE_DEMO_THREAD_ID)?.query ?? ''
+      setOracleHistory(DEFAULT_ORACLE_HISTORY)
+      setOracleThreads({
+        ...SEEDED_ORACLE_THREADS,
+        [ORACLE_DEMO_THREAD_ID]: [
+          { id: `${ORACLE_DEMO_THREAD_ID}-user`, type: 'user', text: question },
+          {
+            id: `${ORACLE_DEMO_THREAD_ID}-ai`,
+            type: 'ai',
+            isLoading: true,
+            /* An empty response shell, which is what the view builds while the
+               answer is still resolving. */
+            response: {
+              id: `${ORACLE_DEMO_THREAD_ID}-resp`,
+              sources: [],
+              contentHtml: '',
+              creditsUsed: 0,
+              relatedPrompts: [],
+            },
+          },
+        ],
+      })
+      setActiveHistoryId(ORACLE_DEMO_THREAD_ID)
+      return
+    }
+    // 'seeded' and 'thread' share the fixtures and differ only in what is open.
+    setOracleThreads(SEEDED_ORACLE_THREADS)
+    setOracleHistory(DEFAULT_ORACLE_HISTORY)
+    setActiveHistoryId(next === 'thread' ? ORACLE_DEMO_THREAD_ID : null)
+    if (next === 'seeded') setOracleViewKey((k) => k + 1)
+  }
+
+  /* ── State machine dock: Radiologist ── */
+  const applyRadiologistDemoState = (next: RadiologistDemoState) => {
+    setRadiologistDemoState(next)
+    setRadiologistView(next === 'details' ? 'details' : next === 'home' ? 'home' : 'results')
+    setSearchQuery(next === 'home' ? '' : REVIEW_QUERY)
+    setSelectedSession(next === 'home' || next === 'results' ? null : MOCK_SESSIONS[0])
+    setFlyoutOpen(next === 'panel')
+  }
+
+  // Mirror the primary view into the URL hash so the address bar tracks
+  // navigation and reloads restore the current screen.
+  useEffect(() => {
+    if (window.location.hash.startsWith('#/design-system')) return
+    const radiologistSub =
+      activeNav === 'radiologist' && radiologistView === 'results'
+        ? flyoutOpen
+          ? 'panel'
+          : 'results'
+        : null
+    const target = navToHash(activeNav, specializedAgentId, reviewState, radiologistSub)
+    const cur = window.location.hash
+    const curIsHome = cur === '' || cur === '#' || cur === '#/'
+    if (cur === target || (target === '#/' && curIsHome)) return
+    window.location.hash = target
+  }, [activeNav, specializedAgentId, reviewState, radiologistView, flyoutOpen])
+
+  /**
+   * Set when the details page was reached from an Oracle citation. Carries the
+   * excerpt explaining why the video was referenced, plus the label the back
+   * arrow should show.
+   */
+  const [oracleArrival, setOracleArrival] = useState<{
+    excerpt: OracleExcerpt
+    backLabel: string
+    historyId: string | null
+  } | null>(null)
 
   const enterRadiologistResults = (query: string) => {
     setActiveNav('radiologist')
@@ -394,12 +805,66 @@ export function HomePage() {
     setSearchQuery('')
     setSelectedSession(null)
     setFlyoutOpen(false)
+    setOracleArrival(null)
+  }
+
+  /**
+   * Oracle citation → evidence. Video citations cross nav boundaries into the
+   * radiologist details page, so we stash a return target for the back arrow.
+   * Table citations route to the warehouse instead.
+   */
+  const handleOpenCitation = (citation: Citation) => {
+    if (citation.kind === 'table') {
+      setActiveNav('connectors')
+      return
+    }
+    const session = MOCK_SESSIONS.find((candidate) => candidate.sessionId === citation.videoId)
+    if (!session) return
+
+    setSelectedSession(session)
+    setOracleArrival({
+      excerpt: MOCK_EXCERPTS['attributes-text'],
+      backLabel: 'Back to response',
+      historyId: activeHistoryId,
+    })
+    setActiveNav('radiologist')
+    setRadiologistView('details')
   }
 
   const renderContent = () => {
+    /* A locked test never opens an empty product — it resolves to its pitch. */
+    if (activeTestLocked) {
+      const test = TESTING_TESTS.find((t) => t.id === activeNav)
+      if (test) {
+        return (
+          <TestLockedPitch
+            test={test}
+            includedTests={includedTestLabels(testingPlan)}
+            carriesOver="Your 14 Gameplay Library recordings and game context carry over — nothing to set up again."
+            onContactSales={(t) => setContactSalesTest(t)}
+            onSeeSample={() => setTestingPlanKey('unlocked')}
+          />
+        )
+      }
+    }
     switch (activeNav) {
       case 'barista':
         return <BaristaPage />
+
+      // Direct-entry review screen — skips the Oracle query and its 9s loading
+      // state so reviewers land on the excerpt immediately.
+      case 'excerpt-review':
+        return (
+          <SessionDetailsPage
+            session={MOCK_SESSIONS[0]}
+            fromOracle
+            backLabel="Back to Oracle"
+            defaultPlacement={reviewState.placement}
+            defaultShape={reviewState.shape}
+            onReviewStateChange={(placement, shape) => setReviewState({ placement, shape })}
+            onBack={() => setActiveNav('oracle')}
+          />
+        )
 
       case 'oracle': {
         const runningTurn = [...barista.turns]
@@ -407,10 +872,20 @@ export function HomePage() {
           .find((t) => t.status === 'running')
         return (
           <OracleAgentView
+            key={oracleViewKey}
             className="h-full"
+            onOpenCitation={handleOpenCitation}
+            threadStore={oracleThreads}
+            onThreadStoreChange={setOracleThreads}
             onQuerySubmit={handleOracleQuerySubmit}
             onQueryComplete={handleOracleQueryComplete}
             activeThreadId={activeHistoryId}
+            onOpenLibrary={() => setActiveNav('library')}
+            onExitThread={() => {
+              setActiveHistoryId(null)
+              setOracleRunning(false)
+              setActiveNav('home')
+            }}
             externalQuery={runningTurn?.question ?? null}
             onExternalQueryComplete={(q) => barista.onOracleCompleted(q)}
           />
@@ -449,13 +924,25 @@ export function HomePage() {
             return selectedSession ? (
               <SessionDetailsPage
                 session={selectedSession}
-                onBack={() => setRadiologistView('results')}
+                fromOracle={!!oracleArrival}
+                backLabel={oracleArrival?.backLabel}
+                onBack={() => {
+                  // Arrived from a citation → return to the Oracle conversation.
+                  if (oracleArrival) {
+                    const historyId = oracleArrival.historyId
+                    setOracleArrival(null)
+                    setActiveNav('oracle')
+                    if (historyId) setActiveHistoryId(historyId)
+                    return
+                  }
+                  setRadiologistView('results')
+                }}
               />
             ) : null
 
           default:
             return (
-              <div className="flex flex-col items-center px-l pt-[120px] pb-[64px] w-full">
+              <div className="flex flex-col items-center pt-[120px] pb-[64px] w-full">
                 <RadiologistAgentView
                   className="w-full"
                   onSubmit={(query) => enterRadiologistResults(query)}
@@ -481,14 +968,70 @@ export function HomePage() {
 
       case 'uploads':
         return (
-          <div className="flex flex-col items-center px-[180px] pt-[120px] pb-[64px]">
+          <div className="flex flex-col items-center pt-[120px] pb-[64px]">
             <ContextUploadsView />
           </div>
         )
 
+      // Gameplay Library — the Testing area's video corpus. Same view as before
+      // the restructure, reached from Testing rather than Intelligence.
       case 'library':
-        return <VideoLibraryView />
+        return (
+          <VideoLibraryView />
+        )
 
+      // Testing's front door — both groups laid out as tiles.
+      case 'testing-home':
+      case 'agency-test':
+      case 'beta-test':
+      case 'ai-scale-test':
+      case 'test-case-gen':
+      case 'lqa':
+        return <TestingOverview lockedTests={lockedTestIds} onOpenTest={(test) => setActiveNav(test)} />
+
+      // User Test — composer home → run thread → full report. Screen state
+      // lives inside the view; only the nav row is in the hash, because a run
+      // has no id until it runs.
+      case 'user-test':
+        return (
+          <UserTestAgentView
+            libraryVideoCount={42}
+            gameContextAdded
+            onScreenChange={setUserTestScreen}
+            onTabChange={setTestingTab}
+            onPickerOpenChange={setPickerOpen}
+            onOpenLibrary={() => setActiveNav('library')}
+            onAskOracle={() => setActiveNav('oracle')}
+          />
+        )
+
+      /* The agency variant of this view is parked while External agency test
+         is SOON — FunctionalTestView still carries it (variant="agency").
+         Restore the `agency-test` case here when the test goes live. */
+      case 'functional-test':
+        return (
+          <FunctionalTestView
+            key="functional"
+            variant="functional"
+            onScreenChange={setTestingSubScreen}
+            onTabChange={setTestingTab}
+            onPickerOpenChange={setPickerOpen}
+            onOpenLibrary={() => setActiveNav('library')}
+          />
+        )
+
+      case 'ai-functional-test':
+        return <AIFunctionalTestView onScreenChange={setTestingSubScreen} onTabChange={setTestingTab} />
+
+      case 'ai-behavioural-test':
+        return (
+          <AIBehaviouralTestView
+            onScreenChange={setTestingSubScreen}
+            onTabChange={setTestingTab}
+            onOpenLibrary={() => setActiveNav('library')}
+            onAskOracle={() => setActiveNav('oracle')}
+          />
+        )
 
       case 'connectors': {
         const selectedConnector = selectedConnectorId
@@ -544,28 +1087,28 @@ export function HomePage() {
               />
               <div className="px-[32px] pt-[32px] pb-[80px] flex-1 flex flex-col">
                 {selectedConnector.id === 'bigquery' ? (
-                  <BigQueryDetailView
+                  <SharedConnectorDetail
+                    connectorId="bigquery"
                     connector={selectedConnector}
-                    connection={bigQueryConnection}
-                    onConnect={openBigQueryModal}
-                    onReconnect={openBigQueryModal}
-                    onReuploadCredentials={openBigQueryModal}
-                    onRefresh={handleBigQueryRefresh}
-                    onRetry={handleBigQueryRefresh}
-                    onDisconnect={disconnectBigQuery}
+                    onAddConnection={openBigQueryModal}
+                    onOwnRefresh={handleBigQueryRefresh}
+                    onOwnRetry={handleBigQueryRefresh}
+                    onOwnDisconnect={disconnectBigQuery}
+                    onOwnReconnect={openBigQueryModal}
+                    onOwnReuploadCredentials={openBigQueryModal}
                     onDirtyChange={setConnectorDirty}
                     resetSignal={connectorResetSignal}
                   />
                 ) : selectedConnector.id === 'snowflake' ? (
-                  <SnowflakeDetailView
+                  <SharedConnectorDetail
+                    connectorId="snowflake"
                     connector={selectedConnector}
-                    connection={snowflakeConnection}
-                    onConnect={() => openSnowflakeModal(1)}
-                    onReconnect={() => openSnowflakeModal(2)}
-                    onReregisterKey={() => openSnowflakeModal(1)}
-                    onRefresh={handleSnowflakeRefresh}
-                    onRetry={handleSnowflakeRefresh}
-                    onDisconnect={disconnectSnowflake}
+                    onAddConnection={() => openSnowflakeModal(1)}
+                    onOwnRefresh={handleSnowflakeRefresh}
+                    onOwnRetry={handleSnowflakeRefresh}
+                    onOwnDisconnect={disconnectSnowflake}
+                    onOwnReconnect={() => openSnowflakeModal(2)}
+                    onOwnReregisterKey={() => openSnowflakeModal(1)}
                     onDirtyChange={setConnectorDirty}
                     resetSignal={connectorResetSignal}
                   />
@@ -577,7 +1120,7 @@ export function HomePage() {
           )
         }
         return (
-          <div className="flex flex-col items-center px-[180px] pt-[120px] pb-[64px]">
+          <div className="flex flex-col items-center pt-[120px] pb-[64px]">
             <ContextConnectorsView onSelectConnector={setSelectedConnectorId} />
           </div>
         )
@@ -585,9 +1128,9 @@ export function HomePage() {
 
       default:
         return (
-          <div className="flex flex-col items-center px-l pt-[160px] pb-xxl3">
+          <div className="flex flex-col items-center pt-[160px] pb-xxl3">
             <HeroSection
-              className="w-full max-w-[800px]"
+              className="page-measure"
               activeAgent={heroAgent}
               onAgentChange={setHeroAgent}
               selectedSource={consoleSource}
@@ -602,14 +1145,10 @@ export function HomePage() {
                   setActiveNav('oracle')
                 }
               }}
-              onOpenSpecialized={() => {
-                setSpecializedAgentId(null)
-                setActiveNav('specialized')
-              }}
             />
             <div className="w-full mt-xxl4">
               {heroAgent === 'oracle' ? (
-                <div className="flex flex-col gap-s items-center max-w-[800px] mx-auto">
+                <div className="flex flex-col gap-s items-center page-measure">
                   <p className="font-display text-xs font-semibold text-base-500 text-center w-full leading-[1.5]">
                     Try our suggested prompts
                   </p>
@@ -639,7 +1178,8 @@ export function HomePage() {
       <div className="sticky top-0 h-screen shrink-0">
         <Sidebar
           collapsed={sidebarCollapsed}
-          activeNav={activeNav}
+          /* The review screen has no sidebar entry, so nothing should highlight. */
+          activeNav={activeNav === 'excerpt-review' ? undefined : activeNav}
           onNavChange={(nav) => {
             if (nav !== activeNav || nav !== 'radiologist') {
               resetRadiologistState()
@@ -668,9 +1208,31 @@ export function HomePage() {
             }
           }}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          areas={areas}
+          area={area}
+          onAreaChange={(next) => {
+            if (next === area) return
+            barista.notifyScreenSwitch()
+            resetRadiologistState()
+            const applyArea = () => {
+              setArea(next)
+              // Land on the area's first nav rather than trying to find an
+              // equivalent screen on the other side — there isn't one.
+              setActiveNav(landingNav(next) as ActiveNav)
+              setActiveHistoryId(null)
+              setSelectedConnectorId(null)
+              setSpecializedAgentId(null)
+            }
+            requestConnectorExit(applyArea)
+          }}
+          gamePlacement={gamePlacement}
+          lockedNavs={lockedTestIds}
           language={language}
           onLanguageChange={setLanguage}
-          historyItems={oracleHistory.length > 0 ? oracleHistory : undefined}
+          /* Always passed, empty included: `undefined` makes Sidebar fall back
+             to its own defaults, which made a no-history workspace impossible
+             to render. Sidebar keeps the fallback for use in isolation. */
+          historyItems={oracleHistory}
           activeHistoryId={activeHistoryId}
           onHistoryClick={(id) => {
             setActiveHistoryId(id)
@@ -679,7 +1241,7 @@ export function HomePage() {
         />
       </div>
 
-      {/* ── Main content area — gradient pinned, content scrolls ── */}
+      {/* ── Main content area — mesh pinned, content scrolls ── */}
       <main className="relative flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-in-out homepage-content-bg">
         {barista.setupStatus === 'in-setup' && (
           <div className="absolute inset-0 z-20 overflow-hidden">
@@ -701,32 +1263,53 @@ export function HomePage() {
             />
           </div>
         )}
-        {/* Gradient layer — pinned to main's box, never scrolls */}
-        {(activeNav === 'home' || activeNav === 'library' || (activeNav === 'radiologist' && radiologistView === 'home') || (activeNav === 'specialized' && specializedAgentId === null)) && (
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: [
-                'radial-gradient(1443px 356px at 51% 100%, rgba(123,76,255,0.10) 0%, rgba(123,76,255,0) 100%)',
-                'radial-gradient(325px 460px at 0% 0%, rgba(23,112,239,0.16) 0%, rgba(23,112,239,0) 100%)',
-                'radial-gradient(290px 179px at 80% 0%, rgba(123,76,255,0.10) 0%, rgba(123,76,255,0) 100%)',
-              ].join(', '),
-            }}
-          />
-        )}
+        {/* Ground mesh — pinned to main's box, never scrolls (see .studio-ground
+            in globals.css). Home screens get the full-bleed pastel mesh; detail
+            and report screens keep only a faint trace along the top edge, so the
+            product still reads as one place without colour sitting under content.
+            The hues shift per area: Intelligence leads with brand blue, Testing
+            with the Core Agents purple and its AI-testing green. */}
+        <div
+          className="studio-ground"
+          aria-hidden="true"
+          data-area={area}
+          data-depth={
+            /* Oracle is a landing screen only until a query is asked — from the
+               moment the pipeline starts it is a reading surface and takes the
+               detail treatment, like a report, rather than waiting for the
+               answer to land. */
+            activeNav === 'home' || (activeNav === 'oracle' && activeHistoryId === null && !oracleRunning) || activeNav === 'uploads' || activeNav === 'library' || (activeNav === 'radiologist' && radiologistView === 'home') || (activeNav === 'specialized' && specializedAgentId === null) || (activeNav === 'connectors' && selectedConnectorId === null) || (activeNav === 'user-test' && userTestScreen === 'home') || activeNav === 'testing-home' || (['functional-test', 'ai-functional-test', 'ai-behavioural-test'].includes(activeNav) && (testingSubScreen === 'home' || activeTestLocked))
+              ? 'home'
+              : 'detail'
+          }
+        />
 
         {/* Scrollable content */}
         <div className={[
           'relative z-10 h-full',
+          // A purchasable area owns the whole content region — the sidebar's
+          // rows are visible but nothing behind them is real yet.
+          !areaEntitled ? 'overflow-hidden' : '',
           // Views that manage their own scrolling
           (activeNav === 'radiologist' && radiologistView !== 'home') ||
           activeNav === 'barista' ||
           (activeNav === 'specialized' && specializedAgentId !== null) ||
           activeNav === 'library'
             ? 'overflow-hidden'
-            : 'overflow-y-auto',
+            // `page-scroll` reserves the scrollbar's width so the page measure
+            // lands on the same pixels whether a screen scrolls or not. Only the
+            // container that actually scrolls reserves it — a view that owns its
+            // own scrolling reserves inside itself instead.
+            : 'overflow-y-auto page-scroll',
         ].join(' ')}>
-          {renderContent()}
+          {areaEntitled ? (
+            renderContent()
+          ) : (
+            <AreaLockedPitch
+              area={area}
+              carriesOver="Your game context and 42 gameplay videos carry straight over."
+            />
+          )}
         </div>
       </main>
 
@@ -802,6 +1385,7 @@ export function HomePage() {
       {/* BigQuery onboarding modal (prototype — fake network) */}
       <BigQueryOnboardingModal
         isOpen={bigQueryModalState !== null}
+        lenient
         state={bigQueryModalState ?? 'idle'}
         projectId={bigQueryProjectId}
         progress={bigQueryProgress}
@@ -811,7 +1395,7 @@ export function HomePage() {
           setBigQueryProgress({ step: 0 })
           setBigQuerySummary(null)
         }}
-        onConnect={({ projectId, orgWideAccess }) => {
+        onConnect={({ projectId, orgWideAccess, orgWideEdit }) => {
           setBigQueryProjectId(projectId)
           setBigQuerySummary(null)
           setBigQueryProgress({ step: 0 })
@@ -827,7 +1411,7 @@ export function HomePage() {
                 totalTableCount,
               }),
             onSuccess: (summary) => {
-              markBigQueryConnected({ projectId, syncing: true, orgWideAccess })
+              markBigQueryConnected({ projectId, syncing: true, orgWideAccess, orgWideEdit })
               markBigQuerySyncComplete()
               setBigQuerySummary(summary)
               setBigQueryModalState('success')
@@ -863,7 +1447,10 @@ export function HomePage() {
           setSnowflakeSummary(null)
         }}
         onConnect={(payload) => {
-          const { orgWideAccess, ...details } = payload
+          const { orgWideAccess, orgWideEdit, ...rest } = payload
+          // The database question was dropped from the form — default the
+          // prototype database when it wasn't provided.
+          const details = { ...rest, database: rest.database || 'GAME_TELEMETRY' }
           setSnowflakeDetails(details)
           setSnowflakeSummary(null)
           setSnowflakeProgress({ step: 0 })
@@ -874,7 +1461,7 @@ export function HomePage() {
             onReviewComplete: (problemTableCount, totalTableCount) =>
               setSnowflakeProgress({ step: 4, problemTableCount, totalTableCount }),
             onSuccess: (summary) => {
-              markSnowflakeConnected({ ...details, syncing: true, orgWideAccess })
+              markSnowflakeConnected({ ...details, syncing: true, orgWideAccess, orgWideEdit })
               markSnowflakeSyncComplete()
               setSnowflakeSummary(summary)
               setSnowflakeModalState('success')
@@ -933,6 +1520,170 @@ export function HomePage() {
           exit?.()
         }}
       />
+
+
+      {/* Locked test → Contact sales: the address to mail, not a purchase flow */}
+      <ContactSalesDialog
+        isOpen={contactSalesTest !== null}
+        onClose={() => setContactSalesTest(null)}
+        testLabel={contactSalesTest?.label ?? ''}
+        workspaceName="BlueStacks Studio"
+      />
+
+      {/* Review presets, one collapsed dock. Rows are chosen by the screen in
+          view: the plan anywhere in Testing, the library fixture where a
+          picker reads from it, the history fixture on a test with a History
+          tab. The dock renders nothing when no row applies. */}
+      <StateMachineDock
+        rows={[
+          ...(area === 'testing'
+            ? [
+                {
+                  id: 'plan',
+                  label: 'Plan',
+                  value: testingPlanKey,
+                  options: (Object.keys(TESTING_PLAN_LABELS) as TestingPlanKey[]).map((key) => ({
+                    key,
+                    label: TESTING_PLAN_LABELS[key],
+                  })),
+                  onChange: (key: string) => setTestingPlanKey(key as TestingPlanKey),
+                  defaultKey: 'unlocked',
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          ...(showLibraryRow
+            ? [
+                {
+                  id: 'library',
+                  label: 'Library',
+                  value: libraryDemoState,
+                  options: LIBRARY_DEMO_STATES.map((key) => ({
+                    key,
+                    label: LIBRARY_DEMO_LABELS[key],
+                    note: LIBRARY_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => setLibraryDemoState(key as LibraryDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          ...(activeNav === 'oracle'
+            ? [
+                {
+                  id: 'oracle',
+                  label: 'Oracle',
+                  value: oracleDemoState,
+                  options: ORACLE_DEMO_STATES.map((key) => ({
+                    key,
+                    label: ORACLE_DEMO_LABELS[key],
+                    note: ORACLE_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => applyOracleDemoState(key as OracleDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          ...(activeNav === 'radiologist'
+            ? [
+                {
+                  id: 'radiologist',
+                  label: 'Radiologist',
+                  value: radiologistDemoState,
+                  options: RADIOLOGIST_DEMO_STATES.map((key) => ({
+                    key,
+                    label: RADIOLOGIST_DEMO_LABELS[key],
+                    note: RADIOLOGIST_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => applyRadiologistDemoState(key as RadiologistDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          ...(activeNav === 'uploads'
+            ? [
+                {
+                  id: 'uploads',
+                  label: 'Uploads',
+                  value: uploadsDemoState,
+                  options: UPLOADS_DEMO_STATES.map((key) => ({
+                    key,
+                    label: UPLOADS_DEMO_LABELS[key],
+                    note: UPLOADS_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => setUploadsDemoState(key as UploadsDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          ...(activeNav === 'connectors'
+            ? [
+                {
+                  id: 'connectors',
+                  label: 'Connectors',
+                  value: connectorsDemoState,
+                  options: CONNECTORS_DEMO_STATES.map((key) => ({
+                    key,
+                    label: CONNECTORS_DEMO_LABELS[key],
+                    note: CONNECTORS_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => setConnectorsDemoState(key as ConnectorsDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          /* Run while composing or inside a run; History on the history tab.
+             Being inside a run outranks the tab: the tab bar is not even on
+             screen there, so the last tab value says nothing about the view. */
+          /* The AI tests' build picker — every state a build passes through. */
+          ...((activeNav === 'ai-functional-test' || activeNav === 'ai-behavioural-test') && onTestHomeScreen && testingTab === 'new'
+            ? [
+                {
+                  id: 'builds',
+                  label: 'Builds',
+                  value: buildsDemoState,
+                  options: BUILDS_DEMO_STATES.map((key) => ({
+                    key,
+                    label: BUILDS_DEMO_LABELS[key],
+                    note: BUILDS_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => setBuildsDemoState(key as BuildsDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          ...(area === 'testing' && HISTORY_STATE_NAVS.has(activeNav) && !onHistoryTab
+            ? [
+                {
+                  id: 'run',
+                  label: 'Run',
+                  value: runDemoState,
+                  /* Only User Test has a thread step between the composer and
+                     the report; the rest go straight there. */
+                  options: (activeNav === 'user-test'
+                    ? RUN_DEMO_STATES
+                    : RUN_DEMO_STATES_NO_THREAD
+                  ).map((key) => ({
+                    key,
+                    label: RUN_DEMO_LABELS[key],
+                    note: RUN_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => setRunDemoState(key as RunDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          ...(area === 'testing' && HISTORY_STATE_NAVS.has(activeNav) && onHistoryTab
+            ? [
+                {
+                  id: 'history',
+                  label: 'History',
+                  /* "Reports only" is a User Test state; elsewhere it behaves as
+                     seeded and the row shows it that way. */
+                  value:
+                    activeNav !== 'user-test' && historyDemoState === 'reports' ? 'seeded' : historyDemoState,
+                  options: (activeNav === 'user-test' ? HISTORY_DEMO_STATES : HISTORY_DEMO_STATES_REPORTS_ONLY).map(
+                    (key) => ({ key, label: HISTORY_DEMO_LABELS[key], note: HISTORY_DEMO_NOTES[key] }),
+                  ),
+                  onChange: (key: string) => setHistoryDemoState(key as HistoryDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+        ]}
+      />
+
 
     </div>
   )

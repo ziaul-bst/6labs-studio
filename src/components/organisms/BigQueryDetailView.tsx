@@ -74,8 +74,18 @@ export interface BigQueryDetailViewProps {
    *  thrown away. Used by the parent's "Discard & leave" confirmation. */
   resetSignal?: number
 
-  /** Storybook-only: open the refresh-confirmation popup on mount. */
-  defaultRefreshConfirmOpen?: boolean
+  /** Storybook-only: open the disconnect-confirmation popup on mount. */
+  defaultDisconnectConfirmOpen?: boolean
+
+  /** When true, hides description-editing affordances (FieldEditor inputs,
+   *  Save bar) for viewers without edit access. Refresh stays available so
+   *  viewers can re-sync. Defaults to false — production is unaffected. */
+  readOnly?: boolean
+  /** When false, hides connection-management actions (Disconnect) regardless
+   *  of `readOnly` — a teammate can be granted description-edit access to a
+   *  connection they don't own, but can't disconnect or repair someone else's
+   *  credentials. Defaults to true — production is unaffected. */
+  canManage?: boolean
 
   className?: string
 }
@@ -91,7 +101,9 @@ export function BigQueryDetailView({
   onDisconnect,
   onDirtyChange,
   resetSignal,
-  defaultRefreshConfirmOpen,
+  defaultDisconnectConfirmOpen,
+  readOnly = false,
+  canManage = true,
   className,
 }: BigQueryDetailViewProps) {
   // Pending edits buffer — table descriptions, column descriptions and the
@@ -100,9 +112,11 @@ export function BigQueryDetailView({
   const [pendingTableDescs, setPendingTableDescs] = useState<Record<string, string>>({})
   const [pendingColumnDescs, setPendingColumnDescs] = useState<Record<string, string>>({})
   const [pendingOrgWide, setPendingOrgWide] = useState<boolean | null>(null)
-  // Refresh wipes every table + column description, so we gate it behind a
+  // Disconnect removes the connection entirely, so it's gated behind a
   // confirmation popup. Kept above the early return to satisfy the rules of hooks.
-  const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(defaultRefreshConfirmOpen ?? false)
+  const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(
+    defaultDisconnectConfirmOpen ?? false,
+  )
 
   const isError = connection.kind === 'error'
   const isSyncing = connection.kind === 'connected' && connection.syncing
@@ -212,36 +226,38 @@ export function BigQueryDetailView({
             <Button
               variant="outline"
               size="lg"
-              onClick={() => setRefreshConfirmOpen(true)}
+              onClick={onRefresh}
             >
               Refresh
             </Button>
           ) : null
         }
         secondaryAction={
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={onDisconnect}
-          >
-            Disconnect
-          </Button>
+          !readOnly && canManage ? (
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => setDisconnectConfirmOpen(true)}
+            >
+              Disconnect
+            </Button>
+          ) : undefined
         }
       />
 
-      {/* Refresh confirmation — refresh re-imports schemas and clears every
-          description the user has added, so we always confirm first. */}
-      {refreshConfirmOpen &&
+      {/* Disconnect confirmation — removes the connection entirely, so we
+          always confirm first. */}
+      {disconnectConfirmOpen &&
         createPortal(
           <div
             className="fixed inset-0 z-50 flex items-center justify-center p-m"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="bq-refresh-confirm-title"
+            aria-labelledby="bq-disconnect-confirm-title"
           >
             <div
               className="absolute inset-0 bg-black/40"
-              onClick={() => setRefreshConfirmOpen(false)}
+              onClick={() => setDisconnectConfirmOpen(false)}
               aria-hidden
             />
             <div
@@ -249,19 +265,19 @@ export function BigQueryDetailView({
             >
               <div className="flex flex-col gap-xs">
                 <span
-                  id="bq-refresh-confirm-title"
+                  id="bq-disconnect-confirm-title"
                   className="font-display text-l font-semibold"
                   style={{ color: 'var(--text-primary)' }}
                 >
-                  Refresh this connection?
+                  Disconnect BigQuery?
                 </span>
                 <span
                   className="font-body text-s leading-[1.5]"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  Refreshing re-imports schemas from BigQuery and clears every
-                  table and column description you&rsquo;ve added. This can&rsquo;t
-                  be undone.
+                  Oracle will lose access to these tables immediately, and every
+                  teammate sharing this connection loses access too. You&rsquo;ll
+                  need to reconnect and re-import tables to restore it.
                 </span>
               </div>
               <div className="flex gap-m w-full">
@@ -269,20 +285,20 @@ export function BigQueryDetailView({
                   variant="secondary"
                   size="lg"
                   className="flex-1"
-                  onClick={() => setRefreshConfirmOpen(false)}
+                  onClick={() => setDisconnectConfirmOpen(false)}
                 >
                   Cancel
                 </Button>
                 <Button
-                  variant="primary"
+                  variant="danger"
                   size="lg"
                   className="flex-1"
                   onClick={() => {
-                    setRefreshConfirmOpen(false)
-                    onRefresh?.()
+                    setDisconnectConfirmOpen(false)
+                    onDisconnect?.()
                   }}
                 >
-                  Refresh anyway
+                  Disconnect
                 </Button>
               </div>
             </div>
@@ -295,6 +311,7 @@ export function BigQueryDetailView({
         {connection.kind === 'connected' && (
           <ConnectedBody
             connection={connection}
+            readOnly={readOnly}
             pendingTableDescs={pendingTableDescs}
             pendingColumnDescs={pendingColumnDescs}
             onEditTable={(fqn, value) => {
@@ -323,7 +340,7 @@ export function BigQueryDetailView({
         )}
       </div>
 
-      {connection.kind === 'connected' && !isSyncing && (
+      {connection.kind === 'connected' && !isSyncing && !readOnly && (
         <SaveBottomBar
           dirty={dirty}
           pendingCount={pendingCount}
@@ -512,18 +529,20 @@ function PrimaryErrorAction({
 
 function ConnectedBody({
   connection,
+  readOnly = false,
   pendingTableDescs,
   pendingColumnDescs,
   onEditTable,
   onEditColumn,
 }: {
   connection: Extract<BigQueryConnection, { kind: 'connected' }>
+  readOnly?: boolean
   pendingTableDescs: Record<string, string>
   pendingColumnDescs: Record<string, string>
   onEditTable: (fqn: string, value: string) => void
   onEditColumn: (fqn: string, columnName: string, value: string) => void
 }) {
-  const { projectId, syncing, tables, lastRefreshedAt, verdict, verdictReason, saEmail } = connection
+  const { projectId, syncing, tables, lastRefreshedAt, onboardedAt, verdict } = connection
 
   if (syncing) {
     return (
@@ -543,6 +562,14 @@ function ConnectedBody({
 
   const yellowCount = tables.filter((t) => t.verdict === 'YELLOW').length
   const greenCount = tables.length - yellowCount
+  // Missing-description tally for the banner copy.
+  const missingColumnCount = tables.reduce(
+    (n, t) => n + t.columns.filter((c) => !c.description.trim()).length,
+    0,
+  )
+  const tablesNeedingWork = tables.filter(
+    (t) => !t.description.trim() || t.columns.some((c) => !c.description.trim()),
+  ).length
 
   return (
     <>
@@ -550,13 +577,16 @@ function ConnectedBody({
       {verdict === 'YELLOW' && (
         <InfoBanner
           tone="warning"
-          title="Connection is partial — needs descriptions"
+          title="A few descriptions are missing"
           body={
             <>
-              {verdictReason || 'Some tables or columns are missing descriptions.'}{' '}
-              Oracle can still query these tables, but answers will be weaker
-              until every table and column has a description. Fill them in
-              below to mark this connection <strong>Ready</strong>.
+              Oracle connected successfully and is ready to answer from these
+              tables. Adding missing descriptions of{' '}
+              <strong>
+                {missingColumnCount} column{missingColumnCount === 1 ? '' : 's'} across{' '}
+                {tablesNeedingWork} table{tablesNeedingWork === 1 ? '' : 's'}
+              </strong>{' '}
+              makes its answers even sharper.
             </>
           }
         />
@@ -573,7 +603,11 @@ function ConnectedBody({
             value: `${greenCount} · ${yellowCount}`,
           },
           {
-            label: 'Last refreshed',
+            label: 'Connected / Updated',
+            value: formatRelative(onboardedAt),
+          },
+          {
+            label: 'Last refresh',
             value: formatRelative(lastRefreshedAt),
           },
         ]}
@@ -592,7 +626,7 @@ function ConnectedBody({
             className="font-body text-xs"
             style={{ color: 'var(--text-tertiary)' }}
           >
-            Click any table to edit descriptions
+            {readOnly ? 'Click any table to view descriptions' : 'Click any table to edit descriptions'}
           </span>
         </div>
         <div className="flex flex-col gap-s">
@@ -604,50 +638,43 @@ function ConnectedBody({
               pendingColumnDescs={pendingColumnDescs}
               onEditTable={onEditTable}
               onEditColumn={onEditColumn}
+              readOnly={readOnly}
             />
           ))}
         </div>
       </section>
 
-      {/* Org-wide access disclaimer — no longer a toggle. Every member of the
-          workspace can query this connection (no opt-out). */}
-      <section
-        className="flex items-start gap-m p-l rounded-xl"
-        style={{
-          backgroundColor: 'var(--bg-elements)',
-          border: '1px solid var(--border-default)',
-        }}
-      >
-        <span
-          aria-hidden
-          className="shrink-0 mt-[2px] inline-flex items-center justify-center w-[20px] h-[20px] rounded-full font-display text-xs font-bold italic"
-          style={{ backgroundColor: 'var(--brand)', color: 'var(--text-on-brand)' }}
-        >
-          i
-        </span>
-        <div className="flex-1 min-w-0 flex flex-col gap-xxs">
-          <span
-            className="font-body text-s font-medium"
+      {/* View — same table list as above, minus row count/table size. Shares
+          the same pending-edit state so an edit made here or in "Tables"
+          reflects in both. */}
+      <section className="flex flex-col gap-s">
+        <div className="flex items-baseline justify-between gap-m">
+          <h2
+            className="font-display text-m font-semibold leading-[1.5]"
             style={{ color: 'var(--text-primary)' }}
           >
-            Every member of this workspace has access
-          </span>
+            View
+          </h2>
           <span
-            className="font-body text-xs leading-[1.5]"
-            style={{ color: 'var(--text-secondary)' }}
+            className="font-body text-xs"
+            style={{ color: 'var(--text-tertiary)' }}
           >
-            Every teammate in this workspace can query these tables and edit
-            descriptions through Oracle. Read-only — 6labs never writes back to
-            your warehouse.
+            Click any table to view descriptions
           </span>
-          {saEmail && (
-            <span
-              className="font-body text-xs mt-xxs"
-              style={{ color: 'var(--text-tertiary)' }}
-            >
-              Service account: <code>{saEmail}</code>
-            </span>
-          )}
+        </div>
+        <div className="flex flex-col gap-s">
+          {tables.map((t) => (
+            <WarehouseTableCard
+              key={t.fqn}
+              table={t}
+              pendingTableDesc={pendingTableDescs[t.fqn]}
+              pendingColumnDescs={pendingColumnDescs}
+              onEditTable={onEditTable}
+              onEditColumn={onEditColumn}
+              readOnly={readOnly}
+              hideSize
+            />
+          ))}
         </div>
       </section>
 

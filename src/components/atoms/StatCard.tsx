@@ -51,18 +51,22 @@ export function StatCard({ label, value, variant = 'default', icon, className }:
       {/* Icon */}
       {icon && <div style={{ color: style.valueColor }}>{icon}</div>}
 
-      {/* Value — 20px Bricolage Medium */}
+      {/* Value — 20px Bricolage Medium.
+          lineHeight 1.2, not 1.5: a 20px numeral in a 30px line box left ~5px of
+          dead leading on each side, which pushed the tile's visible weight
+          upward and made the space under the label read as a gap. */}
       <span
         className="font-display text-l font-medium whitespace-nowrap"
-        style={{ color: style.valueColor, lineHeight: '1.5' }}
+        style={{ color: style.valueColor, lineHeight: '1.2' }}
       >
         {value}
       </span>
 
-      {/* Label — 10px Inter, tracking 0.2px */}
+      {/* Label — 10px Inter, tracking 0.2px. leading-none so the box hugs the
+          text instead of adding another 5px below the baseline. */}
       <span
         className="font-body text-2xs text-text-tertiary text-center whitespace-nowrap"
-        style={{ letterSpacing: '0.2px' }}
+        style={{ letterSpacing: '0.2px', lineHeight: 1 }}
       >
         {label}
       </span>

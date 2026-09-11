@@ -23,6 +23,8 @@ import { CloseIcon } from '../icons/CloseIcon'
 import { FileDocIcon } from '../icons/FileDocIcon'
 import { TrashIcon } from '../icons/TrashIcon'
 import { ConnectionStatusPill } from '../atoms/ConnectionStatusPill'
+import { ConnectorErrorMessage } from '../molecules/ConnectorErrorMessage'
+import { ConnectorSharingCard } from '../molecules/ConnectorSharingCard'
 import { BigQueryIcon } from '../icons/connectors/BigQueryIcon'
 import type { BigQueryVerdict } from '../../lib/state/connectorsStore'
 
@@ -120,6 +122,8 @@ export interface SuccessSummary {
   verdict: BigQueryVerdict
   /** Headline reason string from the backend, e.g. "1 table(s) YELLOW…". */
   verdictReason: string
+  /** Tables that still need descriptions — drives the done-card second line. */
+  needsDescriptions?: number
 }
 
 const MAX_JSON_BYTES = 5 * 1024 * 1024
@@ -146,11 +150,16 @@ export interface BigQueryOnboardingModalProps {
     projectId: string
     file: File
     orgWideAccess: boolean
+    /** Owner's choice: can teammates edit this connection (not just query it)? */
+    orgWideEdit: boolean
   }) => void
   /** Called when the user clicks "Done" after a successful connection. */
   onDone?: () => void
   /** Called when the user clicks "Try again" from the failed state. */
   onRetry?: () => void
+  /** Prototype: accept any file and skip service-account-key validation so the
+   *  flow can always complete. Defaults to false — production is unaffected. */
+  lenient?: boolean
 }
 
 export function BigQueryOnboardingModal({
@@ -166,6 +175,7 @@ export function BigQueryOnboardingModal({
   onConnect,
   onDone,
   onRetry,
+  lenient = false,
 }: BigQueryOnboardingModalProps) {
   // Map the legacy `connecting` alias onto the new `progress` state so all
   // existing call sites keep working without code changes.
@@ -178,6 +188,9 @@ export function BigQueryOnboardingModal({
   const [dragOver, setDragOver] = useState(false)
   const [localError, setLocalError] = useState<string | null>(initialError ?? null)
   const [extracting, setExtracting] = useState(false)
+  // Permission choice — on by default: teammates can edit descriptions.
+  // Off restricts them to view-only access to this connection.
+  const [orgWideEdit, setOrgWideEdit] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Keep state in sync if parent overrides projectId (Storybook reset).
@@ -203,7 +216,7 @@ export function BigQueryOnboardingModal({
 
   const handleFile = (next: File | undefined) => {
     if (!next) return
-    if (!next.name.toLowerCase().endsWith('.json')) {
+    if (!lenient && !next.name.toLowerCase().endsWith('.json')) {
       setLocalError('Only .json service-account files are supported.')
       setFile(null)
       setProjectId('')
@@ -235,17 +248,26 @@ export function BigQueryOnboardingModal({
         (typeof parsed.project_id === 'string' ||
           typeof parsed.private_key === 'string' ||
           typeof parsed.client_email === 'string')
-      if (!looksLikeSaKey || typeof parsed!.project_id !== 'string' || !parsed!.project_id.trim()) {
+      const derivedProjectId =
+        looksLikeSaKey && typeof parsed!.project_id === 'string' && parsed!.project_id.trim()
+          ? parsed!.project_id.trim()
+          : ''
+      if (!lenient && !derivedProjectId) {
         setExtracting(false)
         setFile(null)
         setLocalError(NEEDS_FIX)
         return
       }
       setFile(next)
-      setProjectId(parsed!.project_id.trim())
+      setProjectId(derivedProjectId || next.name.replace(/\.[^.]+$/, '') || 'demo-project')
       setExtracting(false)
     }).catch(() => {
       setExtracting(false)
+      if (lenient) {
+        setFile(next)
+        setProjectId(next.name.replace(/\.[^.]+$/, '') || 'demo-project')
+        return
+      }
       setFile(null)
       setLocalError('Couldn’t read this file. Re-export the service-account JSON and try again.')
     })
@@ -265,7 +287,8 @@ export function BigQueryOnboardingModal({
   const handleConnect = () => {
     if (!canSubmit || !file) return
     // Org-wide access is mandatory now — every workspace member can query.
-    onConnect?.({ projectId: projectId.trim(), file, orgWideAccess: true })
+    // Whether they can also EDIT is the owner's choice (orgWideEdit).
+    onConnect?.({ projectId: projectId.trim(), file, orgWideAccess: true, orgWideEdit })
   }
 
   return createPortal(
@@ -330,7 +353,15 @@ export function BigQueryOnboardingModal({
             progress={progress ?? { step: 0 }}
             projectId={projectIdProp ?? projectId}
             errorMessageOverride={errorReason}
-            onRetry={onRetry}
+            onRetry={() => {
+              // A failed connect usually traces back to the uploaded key —
+              // clear it so "Try again" starts from a fresh dropzone instead
+              // of keeping the rejected file attached.
+              setFile(null)
+              setProjectId('')
+              setLocalError(null)
+              onRetry?.()
+            }}
             onCancel={onClose}
           />
         ) : (
@@ -448,7 +479,8 @@ export function BigQueryOnboardingModal({
 
             {/* Project ID confirmation — extracted from the SA JSON. Read-only
                 so the user can verify before connecting; the JSON itself is
-                always the source of truth. */}
+                always the source of truth. (Snowflake's fields stay editable —
+                its details are user-typed, not derived from a credential file.) */}
             {projectId && !localError && (
               <div
                 className="flex items-center gap-s p-s rounded-m"
@@ -489,74 +521,21 @@ export function BigQueryOnboardingModal({
               How to create a service account
             </a>
 
-            {/* Documentation notice — Oracle answers only get good once every
-                table and column has a description. Visible BEFORE connecting
-                so the user can fix gaps in BigQuery first. */}
+            {/* Compact pre-connect notices — one line each. */}
             <div
-              className="flex items-start gap-s p-m rounded-m"
-              style={{
-                backgroundColor: 'var(--warning-bg)',
-                border: '1px solid var(--warning)',
-              }}
+              className="flex items-start gap-xs px-s py-xs rounded-m"
+              style={{ backgroundColor: 'var(--warning-bg)', border: '1px solid var(--warning)' }}
             >
               <span
                 aria-hidden
-                className="shrink-0 inline-flex items-center justify-center w-[20px] h-[20px] rounded-full font-display text-xs font-bold"
+                className="shrink-0 mt-[1px] inline-flex items-center justify-center w-[16px] h-[16px] rounded-full font-display text-2xs font-bold"
                 style={{ backgroundColor: 'var(--warning)', color: 'var(--text-on-brand)' }}
               >
                 !
               </span>
-              <div className="flex-1 min-w-0 flex flex-col gap-xxs">
-                <span
-                  className="font-display text-xs font-semibold uppercase tracking-[0.12em]"
-                  style={{ color: 'var(--warning)' }}
-                >
-                  Heads up before connecting
-                </span>
-                <span
-                  className="font-body text-xs leading-[1.5]"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  Make sure every table and every column in your dataset has a
-                  description in BigQuery. Oracle uses those descriptions to
-                  ground its answers — missing ones will mark the connection as
-                  <strong> needs descriptions</strong>.
-                </span>
-              </div>
-            </div>
-
-            {/* Org-wide access disclaimer — no longer a choice. Every member
-                of the workspace can query this connection once it's live. */}
-            <div
-              className="flex items-start gap-s p-m rounded-m"
-              style={{
-                backgroundColor: 'var(--bg-tint-light)',
-                border: '1px solid var(--border-tint)',
-              }}
-            >
-              <span
-                aria-hidden
-                className="shrink-0 mt-[2px] inline-flex items-center justify-center w-[20px] h-[20px] rounded-full font-display text-xs font-bold italic"
-                style={{ backgroundColor: 'var(--brand)', color: 'var(--text-on-brand)' }}
-              >
-                i
-              </span>
-              <span className="flex-1 min-w-0 flex flex-col gap-xxs">
-                <span
-                  className="font-body text-s font-medium"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  Every member of this workspace will have access
-                </span>
-                <span
-                  className="font-body text-xs leading-[1.5]"
-                  style={{ color: 'var(--text-tertiary)' }}
-                >
-                  Once connected, every teammate in your 6labs workspace can
-                  query these BigQuery tables through Oracle and see description
-                  edits. The service account stays read-only — 6labs never
-                  writes back to your warehouse.
-                </span>
+              <span className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-primary)' }}>
+                Tables and columns without descriptions in BigQuery mark the connection
+                <strong> needs descriptions</strong> — Oracle answers are weaker until they’re filled in.
               </span>
             </div>
 
@@ -584,6 +563,12 @@ export function BigQueryOnboardingModal({
               </div>
             )}
           </div>
+        )}
+
+        {/* Shared connection management — what sharing means (always-true
+            baseline) plus the one thing the owner controls. */}
+        {state === 'idle' && (
+          <ConnectorSharingCard orgWideEdit={orgWideEdit} onOrgWideEditChange={setOrgWideEdit} />
         )}
 
         {/* Actions — only when the form is editable. progress/success/failed
@@ -699,30 +684,32 @@ function ProgressBody({
       {/* Error helper + actions */}
       {state === 'failed' && errorMeta && (
         <div
-          className="flex flex-col gap-xxs p-m rounded-m"
+          className="flex flex-col items-start gap-xs p-m rounded-m"
           style={{
             backgroundColor: 'var(--error-bg)',
             border: '1px solid var(--error)',
           }}
         >
+          {/* Status pill — mirrors the production connectors dialog. */}
           <span
-            className="font-display text-xs font-semibold uppercase tracking-[0.12em]"
-            style={{ color: 'var(--error)' }}
+            className="inline-flex items-center gap-xxs px-xs py-xxxs rounded-full font-display text-2xs font-semibold uppercase tracking-[0.12em] shrink-0"
+            style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error)' }}
           >
-            {errorMeta.headline}
+            <span
+              aria-hidden
+              style={{ width: 6, height: 6, borderRadius: 999, backgroundColor: 'var(--error)' }}
+            />
+            Connection failed
           </span>
-          <span
-            className="font-body text-xs leading-[1.5]"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            {progress.errorMessage ?? errorMessageOverride ?? errorMeta.helper}
-          </span>
+          <ConnectorErrorMessage
+            text={progress.errorMessage ?? errorMessageOverride ?? errorMeta.helper}
+          />
           {errorMeta.helpLinkHref && errorMeta.helpLinkLabel && (
             <a
               href={errorMeta.helpLinkHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-body text-xs font-medium underline self-start mt-xxs"
+              className="font-body text-xs font-medium underline self-start"
               style={{ color: 'var(--brand)' }}
             >
               {errorMeta.helpLinkLabel}
@@ -734,7 +721,7 @@ function ProgressBody({
       {state === 'failed' && (
         <div className="flex gap-m w-full">
           <Button variant="secondary" size="lg" className="flex-1" onClick={onCancel}>
-            Cancel
+            Close
           </Button>
           <Button variant="primary" size="lg" className="flex-1" onClick={onRetry ?? onCancel}>
             Try again
@@ -904,8 +891,10 @@ function SuccessBody({
         ))}
       </ol>
 
+      {/* Done summary card — status pill on top, copy below (mirrors the
+          production connectors dialog). */}
       <div
-        className="flex items-center gap-s p-m rounded-m"
+        className="flex flex-col items-start gap-xs p-m rounded-m"
         style={{
           backgroundColor:
             verdict === 'GREEN' ? 'var(--success-bg)' : 'var(--warning-bg)',
@@ -914,29 +903,27 @@ function SuccessBody({
       >
         <ConnectionStatusPill variant={verdictVariant} />
         <span
-          className="font-body text-s flex-1 min-w-0 truncate"
+          className="font-body text-s flex flex-col gap-xxxs leading-[1.5]"
           style={{ color: 'var(--text-primary)' }}
         >
-          {tableCount === 0 ? (
-            <>No tables were imported from <strong>{projectId || 'your project'}</strong>.</>
-          ) : (
-            <>
-              Imported <strong>{tableCount}</strong> table{tableCount === 1 ? '' : 's'} from{' '}
-              <strong>{projectId || 'your project'}</strong>.
-            </>
+          <span>
+            {tableCount === 0 ? (
+              <>No tables were imported from <strong>{projectId || 'your project'}</strong>.</>
+            ) : (
+              <>
+                Imported <strong>{tableCount}</strong> table{tableCount === 1 ? '' : 's'} from{' '}
+                <strong>{projectId || 'your project'}</strong>.
+              </>
+            )}
+          </span>
+          {verdict === 'YELLOW' && (summary?.needsDescriptions ?? 0) > 0 && (
+            <span>
+              {summary!.needsDescriptions} table{summary!.needsDescriptions === 1 ? ' still needs' : 's still need'}{' '}
+              descriptions for sharper answers.
+            </span>
           )}
         </span>
       </div>
-
-      {summary?.verdictReason && verdict === 'YELLOW' && (
-        <p
-          className="font-body text-xs leading-[1.5]"
-          style={{ color: 'var(--text-secondary)' }}
-        >
-          {summary.verdictReason} Add the missing descriptions on the BigQuery
-          page so Oracle&rsquo;s answers stay grounded.
-        </p>
-      )}
 
       <div className="flex gap-m w-full">
         <Button

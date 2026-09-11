@@ -12,6 +12,41 @@
 import { InfoItem } from '../atoms/InfoItem'
 import { ClockIcon } from '../icons/ClockIcon'
 import { SessionInfoIcon as SessionInfoSectionIcon } from '../icons/section'
+import type { VideoSource } from '../../lib/types/radiologist'
+
+const SOURCE_LABELS: Record<VideoSource, string> = {
+  live: 'Live capture',
+  'manual-upload': 'Manual upload',
+  'ai-player': 'AI Player',
+}
+
+function SourceInfoIcon({ source }: { source: VideoSource }) {
+  if (source === 'ai-player') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <rect x="3" y="5.5" width="10" height="7.5" rx="2" stroke="currentColor" strokeWidth="1.25" />
+        <path d="M8 3.5V5.5M8 3.5a1 1 0 100-2 1 1 0 000 2Z" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+        <circle cx="6" cy="9" r="0.9" fill="currentColor" />
+        <circle cx="10" cy="9" r="0.9" fill="currentColor" />
+        <path d="M1.5 8.5v2M14.5 8.5v2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (source === 'manual-upload') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M8 10V2.5M8 2.5 5.5 5M8 2.5 10.5 5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M3 10.5v1.5a1.5 1.5 0 001.5 1.5h7a1.5 1.5 0 001.5-1.5v-1.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25" />
+      <circle cx="8" cy="8" r="2.4" fill="currentColor" />
+    </svg>
+  )
+}
 
 function GlobeIcon() {
   return (
@@ -46,10 +81,12 @@ interface SessionInfoCardProps {
   region: string
   platform: string
   gameMode: string
+  /** Origin of the video — rendered as a Source field when provided */
+  source?: VideoSource
   className?: string
 }
 
-export function SessionInfoCard({ duration, region, platform, gameMode, className }: SessionInfoCardProps) {
+export function SessionInfoCard({ duration, region, platform, gameMode, source, className }: SessionInfoCardProps) {
   return (
     <div
       className={['flex flex-col gap-s', className].filter(Boolean).join(' ')}
@@ -67,6 +104,11 @@ export function SessionInfoCard({ duration, region, platform, gameMode, classNam
       </div>
 
       {/* Stats row — flex, gap-12 */}
+      {source && (
+        <div className="flex gap-s">
+          <InfoItem icon={<SourceInfoIcon source={source} />} label="Source" value={SOURCE_LABELS[source]} />
+        </div>
+      )}
       <div className="flex gap-s">
         <InfoItem icon={<ClockIcon size={16} />} label="Duration" value={duration} />
         <InfoItem icon={<GlobeIcon />} label="Region" value={region} />

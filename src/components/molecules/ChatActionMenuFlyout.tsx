@@ -41,8 +41,8 @@ export interface ConnectorOption {
   icon?: ReactNode
   /** Whether the connector is used for queries in this chat (master toggle). */
   enabled: boolean
-  /** What the scope list represents — drives the "SELECT A …" header. */
-  scopeKind?: 'project' | 'database'
+  /** What the scope list represents — drives the "Select a …" header. */
+  scopeKind?: 'project' | 'database' | 'account'
   /** Single-select scope list (radio) shown in the connector's submenu. */
   scopes?: ConnectorScope[]
   /** id of the currently-selected scope (single-select). */
@@ -289,7 +289,12 @@ export function ChatActionMenuFlyout({
                 )}
                 {connectors.map((c) => {
                   const panel = connPanelId(c.id)
-                  const scopeWord = c.scopeKind === 'database' ? 'DATABASE' : 'PROJECT'
+                  const scopePhrase =
+                    c.scopeKind === 'database'
+                      ? 'Select a database'
+                      : c.scopeKind === 'account'
+                        ? 'Select an account'
+                        : 'Select a project'
                   return (
                     <div
                       key={c.id}
@@ -319,7 +324,7 @@ export function ChatActionMenuFlyout({
                           {c.scopes && c.scopes.length > 0 && (
                             <>
                               <Divider />
-                              <SectionLabel>{`Select a ${scopeWord.toLowerCase()}`}</SectionLabel>
+                              <SectionLabel>{scopePhrase}</SectionLabel>
                               <div
                                 className="flex flex-col"
                                 style={{ opacity: c.enabled ? 1 : 0.5 }}

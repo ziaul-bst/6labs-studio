@@ -21,6 +21,9 @@ import { useRef, useEffect } from 'react'
 import { UserPrompt } from '../atoms/UserPrompt'
 import { AIResponseOracle, type OracleResponseData } from './AIResponseOracle'
 import InputFieldConsole from '../ui/InputFieldConsole'
+import type { SourceItem } from '../molecules/SourcesGrid'
+import type { Citation } from '../../lib/types/citation'
+import type { TranscriptSegment } from '../../lib/types/transcript'
 
 export interface ChatMessage {
   id: string
@@ -39,8 +42,16 @@ interface OracleChatViewProps {
   onInputChange: (value: string) => void
   onSubmit: () => void
   onExpandSources: (responseId: string) => void
+  /** Opens one cited video from the sources row. */
+  onSourceClick?: (source: SourceItem, index: number) => void
+  /** Adds the "See all in Gameplay Library" row under the sources. */
+  onOpenLibrary?: () => void
   onSuggestionClick: (text: string) => void
   onDislike: (responseId: string) => void
+  /** Resolves a video citation's segments so previews can show narration */
+  resolveSegments?: (videoId: string, segmentIds: string[]) => TranscriptSegment[]
+  /** Deep-links to the evidence behind a citation */
+  onOpenCitation?: (citation: Citation) => void
   className?: string
 }
 
@@ -50,8 +61,12 @@ export function OracleChatView({
   onInputChange,
   onSubmit,
   onExpandSources,
+  onSourceClick,
+  onOpenLibrary,
   onSuggestionClick,
   onDislike,
+  resolveSegments,
+  onOpenCitation,
   className,
 }: OracleChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -72,9 +87,9 @@ export function OracleChatView({
       {/* Scroll View — messages area, padded at bottom so content can scroll behind input */}
       <div
         ref={scrollRef}
-        className="absolute inset-0 overflow-y-auto overflow-x-hidden flyout-scrollbar"
+        className="absolute inset-0 overflow-y-auto overflow-x-hidden flyout-scrollbar page-scroll"
       >
-        <div className="flex flex-col gap-l items-center w-full pt-xxl pb-[200px] mx-auto oracle-chat-content">
+        <div className="flex flex-col gap-l items-center pt-xxl pb-[200px] page-measure">
           {messages.map((msg) => {
             if (msg.type === 'user' && msg.text) {
               return (
@@ -88,8 +103,12 @@ export function OracleChatView({
                   response={msg.response}
                   isLoading={msg.isLoading}
                   onExpandSources={() => onExpandSources(msg.response!.id)}
+                  onSourceClick={onSourceClick}
+                  onOpenLibrary={onOpenLibrary}
                   onSuggestionClick={onSuggestionClick}
                   onDislike={() => onDislike(msg.response!.id)}
+                  resolveSegments={resolveSegments}
+                  onOpenCitation={onOpenCitation}
                 />
               )
             }
@@ -105,7 +124,7 @@ export function OracleChatView({
           onChange={onInputChange}
           onSubmit={onSubmit}
           placeholder="Ask a follow-up question..."
-          className="w-full oracle-chat-content"
+          className="page-measure"
         />
       </div>
     </div>

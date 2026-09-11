@@ -18,6 +18,7 @@ import { CloseIcon } from '../icons/CloseIcon'
 import { CopyIcon } from '../icons/CopyIcon'
 import { CheckIcon } from '../icons/CheckIcon'
 import { UploadIcon } from '../icons/UploadIcon'
+import { ACTIVE_GAME } from '../../lib/activeGame'
 
 // ── Shared upload constants/helpers (imported by VideoLibraryView too) ──
 export const MAX_BYTES = 500 * 1024 * 1024 // 500MB
@@ -52,6 +53,9 @@ export interface UploadVideosModalProps {
   onConfirm: (files: File[], tags: string[]) => void
   /** Demo: simulate a CLI batch import of N clips with the given tags */
   onSimulateImport?: (count: number, tags: string[]) => void
+  /** The game this workspace uploads to — both halves reach the CLI command. */
+  gameName?: string
+  appId?: string
 }
 
 type Tab = 'files' | 'cli'
@@ -63,6 +67,8 @@ export function UploadVideosModal({
   existingNames,
   onConfirm,
   onSimulateImport,
+  gameName = ACTIVE_GAME.name,
+  appId = ACTIVE_GAME.appId,
 }: UploadVideosModalProps) {
   const [tab, setTab] = useState<Tab>('files')
   const [staged, setStaged] = useState<File[]>([])
@@ -170,9 +176,14 @@ export function UploadVideosModal({
   }
 
   const cliTags = (tags.length ? tags : ['tutorial', 'onboarding']).join(',')
+  /* --game-name over --game: the flag now sits beside --app-id, and "game"
+     alone read as though either value would do. Both are printed — the name
+     is how a person checks the command is aimed at the right title, the id is
+     what the server actually matches on. */
   const uploadCmd = `6labs videos upload ./gameplay/*.mp4 \\
   --tags "${cliTags}" \\
-  --game "free-fire" \\
+  --game-name "${gameName}" \\
+  --app-id "${appId}" \\
   --concurrency 4`
 
   return (
@@ -187,7 +198,7 @@ export function UploadVideosModal({
               Upload videos
             </h2>
             <p className="font-body text-s" style={{ color: 'var(--text-secondary)' }}>
-              Add gameplay clips for Radiologist &amp; Oracle to reference. Tag them so they’re easy to find later.
+              Add gameplay clips for your agents to reference. Tag them so they’re easy to find later.
             </p>
           </div>
           <Button variant="transparent" size="md" iconOnly onClick={onClose} aria-label="Close">
@@ -409,49 +420,66 @@ function CliTab({
   )
 }
 
+// ─── Copy affordance ─────────────────────────────────────────────────────────
+
+/**
+ * Clipboard with the textarea fallback — `navigator.clipboard` is refused in
+ * sandboxed frames (Storybook, embedded previews), and a copy button that
+ * silently does nothing is worse than none.
+ */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+      return ok
+    } catch {
+      return false
+    }
+  }
+}
+
+function CopyLink({ text, toast }: { text: string; toast: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    if (!(await copyToClipboard(text))) return
+    setCopied(true)
+    showToast(toast)
+    window.setTimeout(() => setCopied(false), 1600)
+  }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={toast.replace(/ copied$/, ' — copy')}
+      className="inline-flex items-center gap-xxs shrink-0 font-body text-xs font-medium"
+      style={{ color: copied ? 'var(--success)' : 'var(--brand)' }}
+    >
+      {copied ? <CheckIcon size={16} /> : <CopyIcon size={16} />}
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  )
+}
+
 // ─── Copyable code block ────────────────────────────────────────────────────────
 
 function CodeBlock({ label, sublabel, code }: { label: string; sublabel?: string; code: string }) {
-  const [copied, setCopied] = useState(false)
-  const copy = async () => {
-    let ok = false
-    try {
-      await navigator.clipboard.writeText(code)
-      ok = true
-    } catch {
-      try {
-        const ta = document.createElement('textarea')
-        ta.value = code
-        ta.style.position = 'fixed'
-        ta.style.opacity = '0'
-        document.body.appendChild(ta)
-        ta.select()
-        ok = document.execCommand('copy')
-        document.body.removeChild(ta)
-      } catch {
-        ok = false
-      }
-    }
-    if (!ok) return
-    setCopied(true)
-    showToast(`${label.replace(/^\d+\s·\s/, '')} copied`)
-    window.setTimeout(() => setCopied(false), 1600)
-  }
   return (
     <div className="flex flex-col gap-xxs">
       <div className="flex items-center justify-between gap-m">
         <label className="font-display text-xs font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-tertiary)' }}>
           {label}
         </label>
-        <button
-          type="button"
-          onClick={copy}
-          className="inline-flex items-center gap-xxs font-body text-xs font-medium"
-          style={{ color: copied ? 'var(--success)' : 'var(--brand)' }}
-        >
-          {copied ? <CheckIcon size={16} /> : <CopyIcon size={16} />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
+        <CopyLink text={code} toast={`${label.replace(/^\d+\s·\s/, '')} copied`} />
       </div>
       {sublabel && (
         <span className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-tertiary)' }}>

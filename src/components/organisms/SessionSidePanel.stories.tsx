@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { SessionSidePanel } from './SessionSidePanel'
+import { generateTranscript } from '../../lib/mocks/transcript'
+import { MOCK_EXCERPTS } from '../../lib/mocks/excerpts'
+import { MOCK_SESSIONS } from '../../lib/mocks/radiologist-sessions'
 import type { SessionData } from '../../lib/types/radiologist'
 
 const MOCK_SESSION: SessionData = {
@@ -46,6 +49,15 @@ const MOCK_SESSION: SessionData = {
   },
 }
 
+MOCK_SESSION.transcript = generateTranscript(
+  MOCK_SESSION.sessionId,
+  MOCK_SESSION.duration,
+  MOCK_SESSION.events,
+)
+
+/** A session still being analyzed — narration has not landed yet. */
+const SESSION_WITHOUT_TRANSCRIPT: SessionData = { ...MOCK_SESSION, transcript: [] }
+
 const meta = {
   title: 'Organisms/SessionSidePanel',
   component: SessionSidePanel,
@@ -62,11 +74,67 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** Session side panel with full mock data. */
+/** Session side panel with full mock data. Transcript sits collapsed at 3 rows. */
 export const Default: Story = {
   args: {
     session: MOCK_SESSION,
     onClose: () => {},
     onViewDetail: () => {},
+  },
+}
+
+/**
+ * Placement F — opened from an Oracle result, so the excerpt is pinned above the
+ * AI summary. A query-specific answer outranks the generic description.
+ */
+export const FromOracle: Story = {
+  args: {
+    session: MOCK_SESSION,
+    onClose: () => {},
+    onViewDetail: () => {},
+    excerpt: MOCK_EXCERPTS['attributes-text'],
+  },
+}
+
+/** Events-shaped excerpt in the dense panel. */
+export const FromOracleEvents: Story = {
+  args: {
+    session: MOCK_SESSION,
+    onClose: () => {},
+    onViewDetail: () => {},
+    excerpt: MOCK_EXCERPTS.events,
+  },
+}
+
+/** Transcript-points excerpt — the narrowest case for the 420px column. */
+export const FromOracleTranscriptPoints: Story = {
+  args: {
+    session: MOCK_SESSION,
+    onClose: () => {},
+    onViewDetail: () => {},
+    excerpt: MOCK_EXCERPTS['transcript-points'],
+  },
+}
+
+/** Attributes-only excerpt, where the value column carries longer strings. */
+export const FromOracleAttributes: Story = {
+  args: {
+    session: SESSION_WITHOUT_TRANSCRIPT,
+    onClose: () => {},
+    onViewDetail: () => {},
+    excerpt: MOCK_EXCERPTS.attributes,
+  },
+}
+
+/**
+ * AI Player session — adds the Session Instructions card, which only renders for
+ * this source. Kept as a story because it is the densest the panel body gets.
+ */
+export const AiPlayerFromOracle: Story = {
+  args: {
+    session: MOCK_SESSIONS[1],
+    onClose: () => {},
+    onViewDetail: () => {},
+    excerpt: MOCK_EXCERPTS['attributes-text'],
   },
 }

@@ -68,8 +68,17 @@ export interface SnowflakeDetailViewProps {
   onDisconnect?: () => void
   onDirtyChange?: (dirty: boolean) => void
   resetSignal?: number
-  /** Storybook-only: open the refresh-confirmation popup on mount. */
-  defaultRefreshConfirmOpen?: boolean
+  /** Storybook-only: open the disconnect-confirmation popup on mount. */
+  defaultDisconnectConfirmOpen?: boolean
+  /** When true, hides description-editing affordances (FieldEditor inputs,
+   *  Save bar) for viewers without edit access. Refresh stays available so
+   *  viewers can re-sync. Defaults to false — production is unaffected. */
+  readOnly?: boolean
+  /** When false, hides connection-management actions (Disconnect) regardless
+   *  of `readOnly` — a teammate can be granted description-edit access to a
+   *  connection they don't own, but can't disconnect or repair someone else's
+   *  credentials. Defaults to true — production is unaffected. */
+  canManage?: boolean
   className?: string
 }
 
@@ -82,14 +91,18 @@ export function SnowflakeDetailView({
   onRefresh,
   onRetry,
   onDisconnect,
+  readOnly = false,
+  canManage = true,
   onDirtyChange,
   resetSignal,
-  defaultRefreshConfirmOpen,
+  defaultDisconnectConfirmOpen,
   className,
 }: SnowflakeDetailViewProps) {
   const [pendingTableDescs, setPendingTableDescs] = useState<Record<string, string>>({})
   const [pendingColumnDescs, setPendingColumnDescs] = useState<Record<string, string>>({})
-  const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(defaultRefreshConfirmOpen ?? false)
+  const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(
+    defaultDisconnectConfirmOpen ?? false,
+  )
 
   const isError = connection.kind === 'error'
   const isSyncing = connection.kind === 'connected' && connection.syncing
@@ -162,55 +175,60 @@ export function SnowflakeDetailView({
               onRetry={onRetry}
             />
           ) : !isSyncing ? (
-            <Button variant="outline" size="lg" onClick={() => setRefreshConfirmOpen(true)}>
+            <Button variant="outline" size="lg" onClick={onRefresh}>
               Refresh
             </Button>
           ) : null
         }
         secondaryAction={
-          <Button variant="outline" size="lg" onClick={onDisconnect}>
-            Disconnect
-          </Button>
+          !readOnly && canManage ? (
+            <Button variant="outline" size="lg" onClick={() => setDisconnectConfirmOpen(true)}>
+              Disconnect
+            </Button>
+          ) : undefined
         }
       />
 
-      {refreshConfirmOpen &&
+      {/* Disconnect confirmation — removes the connection entirely, so we
+          always confirm first. */}
+      {disconnectConfirmOpen &&
         createPortal(
           <div
             className="fixed inset-0 z-50 flex items-center justify-center p-m"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="sf-refresh-confirm-title"
+            aria-labelledby="sf-disconnect-confirm-title"
           >
-            <div className="absolute inset-0 bg-black/40" onClick={() => setRefreshConfirmOpen(false)} aria-hidden />
+            <div className="absolute inset-0 bg-black/40" onClick={() => setDisconnectConfirmOpen(false)} aria-hidden />
             <div className="relative flex flex-col gap-l bg-bg-elements rounded-m shadow-normal p-l w-[440px]">
               <div className="flex flex-col gap-xs">
                 <span
-                  id="sf-refresh-confirm-title"
+                  id="sf-disconnect-confirm-title"
                   className="font-display text-l font-semibold"
                   style={{ color: 'var(--text-primary)' }}
                 >
-                  Refresh this connection?
+                  Disconnect Snowflake?
                 </span>
                 <span className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-                  Refreshing re-imports schemas from Snowflake and clears every table
-                  and column description you&rsquo;ve added. This can&rsquo;t be undone.
+                  Oracle will lose access to these tables immediately, and every
+                  teammate sharing this connection loses access too. You&rsquo;ll
+                  need to reconnect and re-import tables to restore it.
                 </span>
               </div>
               <div className="flex gap-m w-full">
-                <Button variant="secondary" size="lg" className="flex-1" onClick={() => setRefreshConfirmOpen(false)}>
+                <Button variant="secondary" size="lg" className="flex-1" onClick={() => setDisconnectConfirmOpen(false)}>
                   Cancel
                 </Button>
                 <Button
-                  variant="primary"
+                  variant="danger"
                   size="lg"
                   className="flex-1"
                   onClick={() => {
-                    setRefreshConfirmOpen(false)
-                    onRefresh?.()
+                    setDisconnectConfirmOpen(false)
+                    onDisconnect?.()
                   }}
                 >
-                  Refresh anyway
+                  Disconnect
                 </Button>
               </div>
             </div>
@@ -222,6 +240,7 @@ export function SnowflakeDetailView({
         {connection.kind === 'connected' && (
           <ConnectedBody
             connection={connection}
+            readOnly={readOnly}
             pendingTableDescs={pendingTableDescs}
             pendingColumnDescs={pendingColumnDescs}
             onEditTable={(fqn, value) => {
@@ -245,7 +264,7 @@ export function SnowflakeDetailView({
         )}
       </div>
 
-      {connection.kind === 'connected' && !isSyncing && (
+      {connection.kind === 'connected' && !isSyncing && !readOnly && (
         <SaveBottomBar dirty={dirty} pendingCount={pendingCount} onSave={handleSave} onDiscard={handleDiscard} />
       )}
     </div>
@@ -300,10 +319,6 @@ function Header({
   primaryAction: ReactNode
   secondaryAction: ReactNode
 }) {
-  const identity =
-    connection.kind === 'not-connected'
-      ? null
-      : { account: connection.accountIdentifier, warehouse: connection.warehouse, database: connection.database }
   const pillVariant: 'ready' | 'partial' | 'error' | 'disconnected' =
     connection.kind === 'error'
       ? 'error'
@@ -355,7 +370,7 @@ function Header({
                 {tag.label}
               </span>
             ))}
-            {identity && (
+            {connection.kind !== 'not-connected' && (
               <span
                 className="inline-flex items-center justify-center gap-xxs px-s py-xxs rounded-[20px] font-body text-s font-medium whitespace-nowrap"
                 style={{
@@ -364,10 +379,10 @@ function Header({
                   color: 'var(--text-secondary)',
                 }}
               >
-                <span style={{ color: 'var(--text-tertiary)' }}>DB</span>
-                <code style={{ fontFamily: 'inherit' }}>{identity.database}</code>
-                <span style={{ color: 'var(--text-tertiary)' }}>·</span>
-                <code style={{ fontFamily: 'inherit' }}>{identity.warehouse}</code>
+                <span style={{ color: 'var(--text-tertiary)' }}>Account</span>
+                <code style={{ fontFamily: 'inherit' }}>
+                  {connection.username}@{connection.accountIdentifier}
+                </code>
               </span>
             )}
           </div>
@@ -418,18 +433,20 @@ function PrimaryErrorAction({
 
 function ConnectedBody({
   connection,
+  readOnly = false,
   pendingTableDescs,
   pendingColumnDescs,
   onEditTable,
   onEditColumn,
 }: {
   connection: Extract<SnowflakeConnection, { kind: 'connected' }>
+  readOnly?: boolean
   pendingTableDescs: Record<string, string>
   pendingColumnDescs: Record<string, string>
   onEditTable: (fqn: string, value: string) => void
   onEditColumn: (fqn: string, columnName: string, value: string) => void
 }) {
-  const { database, syncing, tables, lastRefreshedAt, verdict, verdictReason, username } = connection
+  const { database, syncing, tables, lastRefreshedAt, onboardedAt, verdict } = connection
 
   if (syncing) {
     return (
@@ -449,19 +466,30 @@ function ConnectedBody({
 
   const yellowCount = tables.filter((t) => t.verdict === 'YELLOW').length
   const greenCount = tables.length - yellowCount
+  // Missing-description tally for the banner copy.
+  const missingColumnCount = tables.reduce(
+    (n, t) => n + t.columns.filter((c) => !c.description.trim()).length,
+    0,
+  )
+  const tablesNeedingWork = tables.filter(
+    (t) => !t.description.trim() || t.columns.some((c) => !c.description.trim()),
+  ).length
 
   return (
     <>
       {verdict === 'YELLOW' && (
         <InfoBanner
           tone="warning"
-          title="Connection is partial — needs descriptions"
+          title="A few descriptions are missing"
           body={
             <>
-              {verdictReason || 'Some tables or columns are missing descriptions.'} Oracle
-              can still query these tables, but answers will be weaker until every table
-              and column has a description. Fill them in below to mark this connection{' '}
-              <strong>Ready</strong>.
+              Oracle connected successfully and is ready to answer from these
+              tables. Adding missing descriptions of{' '}
+              <strong>
+                {missingColumnCount} column{missingColumnCount === 1 ? '' : 's'} across{' '}
+                {tablesNeedingWork} table{tablesNeedingWork === 1 ? '' : 's'}
+              </strong>{' '}
+              makes its answers even sharper.
             </>
           }
         />
@@ -471,7 +499,8 @@ function ConnectedBody({
         items={[
           { label: 'Tables imported', value: String(tables.length) },
           { label: 'Ready · Needs work', value: `${greenCount} · ${yellowCount}` },
-          { label: 'Last refreshed', value: formatRelative(lastRefreshedAt) },
+          { label: 'Connected / Updated', value: formatRelative(onboardedAt) },
+          { label: 'Last refresh', value: formatRelative(lastRefreshedAt) },
         ]}
       />
 
@@ -481,7 +510,7 @@ function ConnectedBody({
             Tables
           </h2>
           <span className="font-body text-xs" style={{ color: 'var(--text-tertiary)' }}>
-            Click any table to edit descriptions
+            {readOnly ? 'Click any table to view descriptions' : 'Click any table to edit descriptions'}
           </span>
         </div>
         <div className="flex flex-col gap-s">
@@ -489,6 +518,7 @@ function ConnectedBody({
             <WarehouseTableCard
               key={t.fqn}
               table={t}
+              readOnly={readOnly}
               pendingTableDesc={pendingTableDescs[t.fqn]}
               pendingColumnDescs={pendingColumnDescs}
               onEditTable={onEditTable}
@@ -498,28 +528,31 @@ function ConnectedBody({
         </div>
       </section>
 
-      <section
-        className="flex items-start gap-m p-l rounded-xl"
-        style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-default)' }}
-      >
-        <span
-          aria-hidden
-          className="shrink-0 mt-[2px] inline-flex items-center justify-center w-[20px] h-[20px] rounded-full font-display text-xs font-bold italic"
-          style={{ backgroundColor: 'var(--brand)', color: 'var(--text-on-brand)' }}
-        >
-          i
-        </span>
-        <div className="flex-1 min-w-0 flex flex-col gap-xxs">
-          <span className="font-body text-s font-medium" style={{ color: 'var(--text-primary)' }}>
-            Every member of this workspace has access
+      {/* View — same table list as above, minus row count/table size. Shares
+          the same pending-edit state so an edit made here or in "Tables"
+          reflects in both. */}
+      <section className="flex flex-col gap-s">
+        <div className="flex items-baseline justify-between gap-m">
+          <h2 className="font-display text-m font-semibold leading-[1.5]" style={{ color: 'var(--text-primary)' }}>
+            View
+          </h2>
+          <span className="font-body text-xs" style={{ color: 'var(--text-tertiary)' }}>
+            Click any table to view descriptions
           </span>
-          <span className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-            Every teammate in this workspace can query these tables and edit descriptions
-            through Oracle. Read-only — 6labs never writes back to your warehouse.
-          </span>
-          <span className="font-body text-xs mt-xxs" style={{ color: 'var(--text-tertiary)' }}>
-            Connecting as: <code>{username}</code>
-          </span>
+        </div>
+        <div className="flex flex-col gap-s">
+          {tables.map((t) => (
+            <WarehouseTableCard
+              key={t.fqn}
+              table={t}
+              readOnly={readOnly}
+              pendingTableDesc={pendingTableDescs[t.fqn]}
+              pendingColumnDescs={pendingColumnDescs}
+              onEditTable={onEditTable}
+              onEditColumn={onEditColumn}
+              hideSize
+            />
+          ))}
         </div>
       </section>
 

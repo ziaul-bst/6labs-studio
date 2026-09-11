@@ -3,8 +3,11 @@
  * Specialized Agents hub (homepage tab + sidebar). Each entry drives both the
  * landing card and the launched chat flow (intro, suggested prompts, and a
  * canned demo reply). Prototype data only — no live model is wired.
+ *
+ * Order shown on the hub: Build Comparison → Churn → A/B Test.
  */
 import type { ReactNode } from 'react'
+import { BuildComparisonIcon } from '../components/icons/BuildComparisonIcon'
 import { ABTestIcon } from '../components/icons/ABTestIcon'
 import { ChurnIcon } from '../components/icons/ChurnIcon'
 import { SdkMobileIcon } from '../components/icons/SdkMobileIcon'
@@ -47,6 +50,9 @@ export interface SpecializedAgent {
   /** Restricts the console source selector. Omit to allow all default sources.
    *  The first entry is the default selection. */
   sources?: PlatformOption[]
+  /** Optional prerequisite note (e.g. "Requires SDK integration"). Surfaced as a
+   *  chip on the card and an info banner on the agent's launch screen. */
+  requirement?: string
   /** Steps shown in the pipeline loader while the response is generated */
   pipeline: PipelineStep[]
   /** Canned demo response shown for any prompt */
@@ -55,63 +61,40 @@ export interface SpecializedAgent {
 
 export const SPECIALIZED_AGENTS: SpecializedAgent[] = [
   {
-    id: 'ab-testing',
-    name: 'A/B Testing Agent',
-    tag: 'Experimentation',
-    description:
-      'Design, launch, and read experiments — from hypothesis to a confident ship decision.',
+    id: 'build-comparison',
+    name: 'Build Comparison Agent',
+    tag: 'Evaluation',
+    description: 'Compare builds — what changed between releases, and how players responded.',
     intro:
-      'I help you run and interpret experiments. Describe a test you want to design, or ask me to read the results of one that’s already live.',
-    icon: <ABTestIcon size={40} />,
-    iconGradient: 'linear-gradient(135deg, #1770EF 0%, #7B4CFF 100%)',
-    placeholder: 'Describe the experiment you want to run or analyze…',
+      'I compare what changed between releases. Point me at your last two builds, or ask about how players responded to the latest one.',
+    icon: <BuildComparisonIcon size={40} />,
+    iconGradient: 'linear-gradient(135deg, #1770EF 0%, #18B6C9 100%)',
+    placeholder: 'Compare two builds, or ask about a release…',
     suggestions: [
-      'Is my new onboarding flow beating the control?',
-      'How long until this test reaches significance?',
-      'Which variant should I ship?',
-      'Did the paywall test move D1 retention?',
-    ],
-    // A/B testing requires instrumented events — only the SDK can be a source.
-    // SDK - Mobile is listed first so it is the default selection.
-    sources: [
-      { value: 'sdk-mobile', label: 'SDK - Mobile', icon: <SdkMobileIcon size={20} /> },
-      { value: 'sdk-pc', label: 'SDK - PC', icon: <SdkPcIcon size={20} /> },
+      'Compare my two most recent builds — what changed in how players actually play?',
+      'Did my latest update introduce any new friction, drop-off, or crashes?',
+      'Based on player behavior, should I keep my newest release or roll it back?',
+      'One of my key metrics shifted after my latest build — show me the player behavior behind it',
     ],
     pipeline: [
-      {
-        title: 'Loading experiment data',
-        activeSub: 'Pulling assignment and exposure logs…',
-        doneSub: 'Experiment data loaded.',
-      },
-      {
-        title: 'Computing variant metrics',
-        activeSub: 'Aggregating conversion by variant…',
-        doneSub: 'Per-variant metrics computed.',
-      },
-      {
-        title: 'Running significance test',
-        activeSub: 'Estimating lift and confidence intervals…',
-        doneSub: 'Significance confirmed.',
-      },
-      {
-        title: 'Forming recommendation',
-        activeSub: 'Weighing risk and segment effects…',
-        doneSub: 'Recommendation ready.',
-      },
+      { title: 'Locating builds', activeSub: 'Resolving the last two release versions…', doneSub: 'Builds identified.' },
+      { title: 'Aligning cohorts', activeSub: 'Matching comparable player segments…', doneSub: 'Cohorts aligned.' },
+      { title: 'Diffing behavior', activeSub: 'Comparing funnels, retention and crashes…', doneSub: 'Behavioral diff computed.' },
+      { title: 'Summarizing changes', activeSub: 'Ranking the most significant deltas…', doneSub: 'Summary ready.' },
     ],
     reply: {
       summary:
-        'Variant B (the streamlined onboarding) is outperforming the control. The lift is statistically significant and stable across the last 5 days, so this is a confident ship decision.',
+        'Comparing your latest build (v2.4.0) against the previous one (v2.3.0): the update improved early-game funnel health with no new stability regressions. Tutorial completion saw the biggest behavioral gain.',
       stats: [
-        { label: 'Variant B conversion', value: '12.4%', variant: 'success' },
-        { label: 'Lift vs. control', value: '+2.1pp', variant: 'success' },
-        { label: 'Confidence', value: '97%' },
-        { label: 'Sample', value: '48,210' },
+        { label: 'Tutorial completion', value: '78%', variant: 'success' },
+        { label: 'vs. previous build', value: '+6pp', variant: 'success' },
+        { label: 'D1 retention', value: '41.2%', variant: 'success' },
+        { label: 'Crash-free sessions', value: '99.1%' },
       ],
       bullets: [
-        'Ship Variant B — the 97% confidence clears your 95% bar with a healthy sample.',
-        'Lift is strongest on new users (+3.4pp); returning users are flat — expected for an onboarding change.',
-        'Watch for a novelty effect: re-check D7 retention one week post-rollout before calling it permanent.',
+        'The reworked tutorial step 3 lifted completion by 6pp — the largest behavioral change in this build.',
+        'No new crash signatures; crash-free sessions held at 99.1% (+0.4pp vs. the previous build).',
+        'A fresh drop-off appeared at the level 18 gate — ~8% of players quit there. Flag it for the next build.',
       ],
     },
   },
@@ -133,26 +116,18 @@ export const SPECIALIZED_AGENTS: SpecializedAgent[] = [
       'Who should I target with a win-back offer?',
     ],
     pipeline: [
-      {
-        title: 'Scanning player cohorts',
-        activeSub: 'Reading 7-day activity and session data…',
-        doneSub: 'Cohorts scanned.',
-      },
+      { title: 'Scanning player cohorts', activeSub: 'Reading 7-day activity and session data…', doneSub: 'Cohorts scanned.' },
       {
         title: 'Scoring churn risk',
         activeSub: 'Running the retention model…',
         doneSub: 'Risk scores generated.',
+        callout: {
+          lead: '3,820 players trending toward churn',
+          rest: ' — dominant driver is the level 24 difficulty spike',
+        },
       },
-      {
-        title: 'Identifying drivers',
-        activeSub: 'Attributing churn to behavioral signals…',
-        doneSub: 'Top drivers identified.',
-      },
-      {
-        title: 'Preparing save actions',
-        activeSub: 'Ranking win-back interventions…',
-        doneSub: 'Recommended actions ready.',
-      },
+      { title: 'Identifying drivers', activeSub: 'Attributing churn to behavioral signals…', doneSub: 'Top drivers identified.' },
+      { title: 'Preparing save actions', activeSub: 'Ranking win-back interventions…', doneSub: 'Recommended actions ready.' },
     ],
     reply: {
       summary:
@@ -167,6 +142,52 @@ export const SPECIALIZED_AGENTS: SpecializedAgent[] = [
         'Target the at-risk cohort with a reward-based win-back push within 24h — that window recovers ~22% historically.',
         'Soften the level 24 difficulty curve; it accounts for 41% of this week’s predicted churn.',
         'Players who hit the daily-streak break are 2.3× more likely to leave — a streak-saver offer is the highest-leverage fix.',
+      ],
+    },
+  },
+  {
+    id: 'ab-test',
+    name: 'A/B Test Agent',
+    tag: 'Experimentation',
+    description:
+      'Design, launch, and read experiments — from hypothesis to a confident ship decision.',
+    intro:
+      'I help you run and interpret experiments. Describe a test you want to design, or ask me to read the results of one that’s already live.',
+    icon: <ABTestIcon size={40} />,
+    iconGradient: 'linear-gradient(135deg, #4F46E5 0%, #7B4CFF 100%)',
+    // A/B testing requires instrumented events — only the SDK can be a source.
+    // SDK - Mobile is listed first so it is the default selection.
+    sources: [
+      { value: 'sdk-mobile', label: 'SDK - Mobile', icon: <SdkMobileIcon size={20} /> },
+      { value: 'sdk-pc', label: 'SDK - PC', icon: <SdkPcIcon size={20} /> },
+    ],
+    requirement: 'Requires SDK integration',
+    placeholder: 'Describe the experiment to analyze…',
+    suggestions: [
+      'Is my new onboarding flow beating the control?',
+      'How long until this test reaches significance?',
+      'Which variant should I ship?',
+      'Did the paywall test move D1 retention?',
+    ],
+    pipeline: [
+      { title: 'Loading experiment data', activeSub: 'Pulling assignment and exposure logs…', doneSub: 'Experiment data loaded.' },
+      { title: 'Computing variant metrics', activeSub: 'Aggregating conversion by variant…', doneSub: 'Per-variant metrics computed.' },
+      { title: 'Running significance test', activeSub: 'Estimating lift and confidence intervals…', doneSub: 'Significance confirmed.' },
+      { title: 'Forming recommendation', activeSub: 'Weighing risk and segment effects…', doneSub: 'Recommendation ready.' },
+    ],
+    reply: {
+      summary:
+        'Variant B (the streamlined onboarding) is outperforming the control. The lift is statistically significant and stable across the last 5 days, so this is a confident ship decision.',
+      stats: [
+        { label: 'Variant B conversion', value: '12.4%', variant: 'success' },
+        { label: 'Lift vs. control', value: '+2.1pp', variant: 'success' },
+        { label: 'Confidence', value: '97%' },
+        { label: 'Sample', value: '48,210' },
+      ],
+      bullets: [
+        'Ship Variant B — the 97% confidence clears your 95% bar with a healthy sample.',
+        'Lift is strongest on new users (+3.4pp); returning users are flat — expected for an onboarding change.',
+        'Watch for a novelty effect: re-check D7 retention one week post-rollout before calling it permanent.',
       ],
     },
   },

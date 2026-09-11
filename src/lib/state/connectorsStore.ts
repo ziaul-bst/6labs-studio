@@ -62,6 +62,9 @@ export type BigQueryConnection =
       /** True when the connection is shared with the whole organisation.
        *  Now always true — every workspace member has access (no opt-out). */
       orgWideAccess: boolean
+      /** Owner's choice: when true, teammates can edit this connection
+       *  (descriptions etc.) — not just query it. Defaults to false. */
+      orgWideEdit?: boolean
       /** fqn of the single table selected for chat queries. Only one table can
        *  be queried at a time, so this is single-select (not a multi-toggle). */
       selectedTableFqn: string | null
@@ -112,6 +115,9 @@ export type SnowflakeConnection =
       tables: BigQueryTable[]
       /** Always true — every workspace member can query (no opt-out). */
       orgWideAccess: boolean
+      /** Owner's choice: when true, teammates can edit this connection
+       *  (descriptions etc.) — not just query it. Defaults to false. */
+      orgWideEdit?: boolean
       selectedTableFqn: string | null
       /** Database the chat queries against (single-select in the composer
        *  connector menu). Defaults to `database` when unset. */
@@ -137,8 +143,8 @@ export interface OnboardedConnector {
   label: string
   /** Secondary caption shown in the flyout (e.g. project id) */
   secondary?: string
-  /** What the scope list represents — drives the "SELECT A …" header. */
-  scopeKind: 'project' | 'database'
+  /** What the scope list represents — drives the "Select a …" header. */
+  scopeKind: 'project' | 'database' | 'account'
   /** Single-select scope list (radio) the chat queries against. */
   scopes: ConnectorScope[]
   /** Currently-selected scope id. */
@@ -149,7 +155,6 @@ export interface OnboardedConnector {
 // projects/databases the read-only credential can see; the prototype seeds a
 // realistic spread so the single-select radio has something to choose from.
 const BQ_MOCK_PROJECTS = ['labs-demo-1', 'ultron-497407', 'sixlabs-qa', 'sixlabs-prod']
-const SF_MOCK_DATABASES = ['GAME_TELEMETRY', 'MARKETING_ANALYTICS', 'FINANCE']
 
 /** Returns the mock scope list with the live onboarded scope guaranteed present. */
 function withLiveScope(mock: string[], live: string): string[] {
@@ -256,6 +261,11 @@ export function getMockBigQueryConnection(): Extract<BigQueryConnection, { kind:
     lastRefreshedAt: Date.parse('2026-05-11T07:24:53Z'),
     tables: [MOCK_APP_CLICK_DATA],
     orgWideAccess: true,
+    // Alex has granted edit access to the whole company on THIS connector —
+    // demos the "Shared · you can edit" state. Snowflake's shared connection
+    // (getMockSnowflakeConnection) is left view-only so both states are
+    // visible across the two connectors without any viewer-perspective toggle.
+    orgWideEdit: true,
     selectedTableFqn: MOCK_APP_CLICK_DATA.fqn,
   }
 }
@@ -326,8 +336,40 @@ export function getMockSnowflakeConnection(): Extract<SnowflakeConnection, { kin
     lastRefreshedAt: Date.parse('2026-06-05T07:24:53Z'),
     tables,
     orgWideAccess: true,
+    // Left view-only (no orgWideEdit) so both permission states are visible
+    // without a viewer-perspective toggle: Snowflake demos "View only",
+    // BigQuery demos "Shared · you can edit" (see getMockBigQueryConnection).
     selectedTableFqn: MOCK_SF_REVENUE.fqn,
   }
+}
+
+// ─── Company-shared connections (finalized sharing model) ────────────────────
+// Connectors are company-scoped: a connection set up by any teammate is active
+// for everyone. The store slot above remains *your own* connection (what the
+// onboarding modal writes); the shared connection below belongs to a teammate
+// and is view-only for you. Additive — no existing consumer changes shape.
+
+export interface ConnectionOwner {
+  id: string
+  name: string
+}
+
+/** The teammate who set up the company-wide warehouse connections. */
+export const SHARED_CONNECTION_OWNER: ConnectionOwner = { id: 'alex', name: 'Alex Chen' }
+
+/** The signed-in user (prototype mock). Owns whatever the onboarding flow connects. */
+export const CURRENT_USER: ConnectionOwner = { id: 'you', name: 'You' }
+
+/** Company-wide BigQuery connection — healthy, set up by Alex Chen. */
+export function getSharedBigQueryConnection(): Extract<BigQueryConnection, { kind: 'connected' }> {
+  return getMockBigQueryConnection()
+}
+
+/** Company-wide Snowflake connection — healthy, set up by Alex Chen.
+ *  (The error-on-existing-account state stays reachable in Storybook via
+ *  SnowflakeDetailView's error stories.) */
+export function getSharedSnowflakeConnection(): SnowflakeConnection {
+  return getMockSnowflakeConnection()
 }
 
 function readStorage(): ConnectorsState {
@@ -392,6 +434,7 @@ export function markBigQueryConnected(args: {
   saEmail?: string
   syncing?: boolean
   orgWideAccess?: boolean
+  orgWideEdit?: boolean
 }) {
   const syncing = args.syncing ?? true
   const previous = state.bigQuery
@@ -420,6 +463,9 @@ export function markBigQueryConnected(args: {
       orgWideAccess:
         args.orgWideAccess ??
         (previous.kind === 'connected' ? previous.orgWideAccess : true),
+      orgWideEdit:
+        args.orgWideEdit ??
+        (previous.kind === 'connected' ? previous.orgWideEdit : false),
       selectedTableFqn:
         previous.kind === 'connected' ? previous.selectedTableFqn : null,
     },
@@ -502,6 +548,14 @@ export function setBigQueryOrgWideAccess(value: boolean) {
   })
 }
 
+/** Owner's later toggle: whether teammates can edit this connection. */
+export function setBigQueryOrgWideEdit(value: boolean) {
+  if (state.bigQuery.kind !== 'connected') return
+  setState({
+    bigQuery: { ...state.bigQuery, orgWideEdit: value },
+  })
+}
+
 /** Selects the single table the chat will query. Persisted as a user
  *  preference (localStorage stands in for the backend in this prototype). */
 export function setBigQuerySelectedTable(fqn: string) {
@@ -581,6 +635,7 @@ export function loadMockBigQueryConnection() {
 export function markSnowflakeConnected(args: SnowflakeConnectionDetails & {
   syncing?: boolean
   orgWideAccess?: boolean
+  orgWideEdit?: boolean
 }) {
   const syncing = args.syncing ?? true
   const previous = state.snowflake
@@ -610,6 +665,9 @@ export function markSnowflakeConnected(args: SnowflakeConnectionDetails & {
       orgWideAccess:
         args.orgWideAccess ??
         (previous.kind === 'connected' ? previous.orgWideAccess : true),
+      orgWideEdit:
+        args.orgWideEdit ??
+        (previous.kind === 'connected' ? previous.orgWideEdit : false),
       selectedTableFqn:
         previous.kind === 'connected' ? previous.selectedTableFqn : null,
     },
@@ -684,6 +742,12 @@ export function updateSnowflakeColumnDescription(
 export function setSnowflakeOrgWideAccess(value: boolean) {
   if (state.snowflake.kind !== 'connected') return
   setState({ snowflake: { ...state.snowflake, orgWideAccess: value } })
+}
+
+/** Owner's later toggle: whether teammates can edit this connection. */
+export function setSnowflakeOrgWideEdit(value: boolean) {
+  if (state.snowflake.kind !== 'connected') return
+  setState({ snowflake: { ...state.snowflake, orgWideEdit: value } })
 }
 
 export function setSnowflakeSelectedTable(fqn: string) {
@@ -767,14 +831,30 @@ export function useOnboardedConnectors(): OnboardedConnector[] {
     })
   }
   if (sf.kind === 'connected') {
-    const databases = withLiveScope(SF_MOCK_DATABASES, sf.database)
+    // Connections are picked by ACCOUNT (username @account) under the sharing
+    // model — the company connection plus your own, deduped.
+    const shared = getSharedSnowflakeConnection()
+    const accounts: ConnectorScope[] = []
+    if (shared.kind !== 'not-connected') {
+      accounts.push({
+        id: `${shared.username}@${shared.accountIdentifier}`,
+        label: `${shared.username} @${shared.accountIdentifier}`,
+      })
+    }
+    const ownId = `${sf.username}@${sf.accountIdentifier}`
+    if (!accounts.some((a) => a.id === ownId)) {
+      accounts.push({ id: ownId, label: `${sf.username} @${sf.accountIdentifier}` })
+    }
     list.push({
       id: 'snowflake',
       label: 'Snowflake',
-      secondary: sf.database,
-      scopeKind: 'database',
-      scopes: databases.map((d) => ({ id: d, label: d })),
-      selectedScopeId: sf.selectedDatabase ?? sf.database,
+      secondary: `${sf.username} @${sf.accountIdentifier}`,
+      scopeKind: 'account',
+      scopes: accounts,
+      selectedScopeId:
+        sf.selectedDatabase && accounts.some((a) => a.id === sf.selectedDatabase)
+          ? sf.selectedDatabase
+          : ownId,
     })
   }
   return list

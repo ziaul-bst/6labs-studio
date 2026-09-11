@@ -1,6 +1,6 @@
 /**
  * SpecializedAgentChatView — Chat flow launched from a Specialized Agent card.
- * Idle state: agent identity header + suggested prompts + centered console.
+ * Idle state: agent identity header + suggested prompts + console.
  * Active state: scrollable conversation (user prompts + a pipeline loader that
  * resolves into an Oracle-style response container) with the console pinned to
  * the bottom. A PageTopbar provides the standard back navigation.
@@ -15,7 +15,9 @@ import { StatCard } from '../atoms/StatCard'
 import { PageTopbar } from '../molecules/PageTopbar'
 import { UserPrompt } from '../atoms/UserPrompt'
 import { AgentPipelineLoader } from '../molecules/AgentPipelineLoader'
+import type { PipelineStep } from '../molecules/AgentPipelineLoader'
 import { CheckIcon } from '../icons/CheckIcon'
+import { InfoFilledIcon } from '../icons/InfoFilledIcon'
 import type { SpecializedAgent, SpecializedAgentReply } from '../../data/specializedAgents'
 
 interface ChatMsg {
@@ -23,6 +25,8 @@ interface ChatMsg {
   role: 'user' | 'agent'
   text?: string
   reply?: SpecializedAgentReply
+  /** Pipeline captured at send time */
+  pipeline?: PipelineStep[]
   loading?: boolean
 }
 
@@ -71,16 +75,16 @@ export function SpecializedAgentChatView({ agent, onBack, className }: Specializ
     const prompt = text.trim()
     if (!prompt) return
     const loadingId = nextId()
+    const msgPipeline = agent.pipeline
     setMessages((prev) => [
       ...prev,
       { id: nextId(), role: 'user', text: prompt },
-      { id: loadingId, role: 'agent', loading: true },
+      { id: loadingId, role: 'agent', loading: true, pipeline: msgPipeline },
     ])
     setInput('')
     setPipelineStep(0)
 
-    // Walk the pipeline one step at a time, then reveal the response.
-    const total = agent.pipeline.length
+    const total = msgPipeline.length
     let i = 0
     const interval = setInterval(() => {
       i += 1
@@ -107,8 +111,8 @@ export function SpecializedAgentChatView({ agent, onBack, className }: Specializ
       {isIdle ? (
         /* ── Idle: Oracle-style agent hero + console + suggestions ── */
         <div className="flex-1 min-h-0 overflow-y-auto flyout-scrollbar">
-          <div className="flex flex-col items-center px-l pt-[88px] pb-xxl w-full">
-            <div className="flex flex-col gap-xxxl items-start w-full max-w-[760px]">
+          <div className="flex flex-col items-center pt-[120px] pb-xxl w-full">
+            <div className="flex flex-col gap-xxxl items-start page-measure">
               <AgentPageHeader
                 title={agent.name}
                 description={agent.description}
@@ -116,14 +120,30 @@ export function SpecializedAgentChatView({ agent, onBack, className }: Specializ
                 icon={agent.icon}
               />
 
-              <InputFieldConsole
-                value={input}
-                onChange={setInput}
-                onSubmit={() => send(input)}
-                placeholder={agent.placeholder}
-                platforms={agent.sources}
-                className="w-full"
-              />
+              <div className="flex flex-col gap-s items-start w-full">
+                {agent.requirement && (
+                  <div
+                    className="flex items-center gap-xs px-m py-s rounded-m w-full bg-bg-tint-light text-text-secondary"
+                    style={{ border: '1px solid var(--border-subtle)' }}
+                  >
+                    <span className="text-text-brand shrink-0">
+                      <InfoFilledIcon size={16} />
+                    </span>
+                    <p className="font-body text-xs leading-[1.5]">
+                      <span className="font-semibold text-text-primary">{agent.requirement}.</span>{' '}
+                      Connect the 6labs SDK to capture the events this agent needs — only SDK sources are available here.
+                    </p>
+                  </div>
+                )}
+                <InputFieldConsole
+                  value={input}
+                  onChange={setInput}
+                  onSubmit={() => send(input)}
+                  placeholder={agent.placeholder}
+                  platforms={agent.sources}
+                  className="w-full"
+                />
+              </div>
 
               <div className="flex flex-col gap-s items-start w-full">
                 <p className="font-display text-xs font-semibold text-base-500 text-center w-full leading-[1.5]">
@@ -145,7 +165,7 @@ export function SpecializedAgentChatView({ agent, onBack, className }: Specializ
             ref={scrollRef}
             className="absolute inset-0 overflow-y-auto overflow-x-hidden flyout-scrollbar"
           >
-            <div className="flex flex-col gap-l w-full max-w-[760px] mx-auto px-l pt-l pb-[160px]">
+            <div className="flex flex-col gap-l page-measure pt-l pb-[160px]">
               {messages.map((msg) =>
                 msg.role === 'user' ? (
                   <UserPrompt key={msg.id} text={msg.text ?? ''} />
@@ -154,6 +174,7 @@ export function SpecializedAgentChatView({ agent, onBack, className }: Specializ
                     key={msg.id}
                     agent={agent}
                     reply={msg.reply}
+                    pipeline={msg.pipeline ?? agent.pipeline}
                     loading={msg.loading}
                     pipelineStep={pipelineStep}
                   />
@@ -164,7 +185,7 @@ export function SpecializedAgentChatView({ agent, onBack, className }: Specializ
 
           {/* Pinned console */}
           <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center py-m px-l specialized-input-overlay">
-            <div className="w-full max-w-[760px]">
+            <div className="page-measure">
               <InputFieldConsole
                 value={input}
                 onChange={setInput}
@@ -185,11 +206,13 @@ export function SpecializedAgentChatView({ agent, onBack, className }: Specializ
 function AgentResponse({
   agent,
   reply,
+  pipeline,
   loading,
   pipelineStep,
 }: {
   agent: SpecializedAgent
   reply?: SpecializedAgentReply
+  pipeline: PipelineStep[]
   loading?: boolean
   pipelineStep: number
 }) {
@@ -203,21 +226,24 @@ function AgentResponse({
         style={{ border: '1px solid var(--border-subtle)' }}
       >
         {!showReply ? (
-          /* Pipeline loader */
-          <div className="flex flex-col gap-m items-start p-l w-full">
-            <div className="flex items-center gap-xs">
-              <div
-                className="shrink-0 size-[24px] rounded-s flex items-center justify-center"
-                style={{ background: agent.iconGradient }}
-              >
-                <div className="text-white scale-[0.45] origin-center">{agent.icon}</div>
+          /* Pipeline loader — progress rail sits flush against the card's top edge */
+          <AgentPipelineLoader
+            steps={pipeline}
+            currentStep={pipelineStep}
+            header={
+              <div className="flex items-center gap-xs">
+                <div
+                  className="shrink-0 size-[24px] rounded-s flex items-center justify-center"
+                  style={{ background: agent.iconGradient }}
+                >
+                  <div className="text-white scale-[0.45] origin-center">{agent.icon}</div>
+                </div>
+                <span className="font-display text-s font-semibold text-text-primary">
+                  {agent.name} is working…
+                </span>
               </div>
-              <span className="font-display text-s font-semibold text-text-primary">
-                {agent.name} is working…
-              </span>
-            </div>
-            <AgentPipelineLoader steps={agent.pipeline} currentStep={pipelineStep} />
-          </div>
+            }
+          />
         ) : (
           <>
             {/* Summary + metrics */}

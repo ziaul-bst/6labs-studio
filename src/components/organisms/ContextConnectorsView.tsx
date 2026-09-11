@@ -1,6 +1,10 @@
 /**
  * ContextConnectorsView — Connectors page showing integration cards.
- * Layout: AgentPageHeader + 2-column top row + 3-column bottom row of ConnectorCards.
+ *
+ * Sharing model (finalized "Option B"): connectors are company-scoped. When any
+ * connection is active the page splits into "Active in your company" (owner
+ * avatars + connection count per card) and "Available to add"; with nothing
+ * connected it falls back to the original flat grid.
  *
  * @figmaComponent  Context / Connectors
  * @figmaPath       Context / Connector / Body / Container / Main Content / Section
@@ -9,8 +13,13 @@
  * @figmaUrl        https://www.figma.com/design/i9fxQ6pXrgRITEzopoXpWL/6labs?node-id=6418-103550
  */
 
+import type { ReactNode } from 'react'
 import { AgentPageHeader } from '../molecules/AgentPageHeader'
 import { ConnectorCard } from '../molecules/ConnectorCard'
+import {
+  useBigQueryConnection,
+  useSnowflakeConnection,
+} from '../../lib/state/connectorsStore'
 import { ConnectorIcon } from '../icons/ConnectorIcon'
 import { AppsFlyerIcon } from '../icons/connectors/AppsFlyerIcon'
 import { JiraIcon } from '../icons/connectors/JiraIcon'
@@ -218,13 +227,52 @@ interface ContextConnectorsViewProps {
   onSelectConnector?: (id: string) => void
 }
 
+/** Company-shared warehouse connectors — always active (set up by a teammate). */
+const SHARED_ACTIVE_IDS = ['bigquery', 'snowflake']
+
+function OwnerAvatar({ ownerId, size = 18 }: { ownerId: 'alex' | 'you'; size?: number }) {
+  const bg =
+    ownerId === 'alex'
+      ? 'linear-gradient(135deg, #7B4CFF, #1770EF)'
+      : 'linear-gradient(135deg, #F0653F, #F2A03F)'
+  return (
+    <span
+      className="inline-flex items-center justify-center font-display font-semibold shrink-0"
+      style={{ width: size, height: size, borderRadius: 999, background: bg, color: '#fff', fontSize: size * 0.44, border: '2px solid var(--bg-card)' }}
+    >
+      {ownerId === 'alex' ? 'A' : 'Y'}
+    </span>
+  )
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-xs w-full" style={{ marginBottom: 14 }}>
+      <span className="font-display text-2xs font-semibold uppercase" style={{ color: 'var(--text-tertiary)', letterSpacing: '0.06em' }}>
+        {children}
+      </span>
+      <span className="flex-1" style={{ height: 1, background: 'var(--border-subtle)' }} />
+    </div>
+  )
+}
+
 export function ContextConnectorsView({ className, onSelectConnector }: ContextConnectorsViewProps) {
-  const row1 = CONNECTORS.filter((c) => c.row === 1)
-  const row2 = CONNECTORS.filter((c) => c.row === 2)
+  const ownBigQuery = useBigQueryConnection()
+  const ownSnowflake = useSnowflakeConnection()
+
+  // Owners per active connector: the teammate's shared connection, plus yours
+  // once you add your own through onboarding.
+  const ownersFor = (id: string): ('alex' | 'you')[] => {
+    const own = id === 'bigquery' ? ownBigQuery : ownSnowflake
+    return own.kind !== 'not-connected' ? ['alex', 'you'] : ['alex']
+  }
+
+  const active = CONNECTORS.filter((c) => SHARED_ACTIVE_IDS.includes(c.id))
+  const available = CONNECTORS.filter((c) => !SHARED_ACTIVE_IDS.includes(c.id))
 
   return (
     <div
-      className={['flex flex-col items-center w-full max-w-[800px] mx-auto', className]
+      className={['flex flex-col items-center page-measure', className]
         .filter(Boolean)
         .join(' ')}
     >
@@ -236,34 +284,71 @@ export function ContextConnectorsView({ className, onSelectConnector }: ContextC
         icon={<ConnectorIcon size={40} />}
       />
 
-      {/* Connector grid */}
-      <div className="w-full mt-[60px] flex flex-col gap-l">
-        {/* Row 1: 3 columns — featured (BigQuery, AppsFlyer, Jira) */}
-        <div className="grid grid-cols-3 gap-l">
-          {row1.map((c) => (
-            <ConnectorCard
-              key={c.id}
-              icon={c.icon}
-              name={c.name}
-              description={c.description}
-              onConnect={() => onSelectConnector?.(c.id)}
-            />
-          ))}
+      {active.length === 0 ? (
+        /* Nothing connected — original flat grid */
+        <div className="w-full mt-[60px] flex flex-col gap-l">
+          <div className="grid grid-cols-3 gap-l">
+            {CONNECTORS.filter((c) => c.row === 1).map((c) => (
+              <ConnectorCard key={c.id} icon={c.icon} name={c.name} description={c.description} onConnect={() => onSelectConnector?.(c.id)} />
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-l">
+            {CONNECTORS.filter((c) => c.row === 2).map((c) => (
+              <ConnectorCard key={c.id} icon={c.icon} name={c.name} description={c.description} onConnect={() => onSelectConnector?.(c.id)} />
+            ))}
+          </div>
         </div>
+      ) : (
+        <div className="w-full mt-[60px] flex flex-col">
+          {/* Active section leads the hierarchy — real heading + live count,
+              vs. the muted catalog label on "Available to add". */}
+          <div className="flex items-center gap-s w-full" style={{ marginBottom: 16 }}>
+            <h2 className="font-display text-m font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Active in your company
+            </h2>
+            <span
+              className="inline-flex items-center gap-xs px-s py-xxs rounded-[20px] font-display text-2xs font-semibold"
+              style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success)' }}
+            >
+              <span className="shrink-0" style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--success)' }} />
+              {active.length} active
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-l" style={{ marginBottom: 34 }}>
+            {active.map((c) => {
+              const owners = ownersFor(c.id)
+              return (
+                <ConnectorCard
+                  key={c.id}
+                  icon={c.icon}
+                  name={c.name}
+                  description={c.description}
+                  onConnect={() => onSelectConnector?.(c.id)}
+                  footer={
+                    <span className="flex items-center gap-xs font-body text-xs min-w-0" style={{ color: 'var(--text-secondary)' }}>
+                      <span className="flex">
+                        {owners.map((o, i) => (
+                          <span key={o} style={{ marginLeft: i === 0 ? 0 : -6 }}>
+                            <OwnerAvatar ownerId={o} />
+                          </span>
+                        ))}
+                      </span>
+                      <span className="truncate">{owners.length === 1 ? '1 connection' : `${owners.length} connections`}</span>
+                    </span>
+                  }
+                />
+              )
+            })}
+          </div>
 
-        {/* Row 2: 3 columns — ~253px each, 20px gap */}
-        <div className="grid grid-cols-3 gap-l">
-          {row2.map((c) => (
-            <ConnectorCard
-              key={c.id}
-              icon={c.icon}
-              name={c.name}
-              description={c.description}
-              onConnect={() => onSelectConnector?.(c.id)}
-            />
-          ))}
+          <SectionLabel>Available to add</SectionLabel>
+          <div className="grid grid-cols-3 gap-l">
+            {available.map((c) => (
+              <ConnectorCard key={c.id} icon={c.icon} name={c.name} description={c.description} onConnect={() => onSelectConnector?.(c.id)} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

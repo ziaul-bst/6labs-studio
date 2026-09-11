@@ -145,17 +145,39 @@ export function UserProfileCard({ profile, className }: UserProfileCardProps) {
             </svg>
           )}
         </div>
-        <span className="font-body text-s leading-[1.5] flex-1 min-w-0" style={{ color: '#686E81' }}>
-          {profile.username}
-        </span>
-        {profile.spenderTag && (
+        <div className="flex flex-col flex-1 min-w-0">
+          <span className="font-body text-s leading-[1.5] truncate" style={{ color: '#686E81' }}>
+            {profile.username}
+          </span>
+          {profile.isAgent && (
+            <span className="font-display text-2xs font-semibold uppercase tracking-[0.06em]" style={{ color: 'var(--brand)' }}>
+              AI Agent
+            </span>
+          )}
+        </div>
+        {/* Agents surface their persona here (bot glyph + persona); humans keep the spender tag. */}
+        {profile.persona ? (
+          <span
+            className="shrink-0 inline-flex items-center gap-xxs font-display font-semibold text-2xs px-xs py-xxxs rounded-round whitespace-nowrap"
+            style={{ backgroundColor: 'var(--bg-tint-light)', color: 'var(--brand)' }}
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="shrink-0">
+              <rect x="3" y="5.5" width="10" height="7.5" rx="2" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M8 3.5V5.5M8 3.5a1 1 0 100-2 1 1 0 000 2Z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              <circle cx="6" cy="9" r="0.9" fill="currentColor" />
+              <circle cx="10" cy="9" r="0.9" fill="currentColor" />
+              <path d="M1.5 8.5v2M14.5 8.5v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+            {profile.persona}
+          </span>
+        ) : profile.spenderTag ? (
           <span
             className="shrink-0 font-display font-semibold text-2xs px-xs py-xxxs rounded-round whitespace-nowrap"
             style={{ backgroundColor: 'rgba(255,183,0,0.15)', color: '#D4A017' }}
           >
             {profile.spenderTag}
           </span>
-        )}
+        ) : null}
       </div>
 
       {/* Stat card rows — from profile.stats */}

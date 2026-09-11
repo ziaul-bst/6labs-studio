@@ -334,7 +334,7 @@ const ANATOMY: Record<string, AnatomyEntry[]> = {
   'sidebar-organism': [
     { property: 'BG',                   token: 'bg-bg-elements',         variable: 'Neutral/White (3edd2c47…)',  value: '#FFFFFF' },
     { property: 'Border Right',         token: 'border-border-subtle',   variable: 'Border/Subtle',              value: '#E6E7EA' },
-    { property: 'Width',                token: 'w-[280px]',              variable: '—',                          value: '280px' },
+    { property: 'Width',                token: 'w-[300px]',              variable: '—',                          value: '300px' },
     { property: 'Padding',              token: 'p-m',                    variable: 'space/m',                    value: '16px' },
     { property: 'Gap',                  token: 'gap-xxs',                variable: 'space/xxs',                  value: '4px' },
   ],

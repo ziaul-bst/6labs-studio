@@ -19,15 +19,21 @@ const THINKING_STEPS = [
 ]
 
 interface ThinkingOracleProps {
+  /**
+   * What the agent says it is doing. Overridable because the lines name real
+   * work — another agent reading its own recordings is not "consulting our
+   * radiologist", and borrowed copy would misdescribe it.
+   */
+  steps?: string[]
   className?: string
 }
 
-export function ThinkingOracle({ className }: ThinkingOracleProps) {
+export function ThinkingOracle({ steps = THINKING_STEPS, className }: ThinkingOracleProps) {
   const [stepIndex, setStepIndex] = useState(0)
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {
-    if (stepIndex >= THINKING_STEPS.length - 1) return
+    if (stepIndex >= steps.length - 1) return
     const timer = setTimeout(() => {
       setVisible(false)
       setTimeout(() => {
@@ -36,7 +42,7 @@ export function ThinkingOracle({ className }: ThinkingOracleProps) {
       }, 250)
     }, 2200)
     return () => clearTimeout(timer)
-  }, [stepIndex])
+  }, [stepIndex, steps.length])
 
   return (
     <div
@@ -52,7 +58,7 @@ export function ThinkingOracle({ className }: ThinkingOracleProps) {
         className="font-body text-s font-normal leading-[1.5] oracle-shimmer-text"
         style={{ opacity: visible ? 1 : 0, transition: 'opacity 250ms ease' }}
       >
-        {THINKING_STEPS[stepIndex]}
+        {steps[stepIndex]}
       </span>
     </div>
   )

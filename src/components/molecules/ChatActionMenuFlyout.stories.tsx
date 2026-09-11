@@ -28,16 +28,16 @@ const TWO_CONNECTORS: ConnectorOption[] = [
   {
     id: 'snowflake',
     label: 'Snowflake',
-    secondary: 'GAME_TELEMETRY',
+    secondary: 'PRIYA_RO @ab11111.eu-west-2',
     icon: <SnowflakeIcon size={18} />,
     enabled: false,
-    scopeKind: 'database',
+    // Sharing model: connections are picked by account (username @account).
+    scopeKind: 'account',
     scopes: [
-      { id: 'GAME_TELEMETRY', label: 'GAME_TELEMETRY' },
-      { id: 'MARKETING_ANALYTICS', label: 'MARKETING_ANALYTICS' },
-      { id: 'FINANCE', label: 'FINANCE' },
+      { id: 'SIXLABS_READONLY@xy12345.us-east-1', label: 'SIXLABS_READONLY @xy12345.us-east-1' },
+      { id: 'PRIYA_RO@ab11111.eu-west-2', label: 'PRIYA_RO @ab11111.eu-west-2' },
     ],
-    selectedScopeId: 'GAME_TELEMETRY',
+    selectedScopeId: 'PRIYA_RO@ab11111.eu-west-2',
   },
 ]
 

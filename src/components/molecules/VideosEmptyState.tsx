@@ -7,14 +7,21 @@
  * @figmaFile       i9fxQ6pXrgRITEzopoXpWL
  * @figmaUrl        https://www.figma.com/design/i9fxQ6pXrgRITEzopoXpWL/6labs?node-id=2737-30105
  */
+import type { ReactNode } from 'react'
 
 interface VideosEmptyStateProps {
+  /** Headline above the message — what happened, in one line. */
+  title?: string
   message?: string
+  /** The way out of the state: a button that relaxes whatever caused it. */
+  action?: ReactNode
   className?: string
 }
 
 export function VideosEmptyState({
+  title,
   message = 'Look like Radiologist was not able to find the sessions you were looking for. Try using a different prompt to see results.',
+  action,
   className,
 }: VideosEmptyStateProps) {
   return (
@@ -103,9 +110,18 @@ export function VideosEmptyState({
 
         {/* Message */}
         <div className="flex flex-col gap-xs items-center justify-center w-full">
+          {title && (
+            <p
+              className="font-display text-m font-semibold leading-[1.4] text-center w-full"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              {title}
+            </p>
+          )}
           <p className="font-body text-s text-base-600 leading-[1.5] text-center w-full">
             {message}
           </p>
+          {action && <div className="flex items-center gap-s justify-center pt-s">{action}</div>}
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@
  * Entire card is the launch affordance; hover lifts and brightens the border.
  */
 import { DirectionsArrowIcon } from '../icons/DirectionsArrowIcon'
+import { InfoFilledIcon } from '../icons/InfoFilledIcon'
 import type { SpecializedAgent } from '../../data/specializedAgents'
 
 interface SpecializedAgentCardProps {
@@ -24,15 +25,15 @@ export function SpecializedAgentCard({ agent, onLaunch, className }: Specialized
         .filter(Boolean)
         .join(' ')}
     >
-      {/* Identity row — gradient tile + category pill */}
-      <div className="flex items-center justify-between w-full">
+      {/* Identity row — gradient tile + category pill pinned to the top-right */}
+      <div className="flex items-start justify-between w-full">
         <div
           className="shrink-0 size-[56px] rounded-xl flex items-center justify-center"
           style={{ background: agent.iconGradient }}
         >
           <div className="text-white">{agent.icon}</div>
         </div>
-        <span className="font-display text-2xs font-semibold text-text-secondary uppercase tracking-wide px-s py-xxs rounded-round bg-bg-tint-light">
+        <span className="shrink-0 font-display text-2xs font-semibold text-text-tertiary uppercase tracking-wide px-s py-xxs rounded-round bg-bg-page">
           {agent.tag}
         </span>
       </div>
@@ -45,6 +46,12 @@ export function SpecializedAgentCard({ agent, onLaunch, className }: Specialized
         <p className="font-body text-s font-normal text-base-700 leading-[1.5]">
           {agent.description}
         </p>
+        {agent.requirement && (
+          <span className="inline-flex items-center gap-xxxs mt-xxs px-xs py-xxxs rounded-round bg-bg-tint-light text-text-secondary font-display text-2xs font-semibold">
+            <InfoFilledIcon size={12} />
+            {agent.requirement}
+          </span>
+        )}
       </div>
 
       {/* CTA */}

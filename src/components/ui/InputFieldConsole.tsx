@@ -85,6 +85,11 @@ export interface InputFieldConsoleProps {
   onConnectorsChange?: (ids: string[]) => void
   /** Called when the user attaches a PDF from the flyout */
   onAttachFile?: (file: File) => void
+  /**
+   * Hide the Sources pill. For composers whose corpus is fixed by the screen
+   * (a test report asks *its* cases), a platform picker would be a lie.
+   */
+  hideSources?: boolean
   /** Number of visible rows for default type */
   rows?: number
   /** Focus/blur events for suggestion dropdown control */
@@ -116,6 +121,7 @@ export default function InputFieldConsole({
   connectors = [],
   onConnectorsChange,
   onAttachFile,
+  hideSources = false,
   rows = 2,
   onFocus,
   onBlur,
@@ -318,8 +324,9 @@ export default function InputFieldConsole({
             onAttachFile={onAttachFile}
           />
 
-          {/* Sources selector — always visible so the user knows what their query
-              runs on. Click opens a SelectDropdown popover anchored to the pill. */}
+          {/* Sources selector — visible so the user knows what their query runs on,
+              unless the screen fixes the corpus. Click opens a SelectDropdown popover. */}
+          {!hideSources && (
           <div ref={sourceRootRef} className="relative inline-flex items-center">
             <Button
               variant="tertiary"
@@ -361,6 +368,7 @@ export default function InputFieldConsole({
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Right: Send CTA — Button primary large icon-only round */}

@@ -14,6 +14,7 @@ import { ResultsHeader } from '../molecules/ResultsHeader'
 import { VideosContainer } from './VideosContainer'
 import { SessionSidePanel } from './SessionSidePanel'
 import { MOCK_SESSIONS } from '../../lib/mocks/radiologist-sessions'
+import { MOCK_EXCERPTS } from '../../lib/mocks/excerpts'
 import type { SessionData } from '../../lib/types/radiologist'
 
 interface RadiologistResultsViewProps {
@@ -42,8 +43,13 @@ export function RadiologistResultsView({
   className,
 }: RadiologistResultsViewProps) {
   // Delayed mount for slide-in animation
-  const [panelMounted, setPanelMounted] = useState(false)
-  const [panelVisible, setPanelVisible] = useState(false)
+  // Seeded open when the view mounts with the panel already requested — a deep
+  // link into `#/radiologist/panel` shouldn't play a slide-in, and relying on the
+  // effect's two-frame animation left the panel parked off-screen on arrival.
+  const [panelMounted, setPanelMounted] = useState(() => flyoutOpen && !!selectedSession)
+  const [panelVisible, setPanelVisible] = useState(() => flyoutOpen && !!selectedSession)
+  // Count of sessions visible after the container's Source & Tag filters apply.
+  const [visibleCount, setVisibleCount] = useState(MOCK_SESSIONS.length)
 
   useEffect(() => {
     if (flyoutOpen && selectedSession) {
@@ -80,7 +86,7 @@ export function RadiologistResultsView({
 
           {/* Results header — mt-xl for proper spacing from Figma (20px gap) */}
           <ResultsHeader
-            count={MOCK_SESSIONS.length}
+            count={visibleCount}
             className="mt-xl"
           />
 
@@ -88,6 +94,7 @@ export function RadiologistResultsView({
           <div className="mt-m">
             <VideosContainer
               columns={flyoutOpen && !sidebarCollapsed ? 2 : 3}
+              onVisibleCountChange={setVisibleCount}
               onCardClick={(session) => {
                 const fullSession = MOCK_SESSIONS.find(
                   (s) => s.sessionId === session.sessionId
@@ -111,6 +118,14 @@ export function RadiologistResultsView({
             session={selectedSession}
             onClose={onFlyoutClose}
             onViewDetail={onViewDetail}
+            /* Results are query-driven too — this video came back for the search
+               above, so the excerpt is as meaningful here as in Oracle. The
+               query shown is the one actually searched, not the Oracle mock. */
+            excerpt={
+              query.trim()
+                ? { ...MOCK_EXCERPTS['attributes-text'], query: query.trim() }
+                : undefined
+            }
           />
         </div>
       )}

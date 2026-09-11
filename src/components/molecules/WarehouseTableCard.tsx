@@ -29,6 +29,8 @@ export type WarehouseVerdict = BigQueryVerdict
 // ─── Per-table card with inline editing ──────────────────────────────────────
 
 export function WarehouseTableCard({
+  readOnly = false,
+  hideSize = false,
   table,
   pendingTableDesc,
   pendingColumnDescs,
@@ -40,6 +42,11 @@ export function WarehouseTableCard({
   pendingColumnDescs: Record<string, string>
   onEditTable: (fqn: string, value: string) => void
   onEditColumn: (fqn: string, columnName: string, value: string) => void
+  /** View state — descriptions render as static text (no inline editors). */
+  readOnly?: boolean
+  /** Omits the row-count/table-size prefix from the summary line — used by
+   *  the compact "View" section, which otherwise matches "Tables" exactly. */
+  hideSize?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const effectiveTableDesc = pendingTableDesc ?? table.description
@@ -83,7 +90,8 @@ export function WarehouseTableCard({
             className="font-body text-xs"
             style={{ color: 'var(--text-tertiary)' }}
           >
-            {formatRows(table.rows)} rows · {formatBytes(table.bytes)} · {total} columns ·{' '}
+            {!hideSize && <>{formatRows(table.rows)} rows · {formatBytes(table.bytes)} · </>}
+            {total} columns ·{' '}
             <span style={{ color: 'var(--text-secondary)' }}>{described}/{total} described ({pct}%)</span>
           </span>
         </div>
@@ -134,6 +142,7 @@ export function WarehouseTableCard({
             value={effectiveTableDesc}
             onSave={(next) => onEditTable(table.fqn, next)}
             multiline
+            readOnly={readOnly}
           />
 
           {/* Columns */}
@@ -145,12 +154,14 @@ export function WarehouseTableCard({
               >
                 Columns ({total})
               </h3>
-              <span
-                className="font-body text-xs"
-                style={{ color: 'var(--text-tertiary)' }}
-              >
-                Inline edit · Tab to next field
-              </span>
+              {!readOnly && (
+                <span
+                  className="font-body text-xs"
+                  style={{ color: 'var(--text-tertiary)' }}
+                >
+                  Inline edit · Tab to next field
+                </span>
+              )}
             </div>
             <div className="flex flex-col">
               {table.columns.map((c, i) => (
@@ -161,6 +172,7 @@ export function WarehouseTableCard({
                   isFirst={i === 0}
                   pendingDescription={pendingColumnDescs[`${table.fqn}::${c.name}`]}
                   onEdit={onEditColumn}
+                  readOnly={readOnly}
                 />
               ))}
             </div>
@@ -180,12 +192,14 @@ function ColumnRow({
   isFirst,
   pendingDescription,
   onEdit,
+  readOnly = false,
 }: {
   column: WarehouseColumn
   fqn: string
   isFirst: boolean
   pendingDescription?: string
   onEdit: (fqn: string, columnName: string, value: string) => void
+  readOnly?: boolean
 }) {
   const effectiveDescription = pendingDescription ?? column.description
   const missing = effectiveDescription.trim().length === 0
@@ -214,6 +228,7 @@ function ColumnRow({
         onSave={(next) => onEdit(fqn, column.name, next)}
         tone={missing ? 'warning' : 'default'}
         inline
+        readOnly={readOnly}
       />
     </div>
   )
@@ -227,6 +242,7 @@ export function FieldEditor({
   multiline = false,
   inline = false,
   tone = 'default',
+  readOnly = false,
 }: {
   label?: string
   placeholder: string
@@ -235,6 +251,8 @@ export function FieldEditor({
   multiline?: boolean
   inline?: boolean
   tone?: 'default' | 'warning'
+  /** View state — renders the value as static text instead of an editor. */
+  readOnly?: boolean
 }) {
   const [draft, setDraft] = useState(value)
   const [dirty, setDirty] = useState(false)
@@ -255,6 +273,30 @@ export function FieldEditor({
       tone === 'warning' ? 'var(--warning)' : 'var(--border-subtle)'
     }`,
     color: 'var(--text-primary)',
+  }
+
+  // View state — static text, no inputs. Empty values read as an explicit
+  // placeholder so viewers know the description is missing (not hidden).
+  if (readOnly) {
+    const empty = value.trim().length === 0
+    return (
+      <div className={`flex flex-col gap-xxs ${inline ? '' : 'w-full'}`}>
+        {label && (
+          <label
+            className="font-display text-xs font-semibold uppercase tracking-[0.12em]"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            {label}
+          </label>
+        )}
+        <span
+          className="font-body text-s leading-[1.5] py-xs whitespace-pre-wrap"
+          style={{ color: empty ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontStyle: empty ? 'italic' : 'normal' }}
+        >
+          {empty ? 'No description yet' : value}
+        </span>
+      </div>
+    )
   }
 
   const sharedProps = {
@@ -293,6 +335,29 @@ export function FieldEditor({
       )}
     </div>
   )
+}
+
+// Formats the analyst notes for display instead of dumping raw markdown:
+// paragraphs split on blank lines, `**bold**` spans rendered as <strong>.
+const BOLD_SPAN = /\*\*(.+?)\*\*/g
+function renderAnalystNotes(text: string) {
+  return text
+    .split(/\n{1,}/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, pi) => (
+      <p key={pi}>
+        {line.split(BOLD_SPAN).map((part, i) =>
+          i % 2 === 1 ? (
+            <strong key={i} style={{ color: 'var(--text-primary)' }}>
+              {part}
+            </strong>
+          ) : (
+            part
+          ),
+        )}
+      </p>
+    ))
 }
 
 function LlmSummary({ text }: { text: string }) {
@@ -340,14 +405,14 @@ function LlmSummary({ text }: { text: string }) {
       </button>
       {open && (
         <div
-          className="px-m pb-m font-body text-s leading-[1.6] whitespace-pre-wrap"
+          className="flex flex-col gap-xs px-m pb-m font-body text-s leading-[1.6]"
           style={{
             color: 'var(--text-secondary)',
             borderTop: '1px solid var(--border-subtle)',
             paddingTop: 'var(--space-m, 12px)',
           }}
         >
-          {text}
+          {renderAnalystNotes(text)}
         </div>
       )}
     </div>
@@ -451,7 +516,10 @@ export function SummaryGrid({
   items: { label: string; value: string }[]
 }) {
   return (
-    <div className="grid grid-cols-3 gap-[12px] w-full">
+    <div
+      className="grid gap-[12px] w-full"
+      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+    >
       {items.map((it) => (
         <div
           key={it.label}

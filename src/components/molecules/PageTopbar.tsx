@@ -15,11 +15,17 @@ import type { ReactNode } from 'react'
 interface PageTopbarProps {
   title: string
   onBack: () => void
+  /**
+   * Overrides the label next to the back arrow. Used when the page was reached
+   * from somewhere other than its usual parent — e.g. arriving from an Oracle
+   * citation reads "Back to response" rather than the session id.
+   */
+  backLabel?: string
   /** Optional right-aligned slot for page-level actions (e.g. Save changes). */
   actions?: ReactNode
 }
 
-export function PageTopbar({ title, onBack, actions }: PageTopbarProps) {
+export function PageTopbar({ title, onBack, backLabel, actions }: PageTopbarProps) {
   return (
     <div
       className="w-full h-[56px] flex items-center justify-between sticky top-0 z-30 shrink-0 pr-[20px]"
@@ -30,7 +36,7 @@ export function PageTopbar({ title, onBack, actions }: PageTopbarProps) {
     >
       {/* Back button — positioned at left=20px, vertically centered */}
       <button
-        className="ml-[20px] flex gap-[10px] items-center cursor-pointer"
+        className="ml-[20px] flex flex-1 min-w-0 gap-[10px] items-center cursor-pointer"
         onClick={onBack}
       >
         <div className="size-[24px] rounded-[100px] flex items-center justify-center">
@@ -49,11 +55,13 @@ export function PageTopbar({ title, onBack, actions }: PageTopbarProps) {
             />
           </svg>
         </div>
+        {/* Long queries clip with an ellipsis rather than shoving the actions
+            slot off the right edge. */}
         <span
-          className="font-display text-s font-semibold leading-[1.5] whitespace-nowrap"
+          className="font-display text-s font-semibold leading-[1.5] min-w-0 truncate text-left"
           style={{ color: 'var(--text-secondary)' }}
         >
-          {title}
+          {backLabel ?? title}
         </span>
       </button>
 

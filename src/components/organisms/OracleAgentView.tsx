@@ -28,13 +28,84 @@ import { SourcesSidePanel } from './SourcesSidePanel'
 import { SessionSidePanel } from './SessionSidePanel'
 import { ShareFeedbackDialog } from '../molecules/ShareFeedbackDialog'
 import { FeedbackSubmittedDialog } from '../molecules/FeedbackSubmittedDialog'
-import { OracleTopbar, type OracleTab } from '../molecules/OracleTopbar'
-import { VideoCard } from '../molecules/VideoCard'
+import { PageTopbar } from '../molecules/PageTopbar'
+import { ExportMenu } from '../molecules/ExportMenu'
 import type { OracleViewState } from '../../lib/types/oracle'
 import type { SessionData } from '../../lib/types/radiologist'
+import type { SourceItem } from '../molecules/SourcesGrid'
+import type { Citation } from '../../lib/types/citation'
+import { MOCK_SESSIONS } from '../../lib/mocks/radiologist-sessions'
+import { MOCK_EXCERPTS } from '../../lib/mocks/excerpts'
+import { ORACLE_RESPONSE_MS } from '../../lib/mocks/oracle-pipeline'
 
 const ORACLE_GRADIENT =
   'radial-gradient(circle at 60% 55%, #05C290 0%, #0E99BF 50%, #1770EF 100%)'
+
+/**
+ * Evidence behind the `[N]` chips in the mock response below.
+ *
+ * Video citations point at real MOCK_SESSIONS transcript segments so hovering a
+ * chip shows the actual narration and clicking it deep-links to that moment.
+ * Segment ids follow `${sessionId}:${startSec}` at 7-second steps.
+ */
+const MOCK_CITATIONS: Citation[] = [
+  {
+    n: 1,
+    kind: 'video',
+    videoId: 'Session #2847',
+    segmentIds: ['Session #2847:14', 'Session #2847:21'],
+    label: 'Tutorial Run — Player 847',
+  },
+  {
+    n: 2,
+    kind: 'video',
+    videoId: 'Session #2846',
+    segmentIds: ['Session #2846:56'],
+    label: 'Tutorial Run — Player 1203',
+  },
+  {
+    n: 3,
+    kind: 'video',
+    videoId: 'Session #2845',
+    segmentIds: ['Session #2845:105', 'Session #2845:112'],
+    label: 'Tutorial Run — Player 562',
+  },
+  {
+    n: 4,
+    kind: 'video',
+    videoId: 'Session #2844',
+    segmentIds: ['Session #2844:35'],
+    label: 'Ranked Match — Player 847',
+  },
+  {
+    n: 5,
+    kind: 'video',
+    videoId: 'Session #2843',
+    segmentIds: ['Session #2843:70'],
+    label: 'Clash Squad — Player 991',
+  },
+  {
+    n: 6,
+    kind: 'table',
+    tableFqn: 'PLATSH.PLATSH.TUTORIAL_FUNNEL',
+    warehouse: 'Snowflake',
+    columns: ['step', 'reached', 'drop_off'],
+    rows: [
+      { step: 'grenade_throw', reached: '4,182', drop_off: '23.0%' },
+      { step: 'inventory', reached: '3,220', drop_off: '9.4%' },
+    ],
+    highlightCell: { column: 'drop_off', value: '23.0%' },
+    totalRows: 12,
+  },
+]
+
+/** Resolves a video citation's segment ids to their narration text. */
+function resolveSegments(videoId: string, segmentIds: string[]) {
+  const session = MOCK_SESSIONS.find((sess) => sess.sessionId === videoId)
+  if (!session?.transcript) return []
+  const wanted = new Set(segmentIds)
+  return session.transcript.filter((seg) => wanted.has(seg.id))
+}
 
 const SUGGESTIONS = [
   'Show the top five most intense close-range fights.',
@@ -43,35 +114,28 @@ const SUGGESTIONS = [
   'Where did the player lose the most HP, and what caused it?',
 ]
 
-const MOCK_VIDEO_SESSIONS = [
-  { id: 'v1', title: 'Tutorial Run — P847', date: 'Apr 10, 2026', duration: '4:05', description: 'First-time tutorial attempt. Failed grenade section 3 times.', tags: ['Tutorial', 'Grenade'] },
-  { id: 'v2', title: 'Tutorial Run — P1203', date: 'Apr 10, 2026', duration: '3:22', description: 'Completed tutorial but skipped ADS training entirely.', tags: ['Tutorial', 'ADS'] },
-  { id: 'v3', title: 'Tutorial Run — P562', date: 'Apr 9, 2026', duration: '5:10', description: 'Abandoned at inventory management step after 40+ seconds.', tags: ['Tutorial', 'Inventory'] },
-  { id: 'v4', title: 'Ranked Match — P847', date: 'Apr 9, 2026', duration: '12:34', description: 'Competitive ranked match with strategic gameplay.', tags: ['Ranked', 'Combat'] },
-  { id: 'v5', title: 'Tutorial Run — P998', date: 'Apr 9, 2026', duration: '3:45', description: 'Vehicle crash on first attempt. Recovered and completed.', tags: ['Tutorial', 'Vehicle'] },
-  { id: 'v6', title: 'Squad Match — P1203', date: 'Apr 8, 2026', duration: '8:15', description: 'Strong team coordination observed throughout.', tags: ['Squad', 'Combat'] },
-  { id: 'v7', title: 'Tutorial Run — P441', date: 'Apr 8, 2026', duration: '6:20', description: 'Used wrong healing item twice. Completed on third try.', tags: ['Tutorial', 'Healing'] },
-  { id: 'v8', title: 'Battle Royale — P562', date: 'Apr 8, 2026', duration: '15:02', description: 'Solo BR with aggressive early-game rotations.', tags: ['BR', 'Solo'] },
-  { id: 'v9', title: 'Tutorial Run — P773', date: 'Apr 7, 2026', duration: '4:50', description: 'Abandoned tutorial at grenade section. Did not return.', tags: ['Tutorial', 'Abandoned'] },
-  { id: 'v10', title: 'Ranked Match — P998', date: 'Apr 7, 2026', duration: '11:45', description: 'Player focused on objective-based play with moderate combat.', tags: ['Ranked', 'Objective'] },
-  { id: 'v11', title: 'Squad Match — P441', date: 'Apr 7, 2026', duration: '9:30', description: 'Good loot management but poor rotation timing.', tags: ['Squad', 'Rotation'] },
-  { id: 'v12', title: 'Tutorial Run — P1589', date: 'Apr 6, 2026', duration: '3:10', description: 'Fastest tutorial completion in dataset. Skipped optional steps.', tags: ['Tutorial', 'Fast'] },
-  { id: 'v13', title: 'Battle Royale — P847', date: 'Apr 6, 2026', duration: '14:22', description: 'Third place finish. Strong mid-game performance.', tags: ['BR', 'Top 3'] },
-  { id: 'v14', title: 'Ranked Match — P773', date: 'Apr 6, 2026', duration: '10:08', description: 'First real match after abandoned tutorial. Struggled with ADS.', tags: ['Ranked', 'ADS'] },
-  { id: 'v15', title: 'Tutorial Run — P2001', date: 'Apr 5, 2026', duration: '7:40', description: 'Completed all optional sections. Slowest but most thorough.', tags: ['Tutorial', 'Complete'] },
-  { id: 'v16', title: 'Squad Match — P562', date: 'Apr 5, 2026', duration: '13:15', description: 'Four-player squad. Player took support role throughout.', tags: ['Squad', 'Support'] },
-  { id: 'v17', title: 'Battle Royale — P1203', date: 'Apr 5, 2026', duration: '11:00', description: 'Aggressive early drop. Eliminated in first 2 minutes.', tags: ['BR', 'Early Drop'] },
-  { id: 'v18', title: 'Ranked Match — P441', date: 'Apr 4, 2026', duration: '9:55', description: 'Consistent zone positioning. Second place finish.', tags: ['Ranked', 'Zone'] },
-]
 
 interface OracleAgentViewProps {
   className?: string
+  /**
+   * Deep-links to the evidence behind an Oracle citation. Video citations land
+   * on the session details page, Transcript tab, scoped to the cited moments.
+   */
+  onOpenCitation?: (citation: Citation) => void
   /** Called when a new query is submitted — adds to sidebar history */
   onQuerySubmit?: (id: string, query: string) => void
   /** Called when AI response completes — marks history item as complete */
   onQueryComplete?: (id: string) => void
   /** When set, loads this thread's conversation */
   activeThreadId?: string | null
+  /**
+   * Thread store lifted to the parent. Supplied so conversations survive this
+   * view unmounting — navigating to a citation's evidence swaps `activeNav`,
+   * which would otherwise destroy the thread the user is coming back to.
+   * Falls back to internal state when omitted.
+   */
+  threadStore?: Record<string, ChatMessage[]>
+  onThreadStoreChange?: (next: Record<string, ChatMessage[]>) => void
   /**
    * Drive the Oracle query from outside the view (e.g. Barista sending a
    * suggested question). Whenever this value changes to a non-empty string
@@ -80,24 +144,46 @@ interface OracleAgentViewProps {
   externalQuery?: string | null
   /** Fires once Oracle's response simulation finishes for an external query. */
   onExternalQueryComplete?: (query: string) => void
+  /**
+   * Leaves the open thread and returns to the query launcher. Without it the
+   * chat-details header has a back chevron that goes nowhere.
+   */
+  onExitThread?: () => void
+  /**
+   * Leaves for the Gameplay Library — offered under an answer's sources, for
+   * the footage behind it that the 3-up row could not show.
+   */
+  onOpenLibrary?: () => void
 }
 
 export function OracleAgentView({
   className,
+  onOpenCitation,
   onQuerySubmit,
   onQueryComplete,
   activeThreadId,
+  threadStore,
+  onThreadStoreChange,
   externalQuery,
   onExternalQueryComplete,
+  onExitThread,
+  onOpenLibrary,
 }: OracleAgentViewProps) {
   const [viewState, setViewState] = useState<OracleViewState>('idle')
   const [query, setQuery] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  /** All threads stored by ID */
-  const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
+  /** All threads stored by ID — parent-owned when threadStore is supplied */
+  const [internalThreads, setInternalThreads] = useState<Record<string, ChatMessage[]>>({})
+  const threads = threadStore ?? internalThreads
+  const setThreads = useCallback(
+    (updater: (prev: Record<string, ChatMessage[]>) => Record<string, ChatMessage[]>) => {
+      if (threadStore && onThreadStoreChange) onThreadStoreChange(updater(threadStore))
+      else setInternalThreads(updater)
+    },
+    [threadStore, onThreadStoreChange],
+  )
   /** ID of the current thread's history entry — null means next submit creates a new one */
   const [threadHistoryId, setThreadHistoryId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<OracleTab>('agent')
 
   // Save current thread to store when messages change
   useEffect(() => {
@@ -115,13 +201,17 @@ export function OracleAgentView({
       setMessages(stored)
       setThreadHistoryId(activeThreadId)
       setViewState('result')
-      setActiveTab('agent')
     }
-  }, [activeThreadId])
+  }, [activeThreadId, threads])
   const [sourcesPanelOpen, setSourcesPanelOpen] = useState(false)
   const [sessionPanelOpen, setSessionPanelOpen] = useState(false)
   const [activeSession, setActiveSession] = useState<SessionData | null>(null)
-  const [sourceSessions] = useState<SessionData[]>([])
+  /**
+   * Videos backing the current response. Was an empty array that nothing ever
+   * populated, which left the Sources panel blank and made the session panel —
+   * and with it the excerpt — unreachable from Oracle.
+   */
+  const sourceSessions: SessionData[] = MOCK_SESSIONS.slice(0, 3)
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false)
   const [feedbackSubmittedOpen, setFeedbackSubmittedOpen] = useState(false)
 
@@ -175,23 +265,32 @@ export function OracleAgentView({
                     { id: 's2', duration: '3:22', title: 'Tutorial Run — Player 1203' },
                     { id: 's3', duration: '5:10', title: 'Tutorial Run — Player 562' },
                   ],
+                  docs: [
+                    { id: 'd1', label: 'FreeFire_GDD_v3' },
+                    { id: 'd2', label: 'Monetization_playbook' },
+                  ],
+                  connectors: [
+                    { id: 'c1', label: 'labs_demo 1', kind: 'snowflake' },
+                    { id: 'c2', label: 'labs_demo 1', kind: 'bigquery' },
+                  ],
+                  totalVideos: 58,
                   contentHtml: `
                     <p>5 Major Friction Points Identified (Tutorial completion rate: 67%)</p>
                     <p><strong>Biggest Problem: Grenade Throwing</strong></p>
                     <ul>
-                      <li>73% fail on first attempt, average 3.2 tries to complete</li>
-                      <li>23% abandon tutorial here (largest drop-off point)</li>
-                      <li>Issue: Trajectory line barely visible, unclear success zone, instruction appears for only 2 seconds</li>
+                      <li>73% fail on first attempt, average 3.2 tries to complete <button class="oracle-cite" data-cite="1">1</button><button class="oracle-cite" data-cite="3">3</button></li>
+                      <li>23% abandon tutorial here (largest drop-off point) <button class="oracle-cite" data-cite="6">6</button></li>
+                      <li>Issue: Trajectory line barely visible, unclear success zone, instruction appears for only 2 seconds <button class="oracle-cite" data-cite="1">1</button></li>
                     </ul>
                     <p><strong>Inventory Management</strong></p>
                     <ul>
-                      <li>51% take 40+ seconds to equip weapon (should be ~10 sec)</li>
-                      <li>Issue: Players don't understand tap vs drag, weapon slots unclear</li>
+                      <li>51% take 40+ seconds to equip weapon (should be ~10 sec) <button class="oracle-cite" data-cite="3">3</button><button class="oracle-cite" data-cite="4">4</button><button class="oracle-cite" data-cite="5">5</button></li>
+                      <li>Issue: Players don't understand tap vs drag, weapon slots unclear <button class="oracle-cite" data-cite="3">3</button></li>
                     </ul>
                     <p><strong>Aiming</strong></p>
                     <ul>
-                      <li>47% fire from hip instead of using ADS</li>
-                      <li>Issue: Button highlighted but players focused elsewhere, can progress without using it</li>
+                      <li>47% fire from hip instead of using ADS <button class="oracle-cite" data-cite="2">2</button></li>
+                      <li>Issue: Button highlighted but players focused elsewhere, can progress without using it <button class="oracle-cite" data-cite="2">2</button><button class="oracle-cite" data-cite="4">4</button></li>
                     </ul>
                     <p><strong>Vehicle Controls</strong></p>
                     <ul>
@@ -206,6 +305,7 @@ export function OracleAgentView({
                     <p><strong>Bottom Line:</strong> Grenade section causes 23% abandonment. Fix this first — clearer visuals, longer instructions, better feedback.</p>
                   `,
                   creditsUsed: 20,
+                  citations: MOCK_CITATIONS,
                   relatedPrompts: [
                     'How many players who completed tutorials still struggle with these mechanics in their first real match?',
                     'Show me players who abandoned tutorials but succeeded in real matches — how did they learn?',
@@ -219,7 +319,7 @@ export function OracleAgentView({
       setViewState('result')
       onQueryComplete?.(historyId)
       if (externalSource) onExternalQueryComplete?.(externalSource)
-    }, 9000)
+    }, ORACLE_RESPONSE_MS)
   }, [threadHistoryId, onQuerySubmit, onQueryComplete, onExternalQueryComplete])
 
   const handleSubmit = useCallback(() => {
@@ -251,6 +351,22 @@ export function OracleAgentView({
     setSessionPanelOpen(true)
   }, [])
 
+  /* A thumbnail in the answer's sources row opens that video directly. Sources
+     and `sourceSessions` are parallel lists, so position is the join; anything
+     past the end falls back to the panel rather than opening the wrong clip. */
+  const handleSourceThumbClick = useCallback(
+    (_source: SourceItem, index: number) => {
+      const session = sourceSessions[index]
+      if (!session) {
+        setSourcesPanelOpen(true)
+        setSessionPanelOpen(false)
+        return
+      }
+      handleSourceClick(session)
+    },
+    [sourceSessions, handleSourceClick],
+  )
+
   const handleDislike = useCallback((_responseId: string) => {
     setFeedbackDialogOpen(true)
   }, [])
@@ -271,13 +387,13 @@ export function OracleAgentView({
     return (
       <div
         className={[
-          'flex flex-col items-center px-[180px] pt-[120px] pb-[64px] w-full',
+          'flex flex-col items-center pt-[120px] pb-[64px] w-full',
           className,
         ]
           .filter(Boolean)
           .join(' ')}
       >
-        <div className="flex flex-col gap-xxxl items-start oracle-chat-content">
+        <div className="flex flex-col gap-xxxl items-start page-measure">
         <AgentPageHeader
           title="Oracle"
           description="Ask complex questions about player behavior across sessions and cohorts"
@@ -311,50 +427,41 @@ export function OracleAgentView({
     )
   }
 
+  /** The question that opened the thread — the thread's name, effectively. */
+  const threadTitle =
+    messages.find((m) => m.type === 'user')?.text ?? 'Oracle'
+
   // ─── Loading / Result state: [topbar + content] | side panel ───
   // Side panel spans full height; topbar is inside the content column only.
   return (
     <div className={['flex h-full w-full', className].filter(Boolean).join(' ')}>
-      {/* Left: topbar + tab content */}
+      {/* Left: header + chat */}
       <div className="flex-1 min-w-0 flex flex-col h-full">
-        {/* Page Topbar with Agent / Videos tabs */}
-        <OracleTopbar activeTab={activeTab} onTabChange={setActiveTab} />
+        {/* Chat-details header — identity and thread-level actions. Sits above
+            the view tabs: this row says which thread you are in, the tabs say
+            which view of it you are looking at. */}
+        <PageTopbar
+          title={threadTitle}
+          onBack={() => onExitThread?.()}
+          actions={<ExportMenu />}
+        />
 
         {/* Tab content */}
         <div className="flex-1 min-h-0">
-          {activeTab === 'agent' ? (
-            <OracleChatView
-              messages={messages}
-              inputValue={query}
-              onInputChange={setQuery}
-              onSubmit={handleSubmit}
-              onExpandSources={handleExpandSources}
-              onSuggestionClick={handleSuggestionClick}
-              onDislike={handleDislike}
-              className="h-full"
-            />
-          ) : (
-            /* Videos tab — grid of all video results */
-            <div className="h-full overflow-y-auto flyout-scrollbar">
-              <div className="px-l pt-l pb-xxl">
-                <h2 className="font-display text-m font-semibold leading-[1.5] text-text-primary mb-m">
-                  All Video Results
-                </h2>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(360px,1fr))] gap-m">
-                  {MOCK_VIDEO_SESSIONS.map((v) => (
-                    <VideoCard
-                      key={v.id}
-                      sessionId={v.title}
-                      date={v.date}
-                      duration={v.duration}
-                      description={v.description}
-                      tags={v.tags}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          <OracleChatView
+            messages={messages}
+            inputValue={query}
+            onInputChange={setQuery}
+            onSubmit={handleSubmit}
+            onExpandSources={handleExpandSources}
+            onSourceClick={handleSourceThumbClick}
+            onOpenLibrary={onOpenLibrary}
+            onSuggestionClick={handleSuggestionClick}
+            onDislike={handleDislike}
+            resolveSegments={resolveSegments}
+            onOpenCitation={onOpenCitation}
+            className="h-full"
+          />
         </div>
       </div>
 
@@ -371,6 +478,8 @@ export function OracleAgentView({
           session={activeSession}
           onClose={handleClosePanels}
           onViewDetail={() => {}}
+          /* Opened from an Oracle source, so the excerpt leads the panel body. */
+          excerpt={MOCK_EXCERPTS['attributes-text']}
         />
       )}
 

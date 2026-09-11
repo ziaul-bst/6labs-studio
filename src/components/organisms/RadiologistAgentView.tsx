@@ -72,7 +72,7 @@ export function RadiologistAgentView({ className, onSubmit, selectedSource, onSo
         .join(' ')}
     >
       {/* Top section: header + console (centered, max 800px) */}
-      <div className="flex flex-col gap-xxxl items-start w-full max-w-[800px]">
+      <div className="flex flex-col gap-xxxl items-start page-measure">
         <AgentPageHeader
           title="Radiologist"
           description="Examine gameplay moment-by-moment with video-backed evidence"

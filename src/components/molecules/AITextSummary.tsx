@@ -11,36 +11,12 @@
  */
 
 import { AISummaryIcon } from '../icons/section'
+import { renderHighlightedText } from '../../lib/text/highlight'
 
 interface AITextSummaryProps {
   text: string
   highlightedPhrases?: string[]
   className?: string
-}
-
-function renderHighlightedText(text: string, phrases: string[]) {
-  if (!phrases.length) return <span className="leading-[1.5]">{text}</span>
-
-  const pattern = phrases.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
-  const regex = new RegExp(`(${pattern})`, 'gi')
-  const parts = text.split(regex)
-
-  return parts.map((part, i) => {
-    const isHighlighted = phrases.some(
-      (p) => p.toLowerCase() === part.toLowerCase()
-    )
-    return isHighlighted ? (
-      <span
-        key={i}
-        className="font-display font-semibold leading-[1.5]"
-        style={{ backgroundColor: '#fff176' }}
-      >
-        {part}
-      </span>
-    ) : (
-      <span key={i} className="leading-[1.5]">{part}</span>
-    )
-  })
 }
 
 export function AITextSummary({ text, highlightedPhrases = [], className }: AITextSummaryProps) {

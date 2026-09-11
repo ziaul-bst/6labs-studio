@@ -19,6 +19,9 @@ interface ConnectorCardProps {
   connected?: boolean
   onConnect?: () => void
   className?: string
+  /** Persistent footer content (owner avatars + connection count on active
+   *  connectors). Sits on one row with the hover "View Details" link. */
+  footer?: ReactNode
 }
 
 export function ConnectorCard({
@@ -28,6 +31,7 @@ export function ConnectorCard({
   connected = false,
   onConnect,
   className,
+  footer,
 }: ConnectorCardProps) {
   return (
     <div
@@ -68,16 +72,19 @@ export function ConnectorCard({
         {description}
       </p>
 
-      {/* View Details link — fades in on hover */}
-      <span
-        className="flex items-center gap-xs font-display text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity duration-200 self-end"
-        style={{ color: 'var(--brand)' }}
-      >
-        View Details
-        <svg width="12" height="10" viewBox="0 0 12.5 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M0.5 5.00001H12M12 5.00001L8 0.500005M12 5.00001L8 9.50001" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </span>
+      {/* Footer row — persistent footer (if any) + hover "View Details" link */}
+      <div className={`flex items-center gap-s mt-auto ${footer ? 'justify-between' : 'justify-end'}`}>
+        {footer && <div className="min-w-0">{footer}</div>}
+        <span
+          className="flex items-center gap-xs font-display text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0"
+          style={{ color: 'var(--brand)' }}
+        >
+          View Details
+          <svg width="12" height="10" viewBox="0 0 12.5 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0.5 5.00001H12M12 5.00001L8 0.500005M12 5.00001L8 9.50001" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </span>
+      </div>
     </div>
   )
 }

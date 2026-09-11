@@ -70,9 +70,9 @@ export const ConnectedReady: Story = {
   args: { connection: connectedGreen },
 }
 
-export const RefreshConfirm: Story = {
-  name: 'Connected · refresh confirmation',
-  args: { connection: connectedYellow, defaultRefreshConfirmOpen: true },
+export const DisconnectConfirm: Story = {
+  name: 'Connected · disconnect confirmation',
+  args: { connection: connectedYellow, defaultDisconnectConfirmOpen: true },
 }
 
 export const ErrorKeyNotRegistered: Story = {

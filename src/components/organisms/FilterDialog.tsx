@@ -33,7 +33,9 @@ import { Checkbox } from '../ui'
 import { Button } from '../ui'
 import Toggle from '../ui/Toggle'
 import { FilterTag } from '../atoms/FilterTag'
+import { AiTag } from '../atoms/AiTag'
 import { RangeSlider } from '../atoms/RangeSlider'
+import type { VideoSource } from '../../lib/types/radiologist'
 
 // ─── Figma-exported filter category icons ───────────────────────────────────
 // Exported via figma.exportAsync({ format: 'SVG_STRING' }) from the Apparatus
@@ -90,9 +92,26 @@ function FrustationIcon() {
   )
 }
 
+function SourceTagsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M2 4.5A1.5 1.5 0 013.5 3h4l1.5 1.5H13A1.5 1.5 0 0114.5 6v5.5A1.5 1.5 0 0113 13H3.5A1.5 1.5 0 012 11.5v-7Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="6" cy="8.5" r="1" fill="currentColor"/>
+    </svg>
+  )
+}
+
+// Human-readable labels for the video source facet
+const SOURCE_LABELS: Record<VideoSource, string> = {
+  live: 'Live capture',
+  'manual-upload': 'Manual upload',
+  'ai-player': 'AI Player',
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type FilterCategory =
+  | 'source-tags'
   | 'match-context'
   | 'combat-performance'
   | 'monetization-patterns'
@@ -101,6 +120,7 @@ type FilterCategory =
   | 'frustation-markers'
 
 const CATEGORIES: { id: FilterCategory; label: string; icon: React.ReactNode }[] = [
+  { id: 'source-tags', label: 'Source & Tags', icon: <SourceTagsIcon /> },
   { id: 'match-context', label: 'Match Context', icon: <MatchContextIcon /> },
   { id: 'combat-performance', label: 'Combat Performance', icon: <CombatIcon /> },
   { id: 'monetization-patterns', label: 'Monetization Patterns', icon: <MonetizationIcon /> },
@@ -140,6 +160,10 @@ const QUIT_REASONS = ['Died Early', 'Team Wipe', 'Lag', 'AFK Kick', 'Rage Quit']
 // ─── Filter State ───────────────────────────────────────────────────────────
 
 export interface FilterState {
+  // Source & Tags (wired to the session data)
+  sources: string[]
+  sessionTags: string[]
+  sessionAiTags: string[]
   // Match Context
   gameModes: string[]
   maps: string[]
@@ -180,6 +204,7 @@ export interface FilterState {
 }
 
 const DEFAULT_FILTERS: FilterState = {
+  sources: [], sessionTags: [], sessionAiTags: [],
   gameModes: [], maps: [], durationMin: 1, durationMax: 60, placements: [], matchPlayed: [], shopDuringGameplay: false,
   killsMin: 0, killsMax: 30, deathsMin: 0, deathsMax: 20, damageDealt: [], headshotRate: [],
   shopVisitsMin: 0, shopVisitsMax: 10, purchaseTypes: [], inAppPurchase: false,
@@ -195,14 +220,20 @@ interface FilterDialogProps {
   onClose: () => void
   onApply?: (filters: FilterState) => void
   initialFilters?: Partial<FilterState>
+  /** Source facets present in the data (Source & Tags category) */
+  allSources?: VideoSource[]
+  /** Upload tags present in the data (Source & Tags category) */
+  allTags?: string[]
+  /** AI-extracted tags present in the data (Source & Tags category) */
+  allAiTags?: string[]
 }
 
 // ─── Highlight bar position (from Figma Console: y=74, stride=45) ───────────
 const HIGHLIGHT_BASE_Y = 77
 const ITEM_STRIDE = 45  /* 37px item height + 8px gap */
 
-export function FilterDialog({ isOpen, onClose, onApply, initialFilters }: FilterDialogProps) {
-  const [activeCategory, setActiveCategory] = useState<FilterCategory>('match-context')
+export function FilterDialog({ isOpen, onClose, onApply, initialFilters, allSources = [], allTags = [], allAiTags = [] }: FilterDialogProps) {
+  const [activeCategory, setActiveCategory] = useState<FilterCategory>('source-tags')
   const [filters, setFilters] = useState<FilterState>(() => ({
     ...DEFAULT_FILTERS,
     ...initialFilters,
@@ -217,6 +248,7 @@ export function FilterDialog({ isOpen, onClose, onApply, initialFilters }: Filte
 
   const selectedCount = useMemo(() => {
     let count = 0
+    count += filters.sources.length + filters.sessionTags.length + filters.sessionAiTags.length
     count += filters.gameModes.length + filters.maps.length + filters.placements.length + filters.matchPlayed.length
     count += filters.damageDealt.length + filters.headshotRate.length
     count += filters.purchaseTypes.length
@@ -284,7 +316,15 @@ export function FilterDialog({ isOpen, onClose, onApply, initialFilters }: Filte
               ))}
             </div>
             <div className="filter-content">
-              <CategoryContent category={activeCategory} filters={filters} setFilters={setFilters} toggleArrayItem={toggleArrayItem} />
+              <CategoryContent
+                category={activeCategory}
+                filters={filters}
+                setFilters={setFilters}
+                toggleArrayItem={toggleArrayItem}
+                allSources={allSources}
+                allTags={allTags}
+                allAiTags={allAiTags}
+              />
             </div>
           </div>
         </div>
@@ -313,10 +353,14 @@ interface CategoryProps {
   filters: FilterState
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>
   toggleArrayItem: (key: keyof FilterState, value: string) => void
+  allSources: VideoSource[]
+  allTags: string[]
+  allAiTags: string[]
 }
 
-function CategoryContent({ category, filters, setFilters, toggleArrayItem }: CategoryProps) {
+function CategoryContent({ category, filters, setFilters, toggleArrayItem, allSources, allTags, allAiTags }: CategoryProps) {
   switch (category) {
+    case 'source-tags': return <SourceTagsContent filters={filters} toggleArrayItem={toggleArrayItem} allSources={allSources} allTags={allTags} allAiTags={allAiTags} />
     case 'match-context': return <MatchContextContent filters={filters} setFilters={setFilters} toggleArrayItem={toggleArrayItem} />
     case 'combat-performance': return <CombatPerformanceContent filters={filters} setFilters={setFilters} toggleArrayItem={toggleArrayItem} />
     case 'monetization-patterns': return <MonetizationContent filters={filters} setFilters={setFilters} toggleArrayItem={toggleArrayItem} />
@@ -328,7 +372,80 @@ function CategoryContent({ category, filters, setFilters, toggleArrayItem }: Cat
 
 // ─── Shared content props ───────────────────────────────────────────────────
 
-type ContentProps = Omit<CategoryProps, 'category'>
+type ContentProps = Omit<CategoryProps, 'category' | 'allSources' | 'allTags' | 'allAiTags'>
+
+// ─── Source & Tags ──────────────────────────────────────────────────────────
+
+interface SourceTagsProps {
+  filters: FilterState
+  toggleArrayItem: (key: keyof FilterState, value: string) => void
+  allSources: VideoSource[]
+  allTags: string[]
+  allAiTags: string[]
+}
+
+function SourceTagsContent({ filters, toggleArrayItem, allSources, allTags, allAiTags }: SourceTagsProps) {
+  return (
+    <div className="filter-surface-panel">
+      <div className="filter-card">
+        <span className="filter-section-header">Video Source</span>
+        <div className="filter-tags-wrap">
+          {allSources.map((s) => (
+            <FilterTag
+              key={s}
+              label={SOURCE_LABELS[s]}
+              selected={filters.sources.includes(s)}
+              onClick={() => toggleArrayItem('sources', s)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="filter-card">
+        <span className="filter-section-header">Tags</span>
+        {allTags.length > 0 ? (
+          <div className="filter-tags-wrap">
+            {allTags.map((t) => (
+              <FilterTag
+                key={t}
+                label={t}
+                selected={filters.sessionTags.includes(t)}
+                onClick={() => toggleArrayItem('sessionTags', t)}
+              />
+            ))}
+          </div>
+        ) : (
+          <span className="font-body text-xs" style={{ color: 'var(--text-placeholder)' }}>No tags yet</span>
+        )}
+      </div>
+
+      <div className="filter-card">
+        <span className="filter-section-header">AI Tags</span>
+        {allAiTags.length > 0 ? (
+          <div className="filter-tags-wrap">
+            {allAiTags.map((t) => {
+              const active = filters.sessionAiTags.includes(t)
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => toggleArrayItem('sessionAiTags', t)}
+                  aria-pressed={active}
+                  className="rounded-round"
+                  style={active ? { outline: '2px solid var(--brand)', outlineOffset: '1px' } : undefined}
+                >
+                  <AiTag label={t} />
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <span className="font-body text-xs" style={{ color: 'var(--text-placeholder)' }}>No AI tags yet</span>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // ─── Match Context ──────────────────────────────────────────────────────────
 

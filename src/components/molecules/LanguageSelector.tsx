@@ -13,12 +13,13 @@ import { createPortal } from 'react-dom'
 import { useEffect, useState, type RefObject } from 'react'
 import { FlagIcon } from '../icons/FlagIcon'
 
-interface Language {
+export interface Language {
   code: string
   label: string
 }
 
-const LANGUAGES: Language[] = [
+/** Exported so the profile menu's language submenu uses the same list. */
+export const LANGUAGES: Language[] = [
   { code: 'EN', label: 'EN - English' },
   { code: 'JP', label: 'JP - 日本語' },
   { code: 'KR', label: 'KR - 한국어' },

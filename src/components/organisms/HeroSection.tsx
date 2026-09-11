@@ -14,7 +14,6 @@
 import { useState, type ComponentProps } from 'react'
 import { RadiologistIcon } from '../icons/RadiologistIcon'
 import { OracleIcon } from '../icons/OracleIcon'
-import { SpecializedAgentsIcon } from '../icons/SpecializedAgentsIcon'
 import { AgentTabItem } from '../molecules/AgentTabItem'
 import InputFieldConsole from '../ui/InputFieldConsole'
 
@@ -42,13 +41,12 @@ interface HeroSectionProps {
   /** Called when the user submits a query from the hero input */
   onSubmit?: (query: string, agent: Agent) => void
   /** Called when the user opens the Specialized Agents hub from the tab row */
-  onOpenSpecialized?: () => void
 }
 
 export type { Agent }
 
-export function HeroSection({ className, activeAgent: controlledAgent, onAgentChange, selectedSource, onSourceChange, libraryTags, selectedLibraryTags, onLibraryTagsChange, onSubmit, onOpenSpecialized }: HeroSectionProps) {
-  const [internalAgent, setInternalAgent] = useState<Agent>('radiologist')
+export function HeroSection({ className, activeAgent: controlledAgent, onAgentChange, selectedSource, onSourceChange, libraryTags, selectedLibraryTags, onLibraryTagsChange, onSubmit }: HeroSectionProps) {
+  const [internalAgent, setInternalAgent] = useState<Agent>('oracle')
   const activeAgent = controlledAgent ?? internalAgent
 
   const handleAgentChange = (agent: Agent) => {
@@ -69,7 +67,7 @@ export function HeroSection({ className, activeAgent: controlledAgent, onAgentCh
         .join(' ')}
     >
       {/* ── Hero Section (Badge + Headline) ── */}
-      <div className="flex flex-col gap-s items-center max-w-[710px] w-full">
+      <div className="flex flex-col gap-s items-center max-w-[720px] w-full">
         {/* Badge pill */}
         <div className="flex gap-[7px] items-center px-s py-xxs rounded-round border border-[rgba(10,133,237,0.3)] bg-white shadow-[0px_4px_16px_0px_rgba(10,133,237,0.2)]">
           <span className="font-display text-xs font-bold text-brand leading-[1.5] whitespace-nowrap">
@@ -86,7 +84,7 @@ export function HeroSection({ className, activeAgent: controlledAgent, onAgentCh
       </div>
 
       {/* ── Tabs + Input console ── */}
-      <div className="flex flex-col gap-xl items-center w-full max-w-[800px]">
+      <div className="flex flex-col gap-xl items-center w-full">
 
         {/* Powered by label + tabs */}
         <div className="flex flex-col gap-xs items-center">
@@ -104,22 +102,16 @@ export function HeroSection({ className, activeAgent: controlledAgent, onAgentCh
             className="flex gap-xxs items-center justify-center p-xxs rounded-xl border border-border-subtle bg-bg-elements"
           >
             <AgentTabItem
-              label="Radiologist"
-              icon={<RadiologistIcon size={20} />}
-              active={activeAgent === 'radiologist'}
-              onClick={() => handleAgentChange('radiologist')}
-            />
-            <AgentTabItem
               label="Oracle"
               icon={<OracleIcon size={20} />}
               active={activeAgent === 'oracle'}
               onClick={() => handleAgentChange('oracle')}
             />
             <AgentTabItem
-              label="Specialized Agents"
-              icon={<SpecializedAgentsIcon size={20} />}
-              active={false}
-              onClick={() => onOpenSpecialized?.()}
+              label="Radiologist"
+              icon={<RadiologistIcon size={20} />}
+              active={activeAgent === 'radiologist'}
+              onClick={() => handleAgentChange('radiologist')}
             />
           </div>
         </div>

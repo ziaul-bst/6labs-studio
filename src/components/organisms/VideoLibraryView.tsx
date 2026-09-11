@@ -1,30 +1,56 @@
 /**
- * VideoLibraryView — top-level Library page where game devs bulk-upload
- * gameplay videos that Radiologist & Oracle reference when answering queries.
+ * VideoLibraryView — Gameplay Library, the Testing area's video corpus. Every
+ * recording, from every source: tester sessions from the Recorder app, CLI
+ * batches from a build machine, ad-hoc browser uploads, SDK captures from a
+ * beta, and the sessions the AI tests play themselves.
  *
- * Because LLM analysis is slow, every video moves through a lifecycle
- * (uploading → processing → ready | failed) and only Ready videos are
- * referenceable by agents. The view simulates that pipeline with timers.
+ * A video is either still arriving or it is here: uploading → ready | failed.
+ * There is no analysing step and no Ready badge (removed 2026-09-10) — nothing
+ * runs over library footage after the transfer, so the old "only Ready clips
+ * are referenceable" gate, its banner and its per-card badge all described a
+ * pipeline that does not exist. Failure now means the upload failed, and Retry
+ * retries the upload.
  *
- * States covered:
- *   - empty library (full dropzone)
- *   - bulk concurrent uploads with per-file progress
- *   - processing / analyzing (slow), ready, failed (+ retry)
- *   - rejected files (wrong type / too large / duplicate name)
- *   - search, status filter, tag filter, no-results subset
- *   - bulk select + delete, single delete (confirm modal), rename + describe
+ * Revamp 2026-09-09 (artifact s42):
+ *   - Filtering is two rows, both lifted from the session picker so the two
+ *     surfaces read as one library: a tag rail of count-bearing pills (the
+ *     open-ended, multi-select axis), then a search and a single segmented
+ *     control for source. Stage, test type and status were selects here until
+ *     2026-09-09; batch and source are how footage is actually found, and four
+ *     dropdowns beside a pill rail read as two filter systems in one card.
+ *   - Videos are **grouped** by batch · source · stage ("Build V2.2 · Recorder
+ *     app · Pre-release"), which is how a batch was made and how a test will
+ *     pick it up. Each group header selects its whole batch.
+ *   - Tags carry their ORIGIN (2026-09-10). System tags — the batch or build a
+ *     clip came in on — are applied by the platform and render outlined with
+ *     their facet ("Batch · Build V2.2"); user tags are free text somebody
+ *     typed and render as filled neutral pills. The rail groups the two, and
+ *     the bulk Add-tag dialog only offers user tags, since a batch is not
+ *     something you hand-apply. Filtering is still by label, so a selected
+ *     pill matches regardless of which side it was tallied on.
+ *   - Source is a badge on the thumbnail (2026-09-10), the way the Radiologist
+ *     marks a session's origin, rather than only prose in the meta line.
+ *   - Selection is quiet until it exists: checkboxes rest hidden on the cards,
+ *     and the bulk actions float in a bar at the bottom of the viewport only
+ *     while something is selected — the toolbar never changes colour or shape.
+ *     The bar keeps the two actions that belong to the corpus itself, tagging
+ *     and deletion. Starting a run belongs to the test composer, which picks
+ *     its own footage, and retrying a failed clip is a per-card action.
  *
  * Code-first prototype — no Figma source yet.
  */
-import { useEffect, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { VideoLibraryCard, type VideoStatus } from '../molecules/VideoLibraryCard'
 import { AgentPageHeader } from '../molecules/AgentPageHeader'
-import { LibraryFilterDialog } from './LibraryFilterDialog'
-import type { LibraryFilterValue, LibraryStatusFilter } from './LibraryFilterDialog'
-import { LibraryVideoSidePanel } from './LibraryVideoSidePanel'
+import { LibraryVideoLightbox } from './LibraryVideoLightbox'
+import { AddTagsDialog } from './AddTagsDialog'
 import { PopupModal } from '../molecules/PopupModal'
-import { UploadVideosModal, formatSize } from './UploadVideosModal'
+import { UploadVideosModal } from './UploadVideosModal'
 import { VideosEmptyState } from '../molecules/VideosEmptyState'
+import { showToast } from '../atoms/Toast'
+import { FilterPill } from '../atoms/FilterPill'
+import { SegmentedControl } from '../atoms/SegmentedControl'
+import { TagOverflowMenu } from '../molecules/TagOverflowMenu'
 import Input from '../ui/Input'
 import Button from '../ui/Button'
 import Checkbox from '../ui/Checkbox'
@@ -32,7 +58,34 @@ import { VideoLibraryIcon } from '../icons/VideoLibraryIcon'
 import { UploadIcon } from '../icons/UploadIcon'
 import { CloseIcon } from '../icons/CloseIcon'
 import { TrashIcon } from '../icons/TrashIcon'
-import { FilterIcon } from '../icons/FilterIcon'
+import { PlusIcon } from '../icons/PlusIcon'
+import { SearchIcon } from '../icons/SearchIcon'
+import {
+  SOURCE_ORDER,
+  SOURCE_SHORT,
+  STAGE_LABEL,
+  type LibraryTestType,
+  type VideoStage,
+  type VideoUploadSource,
+} from '../../lib/librarySource'
+import {
+  MANY_TAG_BATCHES,
+  MANY_TAG_USER_TAGS,
+  useLibraryDemoState,
+  type LibraryDemoState,
+} from '../../lib/libraryDemoState'
+import {
+  ORIGIN_GROUP_LABEL,
+  batchTag,
+  hasTagLabel,
+  railLabel,
+  stageTag,
+  testTypeTag,
+  userTag,
+  type LibraryTag,
+  type LibraryTagFacet,
+  type LibraryTagOrigin,
+} from '../../lib/libraryTags'
 
 export interface LibraryVideo {
   id: string
@@ -42,28 +95,46 @@ export interface LibraryVideo {
   thumbnailSrc?: string
   status: VideoStatus
   progress: number
-  tags: string[]
-  /** AI-extracted tags (from the LLM) — present once analysis is ready */
-  aiTags?: string[]
-  /** AI-generated summary (from the LLM) — present once analysis is ready */
-  aiSummary?: string
-  description?: string
+  /** Origin-carrying tags — see lib/libraryTags. System tags are not user-editable. */
+  tags: LibraryTag[]
+  /** How the clip reached the library — drives the thumbnail badge and the source facet */
+  source: VideoUploadSource
+  /** Release stage the footage is from. Defaults to pre-release. */
+  stage?: VideoStage
+  /** Which kind of test produced it. Defaults to user test. */
+  testType?: LibraryTestType
+  /** The batch the clip belongs to — a build or campaign name. Defaults to the first tag. */
+  batch?: string
   error?: string
   addedAt: number
-  /** when analysis is expected to finish (ms epoch) */
-  analysisEndsAt?: number
-  /** seeded demo flag: this video's analysis will fail */
+  /** seeded demo flag: this video's upload will fail */
   willFail?: boolean
 }
 
-const ANALYZE_FAIL_RATE = 0.18
+const UPLOAD_FAIL_RATE = 0.18
+/** Upload failure, not analysis failure — nothing analyses these clips. */
+const UPLOAD_ERROR = 'Upload failed — the transfer was interrupted. Retry to upload again.'
+/**
+ * Tag pills shown on the rail, per origin, before the tail collapses into
+ * "+N more". Budgeted per origin rather than as one top-by-count cut: system
+ * counts run higher than user counts (a batch covers every clip in it), so a
+ * single overall budget would fill the row with batches and bury every tag
+ * anyone typed.
+ *
+ * Two, not more: the row also carries its label, the "+N more" tail and the
+ * recency pill, and the whole point of merging the two origin rows was to get
+ * back to one line. The tail is one click away and now says which group each
+ * tag belongs to, so a short rail costs little.
+ */
+const MAX_TAG_PILLS = 2
+/** Not a tag — the recency pill rides the same rail and the same select set. */
+const RECENT_TAG = '__recent'
 const GRADIENTS = [
   'linear-gradient(135deg, #1770EF 0%, #7B4CFF 100%)',
   'linear-gradient(135deg, #7B4CFF 0%, #C20568 100%)',
   'linear-gradient(135deg, #0D5ED4 0%, #16A34A 100%)',
   'linear-gradient(135deg, #C20568 0%, #FFB700 100%)',
 ]
-
 let seq = 0
 const nextId = () => `vid-${Date.now()}-${seq++}`
 
@@ -78,158 +149,198 @@ function formatDate(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-// Simulated LLM output — assigned when a video finishes analysis (→ ready).
-const AI_SUMMARIES = [
-  'Players move through the session smoothly with a couple of hesitation points; engagement holds through the mid-game before a late drop-off.',
-  'Combat pacing stays steady with deaths clustered around the mid-section; most players recover and push the objective.',
-  'Strong early retention with a spike in menu time, then a brief stall before the final stretch of the match.',
-  'Clear progression with repeated attempts at one choke point; players who clear it tend to finish the session.',
-]
-const AI_TAG_POOL = [
-  'high engagement', 'mid-game stall', 'combat heavy', 'objective focus',
-  'menu hesitation', 'late drop-off', 'smooth run', 'retry loop',
-]
+const stageOf = (v: LibraryVideo): VideoStage => v.stage ?? 'pre-release'
+const batchOf = (v: LibraryVideo): string =>
+  v.batch ?? v.tags.find((t) => t.facet === 'batch')?.label ?? v.tags[0]?.label ?? 'Untagged'
 
-function generateAiAnalysis(): { aiSummary: string; aiTags: string[] } {
-  const aiSummary = AI_SUMMARIES[Math.floor(Math.random() * AI_SUMMARIES.length)]
-  const aiTags = [...AI_TAG_POOL].sort(() => Math.random() - 0.5).slice(0, 3)
-  return { aiSummary, aiTags }
-}
-
-// ── Seed: mixed states so the page is alive on first paint ──
+// ── Seed: the artifact's batches, mixed states and every source ──
 function seedVideos(): LibraryVideo[] {
   const now = Date.now()
+  const H = 1000 * 60 * 60
+  const D = 24 * H
+  /* System tags are derived, never hand-written into the seed: the batch always
+     gets one, stage and test type only when they differ from the default — a
+     "Stage · Pre-release" pill on all fourteen clips is noise, on the two CBT
+     ones it is the point. `userTags` is the free text a person would have
+     typed at upload. */
+  const mk = (
+    title: string,
+    mb: number,
+    dur: string,
+    o: Partial<Omit<LibraryVideo, 'tags'>> & {
+      source: VideoUploadSource
+      batch: string
+      ago: number
+      userTags?: string[]
+    },
+  ): LibraryVideo => {
+    const stage = o.stage ?? 'pre-release'
+    const testType = o.testType ?? 'user-test'
+    return {
+      id: nextId(),
+      title,
+      sizeBytes: mb * 1024 * 1024,
+      durationLabel: dur,
+      status: 'ready',
+      progress: 100,
+      stage,
+      testType,
+      ...o,
+      tags: [
+        batchTag(o.batch),
+        ...(stage !== 'pre-release' ? [stageTag(stage)] : []),
+        ...(testType !== 'user-test' ? [testTypeTag(testType)] : []),
+        ...(o.userTags ?? []).map(userTag),
+      ],
+      addedAt: now - o.ago,
+    }
+  }
   return [
-    {
-      id: nextId(),
-      title: 'Bermuda BR — onboarding flow walkthrough.mp4',
-      sizeBytes: 184 * 1024 * 1024,
-      durationLabel: '4:12',
-      thumbnailSrc: undefined,
-      status: 'ready',
-      progress: 100,
-      tags: ['tutorial', 'onboarding'],
-      aiTags: ['tutorial skip', 'menu hesitation', 'fast completion'],
-      aiSummary:
-        'New players clear the tutorial quickly but hesitate on the first loadout menu. Most finish onboarding, with a noticeable skip at the loadout step worth a closer look.',
-      addedAt: now - 1000 * 60 * 60 * 26,
-    },
-    {
-      id: nextId(),
-      title: 'Boss fight — Tier 3 difficulty spike.mov',
-      sizeBytes: 412 * 1024 * 1024,
-      durationLabel: '12:03',
-      status: 'ready',
-      progress: 100,
-      tags: ['boss-fight', 'balance'],
-      aiTags: ['difficulty spike', 'repeated death', 'rage quit'],
-      aiSummary:
-        'The Tier 3 boss spikes sharply in difficulty — players die repeatedly in the second phase, and several rage-quit before reaching the checkpoint.',
-      addedAt: now - 1000 * 60 * 60 * 3,
-    },
-    {
-      id: nextId(),
-      title: 'Lobby matchmaking repro — long queue.webm',
-      sizeBytes: 96 * 1024 * 1024,
-      status: 'processing',
-      progress: 100,
-      tags: ['matchmaking'],
-      aiTags: ['long queue', 'lobby idle', 'backfill'],
-      aiSummary:
-        'Matchmaking queues run long, leaving players idle in the lobby. Backfill kicks in late and a few players abandon before the match starts.',
-      addedAt: now - 1000 * 60 * 8,
-      analysisEndsAt: now + 9000,
-      willFail: false,
-    },
-    {
-      id: nextId(),
-      title: 'Crash repro — checkout screen.mp4',
-      sizeBytes: 58 * 1024 * 1024,
-      status: 'failed',
-      progress: 100,
-      tags: ['crash-repro', 'payments'],
-      error: 'Analysis failed — the video may be corrupted or longer than the 20-min limit.',
-      addedAt: now - 1000 * 60 * 40,
-    },
+    mk('ut-0912 — first session walkthrough.mp4', 284, '12:04', { source: 'recorder', batch: 'Build V2.2', ago: 3 * H, userTags: ['onboarding'] }),
+    mk('ut-0911 — first session.mp4', 212, '9:41', { source: 'recorder', batch: 'Build V2.2', ago: 5 * H }),
+    mk('ut-0904 — first session.mp4', 260, '11:18', { source: 'recorder', batch: 'Build V2.2', ago: 1 * D + 2 * H }),
+    mk('ut-0910 — tutorial complete.mp4', 190, '8:20', { source: 'upload', batch: 'Tutorial', ago: 6 * H, userTags: ['onboarding'] }),
+    mk('ut-0899 — tutorial exit.mp4', 168, '7:52', { source: 'upload', batch: 'Tutorial', ago: 1 * D + 5 * H }),
+    mk('ut-0908 — returning player.mp4', 341, '15:22', { source: 'cli', batch: 'New event', stage: 'cbt', ago: 8 * H, userTags: ['frost-festival'] }),
+    mk('ut-0895 — event shop.mp4', 140, '6:10', { source: 'cli', batch: 'New event', stage: 'cbt', ago: 1 * D + 8 * H }),
+    mk('ft-0301 — tutorial regression run 1.mp4', 402, '18:30', { source: 'recorder', batch: 'Build V2.2', testType: 'functional', ago: 2 * D, userTags: ['regression'] }),
+    mk('ft-0302 — tutorial regression run 2.mp4', 230, '10:05', { source: 'recorder', batch: 'Build V2.2', testType: 'functional', ago: 2 * D + 1 * H, status: 'failed', error: UPLOAD_ERROR }),
+    mk('aib-frost-01 — new player · agent 1.mp4', 120, '30:00', { source: 'ai-player', batch: 'Frost Festival', testType: 'ai', ago: 3 * D }),
+    mk('aib-frost-02 — whale · agent 1.mp4', 118, '30:00', { source: 'ai-player', batch: 'Frost Festival', testType: 'ai', ago: 3 * D + 1 * H, userTags: ['whale'] }),
+    mk('ut-0870 — day-3 session.mp4', 96, '6:40', { source: 'upload', batch: 'Build V2.1', stage: 'obt', ago: 6 * D, userTags: ['retention'] }),
+    mk('ut-0891 — returning player.mp4', 402, '18:30', { source: 'recorder', batch: 'Build V2.1', ago: 9 * D }),
+    mk('ut-0887 — first session.mp4', 230, '10:05', { source: 'recorder', batch: 'Build V2.1', ago: 9 * D + 2 * H }),
   ]
 }
 
+/**
+ * Fixtures for the reviewer state pill. Each one is the default seed bent into
+ * a state you cannot reach by clicking — see lib/libraryDemoState.
+ */
+function seedForDemoState(state: LibraryDemoState): LibraryVideo[] {
+  if (state === 'empty') return []
+
+  if (state === 'uploading') {
+    return seedVideos().map((v, i) => ({
+      ...v,
+      status: 'uploading' as VideoStatus,
+      /* Staggered so the row reads as a real batch arriving, not a progress
+         bar stuck at one value. */
+      progress: (i * 17) % 95,
+      durationLabel: undefined,
+      error: undefined,
+      willFail: false,
+    }))
+  }
+
+  if (state === 'failed') {
+    return seedVideos().map((v) => ({
+      ...v,
+      status: 'failed' as VideoStatus,
+      progress: 100,
+      error: UPLOAD_ERROR,
+    }))
+  }
+
+  if (state === 'many-tags') {
+    const now = Date.now()
+    const H = 1000 * 60 * 60
+    /* One clip per batch, each carrying two user tags, so both sides of the
+       "+N more" menu are long enough to scroll. */
+    return MANY_TAG_BATCHES.map((batch, i) => ({
+      id: nextId(),
+      title: `ut-${1200 - i * 7} — ${batch.toLowerCase()} session.mp4`,
+      sizeBytes: (120 + i * 11) * 1024 * 1024,
+      durationLabel: `${4 + (i % 14)}:${String((i * 7) % 60).padStart(2, '0')}`,
+      status: 'ready' as VideoStatus,
+      progress: 100,
+      source: SOURCE_ORDER[i % SOURCE_ORDER.length],
+      batch,
+      stage: (['pre-release', 'cbt', 'obt', 'live'] as VideoStage[])[i % 4],
+      testType: (['user-test', 'functional', 'ai'] as LibraryTestType[])[i % 3],
+      tags: [
+        batchTag(batch),
+        ...(i % 4 !== 0 ? [stageTag((['pre-release', 'cbt', 'obt', 'live'] as VideoStage[])[i % 4])] : []),
+        userTag(MANY_TAG_USER_TAGS[i % MANY_TAG_USER_TAGS.length]),
+        userTag(MANY_TAG_USER_TAGS[(i + 7) % MANY_TAG_USER_TAGS.length]),
+      ],
+      addedAt: now - i * 3 * H,
+    }))
+  }
+
+  return seedVideos()
+}
 
 export interface VideoLibraryViewProps {
   className?: string
   /** Seed the library state directly — used by Storybook to show specific page states */
   initialVideos?: LibraryVideo[]
+  /**
+   * Reviewer state preset. Defaults to the shared store the state pill writes,
+   * so the app needs no prop; pass it explicitly to pin a Storybook story.
+   * Re-seeds on change, and `initialVideos` still wins.
+   */
+  demoState?: LibraryDemoState
 }
 
-export function VideoLibraryView({ className, initialVideos }: VideoLibraryViewProps) {
-  const [videos, setVideos] = useState<LibraryVideo[]>(() => initialVideos ?? seedVideos())
+type Facet<T extends string> = T | 'all'
+
+export function VideoLibraryView({ className, initialVideos, demoState }: VideoLibraryViewProps) {
+  const storeState = useLibraryDemoState()
+  const state = demoState ?? storeState
+  const [videos, setVideos] = useState<LibraryVideo[]>(() => initialVideos ?? seedForDemoState(state))
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null)
-  const [statusFilter, setStatusFilter] = useState<LibraryStatusFilter>('all')
+  /* Two filter axes, both borrowed from the session picker: the tag rail for
+     the open-ended, multi-select axis, and one segmented control for source.
+     Stage, test type and status were selects here; they narrowed a library
+     that is already narrow once a batch is picked, and four dropdowns beside
+     a pill rail read as two filter systems stacked. */
+  const [sourceFacet, setSourceFacet] = useState<Facet<VideoUploadSource>>('all')
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set())
-  const [activeAiTags, setActiveAiTags] = useState<Set<string>>(new Set())
-  const [filterOpen, setFilterOpen] = useState(false)
+  const [tagDialogOpen, setTagDialogOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [dropFiles, setDropFiles] = useState<File[] | undefined>(undefined)
-  const [noteOpen, setNoteOpen] = useState(true)
-  // Details side panel — track the id so the panel reflects live status changes
+  /* Player lightbox. Tracked by id, not by object, so a clip that finishes
+     uploading while open picks up its new status. The details side panel lived
+     here until 2026-09-10 — once it was file facts only it repeated the card
+     it opened from, and charged a 420px column for it. */
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [panelMounted, setPanelMounted] = useState(false)
-  const [panelVisible, setPanelVisible] = useState(false)
   const selectedVideo = selectedId ? videos.find((v) => v.id === selectedId) ?? null : null
-  const closePanel = () => setSelectedId(null)
 
-  // Delayed mount for the slide-in animation (mirrors the Radiologist flyout).
+  /* Re-seed when the reviewer flips the state pill. Everything derived from
+     the old fixture goes with it — a tag filter naming a batch that no longer
+     exists would leave the grid empty for no visible reason. Skipped on the
+     first run and whenever the host passes explicit videos. */
+  const seededFor = useRef(state)
   useEffect(() => {
-    if (selectedId && selectedVideo) {
-      setPanelMounted(true)
-      requestAnimationFrame(() => requestAnimationFrame(() => setPanelVisible(true)))
-    } else {
-      setPanelVisible(false)
-      const t = setTimeout(() => setPanelMounted(false), 300)
-      return () => clearTimeout(t)
-    }
-  }, [selectedId, selectedVideo])
+    if (initialVideos || seededFor.current === state) return
+    seededFor.current = state
+    setVideos(seedForDemoState(state))
+    setSelectedIds(new Set())
+    setActiveTags(new Set())
+    setSourceFacet('all')
+    setQuery('')
+    setSelectedId(null)
+  }, [state, initialVideos])
 
-  // ── Lifecycle simulation: single ticking interval reads latest state ──
+  // ── Upload simulation: single ticking interval reads latest state ──
   useEffect(() => {
     const tick = window.setInterval(() => {
-      const now = Date.now()
       setVideos((prev) => {
         let changed = false
         const next = prev.map((v) => {
-          if (v.status === 'uploading') {
-            changed = true
-            const p = Math.min(100, v.progress + 16)
-            if (p >= 100) {
-              return {
-                ...v,
-                progress: 100,
-                status: 'processing' as VideoStatus,
-                analysisEndsAt: now + 3500 + Math.floor(Math.random() * 4000),
-              }
-            }
-            return { ...v, progress: p }
-          }
-          if (v.status === 'processing' && v.analysisEndsAt && now >= v.analysisEndsAt) {
-            changed = true
-            if (v.willFail) {
-              return {
-                ...v,
-                status: 'failed' as VideoStatus,
-                error: 'Analysis failed — the video may be corrupted or longer than the 20-min limit.',
-              }
-            }
-            // Attach simulated LLM output if the video doesn't already have it.
-            return {
-              ...v,
-              status: 'ready' as VideoStatus,
-              ...(v.aiSummary ? {} : generateAiAnalysis()),
-            }
-          }
-          return v
+          if (v.status !== 'uploading') return v
+          changed = true
+          const pct = Math.min(100, v.progress + 16)
+          if (pct < 100) return { ...v, progress: pct }
+          /* The transfer is the only thing that can fail now, so the verdict
+             lands the moment it completes rather than after an analysis wait. */
+          return v.willFail
+            ? { ...v, progress: 100, status: 'failed' as VideoStatus, error: UPLOAD_ERROR }
+            : { ...v, progress: 100, status: 'ready' as VideoStatus }
         })
         return changed ? next : prev
       })
@@ -246,18 +357,23 @@ export function VideoLibraryView({ className, initialVideos }: VideoLibraryViewP
     setDragOver(false)
   }
 
-  /** Commit a tagged batch from the modal into the library */
+  /* The first tag typed in the upload modal names the batch — that is what the
+     group header and the run picker read — so it becomes the system tag. Every
+     tag after it is the uploader's own vocabulary. */
   const commitUpload = (files: File[], tags: string[]) => {
     const stamp = Date.now()
+    const [batch, ...rest] = tags
     const entries: LibraryVideo[] = files.map((f, i) => ({
       id: nextId(),
       title: f.name,
       sizeBytes: f.size || Math.floor(40 * 1024 * 1024 + Math.random() * 300 * 1024 * 1024),
       status: 'uploading',
       progress: 0,
-      tags,
+      tags: [...(batch ? [batchTag(batch)] : []), ...rest.map(userTag)],
+      source: 'upload',
+      batch,
       addedAt: stamp - i,
-      willFail: Math.random() < ANALYZE_FAIL_RATE,
+      willFail: Math.random() < UPLOAD_FAIL_RATE,
     }))
     if (entries.length) setVideos((prev) => [...entries, ...prev])
   }
@@ -265,15 +381,18 @@ export function VideoLibraryView({ className, initialVideos }: VideoLibraryViewP
   /** Demo: simulate a CLI batch import of N clips with the given tags */
   const simulateCliImport = (count: number, tags: string[]) => {
     const stamp = Date.now()
+    const [batch, ...rest] = tags
     const entries: LibraryVideo[] = Array.from({ length: count }, (_, i) => ({
       id: nextId(),
       title: `clip-${String(i + 1).padStart(4, '0')}.mp4`,
       sizeBytes: Math.floor(40 * 1024 * 1024 + Math.random() * 300 * 1024 * 1024),
       status: 'uploading',
       progress: Math.floor(Math.random() * 30),
-      tags,
+      tags: [...(batch ? [batchTag(batch)] : []), ...rest.map(userTag)],
+      source: 'cli',
+      batch,
       addedAt: stamp - i,
-      willFail: Math.random() < ANALYZE_FAIL_RATE,
+      willFail: Math.random() < UPLOAD_FAIL_RATE,
     }))
     setVideos((prev) => [...entries, ...prev])
   }
@@ -285,17 +404,26 @@ export function VideoLibraryView({ className, initialVideos }: VideoLibraryViewP
   }
 
   // ── Mutations ──
-  const updateMeta = (id: string, next: { title: string; description: string; tags: string[] }) =>
-    setVideos((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, title: next.title, description: next.description, tags: next.tags } : v))
-    )
-  const retry = (id: string) =>
+  /* `next.tags` is the user-tag draft from the card. System tags are carried
+     over verbatim — the batch a clip arrived on is not the uploader's to retype. */
+  const updateMeta = (id: string, next: { title: string; tags: string[] }) =>
     setVideos((prev) =>
       prev.map((v) =>
         v.id === id
-          ? { ...v, status: 'processing', error: undefined, willFail: false, analysisEndsAt: Date.now() + 3000 }
-          : v
-      )
+          ? {
+              ...v,
+              title: next.title,
+              tags: [...v.tags.filter((t) => t.origin === 'system'), ...next.tags.map(userTag)],
+            }
+          : v,
+      ),
+    )
+  /** Retry re-runs the upload from zero — there is no analysis pass to re-run. */
+  const retry = (id: string) =>
+    setVideos((prev) =>
+      prev.map((v) =>
+        v.id === id ? { ...v, status: 'uploading', progress: 0, error: undefined, willFail: false } : v,
+      ),
     )
   const confirmDelete = () => {
     if (!deleteIds) return
@@ -314,53 +442,137 @@ export function VideoLibraryView({ className, initialVideos }: VideoLibraryViewP
       n.has(id) ? n.delete(id) : n.add(id)
       return n
     })
+  const setGroupSelected = (ids: string[], on: boolean) =>
+    setSelectedIds((prev) => {
+      const n = new Set(prev)
+      ids.forEach((id) => (on ? n.add(id) : n.delete(id)))
+      return n
+    })
+
+  /* Bulk tag — additive, never replaces a video's existing tags, and always
+     user-origin: a batch is assigned at ingest, not applied by hand later. A
+     label a clip already carries as a system tag is skipped, so you never end
+     up with "Batch · Build V2.2" and a loose "Build V2.2" on one card. */
+  const addTagsToSelection = (tags: string[]) => {
+    const target = new Set(selectedIds)
+    setVideos((prev) =>
+      prev.map((v) => {
+        if (!target.has(v.id)) return v
+        const added = tags.filter((t) => !hasTagLabel(v.tags, t))
+        return added.length ? { ...v, tags: [...v.tags, ...added.map(userTag)] } : v
+      }),
+    )
+    showToast(
+      `${tags.length === 1 ? `Tag “${tags[0]}”` : `${tags.length} tags`} added to ${target.size} ${
+        target.size === 1 ? 'video' : 'videos'
+      }`,
+    )
+  }
 
   // ── Derived ──
-  const allTags = Array.from(new Set(videos.flatMap((v) => v.tags))).sort()
-  const allAiTags = Array.from(new Set(videos.flatMap((v) => v.aiTags ?? []))).sort()
+  /* Tallied by LABEL — the rail groups by origin, but selecting a pill filters
+     on its text, so a label that exists on both sides counts once and matches
+     both. System wins the origin tie: if anything assigned that label, it is
+     structured, and the rail should offer it under the batch group. */
+  const countByTag = videos.reduce<Record<string, number>>((acc, v) => {
+    v.tags.forEach((t) => (acc[t.label] = (acc[t.label] ?? 0) + 1))
+    return acc
+  }, {})
+  const originByTag = videos.reduce<Record<string, LibraryTagOrigin>>((acc, v) => {
+    v.tags.forEach((t) => {
+      if (t.origin === 'system' || !acc[t.label]) acc[t.label] = t.origin
+    })
+    return acc
+  }, {})
+  /* Which facet a system label belongs to — the rail needs it to decide
+     whether a pill can stand on its own text. */
+  const facetByTag = videos.reduce<Record<string, LibraryTagFacet | undefined>>((acc, v) => {
+    v.tags.forEach((t) => {
+      if (t.facet && !acc[t.label]) acc[t.label] = t.facet
+    })
+    return acc
+  }, {})
+  /* Biggest batches first — the rail's job is to reach a batch in one click,
+     and a selected tag never falls into the overflow menu. */
+  const sortByCount = (a: string, b: string) => countByTag[b] - countByTag[a] || a.localeCompare(b)
+  const allTags = Object.keys(countByTag).sort(sortByCount)
+  /* One rail row, assigned tags first then the team's own — the order carries
+     the distinction that two labelled rows used to, and the tail keeps the
+     grouping explicit inside a single "+N more" menu. */
+  const railGroups = (['system', 'user'] as const)
+    .map((origin) => {
+      const tags = allTags.filter((t) => originByTag[t] === origin)
+      const pinned = tags.filter((t, i) => i < MAX_TAG_PILLS || activeTags.has(t))
+      return { origin, tags, pinned, overflow: tags.filter((t) => !pinned.includes(t)) }
+    })
+    .filter((g) => g.tags.length > 0)
+  const railPinned = railGroups.flatMap((g) => g.pinned)
+  /* Sections are dropped when empty so the menu never shows a bare heading. */
+  const railSections = railGroups
+    .filter((g) => g.overflow.length > 0)
+    .map((g) => ({ key: g.origin, heading: ORIGIN_GROUP_LABEL[g.origin], tags: g.overflow }))
+  const isRecent = (v: LibraryVideo) => Date.now() - v.addedAt < 24 * 60 * 60 * 1000
+  const recentCount = videos.filter(isRecent).length
+  const toggleTag = (tag: string) =>
+    setActiveTags((prev) => {
+      const next = new Set(prev)
+      next.has(tag) ? next.delete(tag) : next.add(tag)
+      return next
+    })
   const q = query.trim().toLowerCase()
   const filtered = videos.filter((v) => {
     const matchesQuery =
-      !q ||
-      v.title.toLowerCase().includes(q) ||
-      v.tags.some((t) => t.toLowerCase().includes(q)) ||
-      (v.aiTags ?? []).some((t) => t.toLowerCase().includes(q))
-    const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'processing' && (v.status === 'uploading' || v.status === 'processing')) ||
-      (statusFilter === 'ready' && v.status === 'ready') ||
-      (statusFilter === 'failed' && v.status === 'failed')
-    const matchesTags = activeTags.size === 0 || v.tags.some((t) => activeTags.has(t))
-    const matchesAiTags = activeAiTags.size === 0 || (v.aiTags ?? []).some((t) => activeAiTags.has(t))
-    return matchesQuery && matchesStatus && matchesTags && matchesAiTags
+      !q || v.title.toLowerCase().includes(q) || v.tags.some((t) => t.label.toLowerCase().includes(q))
+    const matchesSource = sourceFacet === 'all' || v.source === sourceFacet
+    /* Tag pills are additive, not narrowing — two batches selected means both
+       batches, which is how a tester picks a run's footage. */
+    const matchesTag =
+      activeTags.size === 0 ||
+      v.tags.some((t) => activeTags.has(t.label)) ||
+      (activeTags.has(RECENT_TAG) && isRecent(v))
+    return matchesQuery && matchesSource && matchesTag
   })
-  const activeFilterCount =
-    (statusFilter !== 'all' ? 1 : 0) + activeTags.size + activeAiTags.size
+  const activeFacets = (sourceFacet !== 'all' ? 1 : 0) + activeTags.size
+  const clearFacets = () => {
+    setSourceFacet('all')
+    setActiveTags(new Set())
+  }
+
+  /** Groups — batch · source · stage, newest batch first. */
+  const groups = useMemo(() => {
+    const map = new Map<string, { key: string; title: string; videos: LibraryVideo[]; newest: number }>()
+    filtered.forEach((v) => {
+      const key = `${batchOf(v)}|${v.source}|${stageOf(v)}`
+      const g = map.get(key) ?? {
+        key,
+        title: `${batchOf(v)} · ${SOURCE_SHORT[v.source]} · ${STAGE_LABEL[stageOf(v)]}`,
+        videos: [],
+        newest: 0,
+      }
+      g.videos.push(v)
+      g.newest = Math.max(g.newest, v.addedAt)
+      map.set(key, g)
+    })
+    return [...map.values()]
+      .sort((a, b) => b.newest - a.newest)
+      .map((g) => ({ ...g, videos: g.videos.sort((a, b) => b.addedAt - a.addedAt) }))
+  }, [filtered])
 
   const selectedList = videos.filter((v) => selectedIds.has(v.id))
-  const selectedFailed = selectedList.filter((v) => v.status === 'failed')
-  const allFilteredSelected = filtered.length > 0 && filtered.every((v) => selectedIds.has(v.id))
-  const toggleSelectAll = () =>
-    setSelectedIds((prev) => {
-      if (allFilteredSelected) {
-        const n = new Set(prev)
-        filtered.forEach((v) => n.delete(v.id))
-        return n
-      }
-      const n = new Set(prev)
-      filtered.forEach((v) => n.add(v.id))
-      return n
-    })
+  /* Only an in-flight upload is unusable now, so the bar counts what is still
+     arriving rather than what has cleared an analysis gate. */
+  const selectedPending = selectedList.filter((v) => v.status !== 'ready')
+  const selecting = selectedIds.size > 0
 
   const isEmpty = videos.length === 0
 
   return (
     <div className="flex w-full h-full overflow-hidden">
       {/* Main content column — scrolls; reflows as the details panel pushes in */}
-      <div className="flex-1 min-w-0 overflow-y-auto flyout-scrollbar transition-all duration-300 ease-in-out">
-        <div className="flex flex-col items-center px-l sm:px-[32px] lg:px-[48px] xl:px-[64px] pt-[40px] lg:pt-[64px] pb-[64px]">
+      <div className="relative flex-1 min-w-0 overflow-y-auto flyout-scrollbar page-scroll transition-all duration-300 ease-in-out">
+        <div className="flex flex-col items-center pt-[120px] pb-[120px]">
           <div
-            className={['flex flex-col gap-xl w-full max-w-[1120px] relative', className].filter(Boolean).join(' ')}
+            className={['flex flex-col gap-xl page-measure relative', className].filter(Boolean).join(' ')}
             onDragOver={(e) => {
               e.preventDefault()
               if (!isEmpty) setDragOver(true)
@@ -368,276 +580,405 @@ export function VideoLibraryView({ className, initialVideos }: VideoLibraryViewP
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
           >
-      {/* drag overlay (populated state) */}
-      {dragOver && !isEmpty && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center rounded-3xl context-uploader-dragover pointer-events-none">
-          <p className="font-display text-m font-semibold" style={{ color: 'var(--brand)' }}>
-            Drop videos to upload
-          </p>
-        </div>
-      )}
+            {/* drag overlay (populated state) */}
+            {dragOver && !isEmpty && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center rounded-3xl context-uploader-dragover pointer-events-none">
+                <p className="font-display text-m font-semibold" style={{ color: 'var(--brand)' }}>
+                  Drop videos to upload
+                </p>
+              </div>
+            )}
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between gap-xl w-full">
-        <AgentPageHeader
-          title="Library"
-          description="Bulk-upload gameplay videos so your agents can reference them when answering your queries."
-          iconGradient="linear-gradient(135deg, #6431E0 0%, #7B4CFF 55%, #8FA8F8 100%)"
-          icon={<VideoLibraryIcon size={40} />}
-        />
-        {!isEmpty && (
-          <Button variant="primary" size="lg" leftIcon={<UploadIcon size={20} />} onClick={() => openUpload()}>
-            Upload videos
-          </Button>
-        )}
-      </div>
+            {/* ── Header ── mb on top of the stack's gap-xl puts 40px under the
+                 page header, without loosening the note-to-container rhythm
+                 inside the content block below it. */}
+            <div className="flex items-center justify-between gap-xl w-full mb-m">
+              <AgentPageHeader
+                title="Gameplay Library"
+                description="Every recording, from every source. Tests pick their batches from here."
+                iconGradient="linear-gradient(135deg, #6431E0 0%, #7B4CFF 55%, #8FA8F8 100%)"
+                icon={<VideoLibraryIcon size={40} />}
+              />
+              {!isEmpty && (
+                <Button variant="primary" size="lg" leftIcon={<UploadIcon size={20} />} onClick={() => openUpload()}>
+                  Upload videos
+                </Button>
+              )}
+            </div>
 
-      {isEmpty ? (
-        /* ── Empty library ── */
-        <div
-          className={[
-            'flex flex-col items-center gap-xl p-xxl mt-xl rounded-3xl cursor-pointer transition-colors duration-150',
-            dragOver ? 'context-uploader-dragover' : 'context-uploader',
-          ].join(' ')}
-          role="button"
-          tabIndex={0}
-          onClick={() => openUpload()}
-        >
-          <div className="flex flex-col items-center gap-xxs">
-            <p className="font-display text-m font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Drop videos here or click to upload
-            </p>
-            <p className="font-body text-s" style={{ color: 'var(--text-secondary)' }}>
-              Bulk-upload gameplay clips — agents reference them once analysis completes
-            </p>
-          </div>
-          <div className="flex items-center gap-xs flex-wrap justify-center">
-            {['MP4', 'MOV', 'WEBM', 'AVI', 'MKV'].map((ext) => (
-              <span
-                key={ext}
-                className="inline-flex items-center px-s py-xxs rounded-round font-body text-xs"
-                style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
+            {isEmpty ? (
+              /* ── Empty library ── */
+              <div
+                className={[
+                  'flex flex-col items-center gap-xl p-xxl rounded-3xl cursor-pointer transition-colors duration-150',
+                  dragOver ? 'context-uploader-dragover' : 'context-uploader',
+                ].join(' ')}
+                role="button"
+                tabIndex={0}
+                onClick={() => openUpload()}
               >
-                {ext}
-              </span>
-            ))}
+                <div className="flex flex-col items-center gap-xxs">
+                  <p className="font-display text-m font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    Drop videos here or click to upload
+                  </p>
+                  <p className="font-body text-s" style={{ color: 'var(--text-secondary)' }}>
+                    Bulk-upload gameplay clips — your agents can reference them as soon as they land
+                  </p>
+                </div>
+                <div className="flex items-center gap-xs flex-wrap justify-center">
+                  {['MP4', 'MOV', 'WEBM', 'AVI', 'MKV'].map((ext) => (
+                    <span
+                      key={ext}
+                      className="inline-flex items-center px-s py-xxs rounded-round font-body text-xs"
+                      style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
+                    >
+                      {ext}
+                    </span>
+                  ))}
+                </div>
+                <span className="font-display text-2xs font-semibold uppercase tracking-[0.15em]" style={{ color: 'var(--text-tertiary)' }}>
+                  MAX 500MB PER VIDEO
+                </span>
+              </div>
+            ) : (
+              <>
+                {/* The agent-gating note lived here until 2026-09-10. It
+                    explained a Ready gate that no longer exists. */}
+
+                {/* ── Library container — toolbar + grouped collection ── */}
+                <div
+                  className="flex flex-col w-full rounded-3xl overflow-hidden"
+                  style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
+                >
+                  {/* Tag rail — the fast path to a batch, same control as the
+                      session picker so the two surfaces read as one library.
+                      One row: the few tags worth a single click, assigned ones
+                      first. The origin grouping lives in the "+N more" menu,
+                      where it costs no vertical space and still answers "which
+                      of these did we invent". Stage and test-type pills keep
+                      their facet, so "Test · AI" never reads as a batch.
+
+                      The tail sits last, behind a rule: everything left of it
+                      applies a filter on click, "+N more" opens a menu. Same
+                      pill shape, different kind of action, so the break earns
+                      its pixel. */}
+                  <div className="flex flex-wrap items-center gap-xs px-m pt-m pb-m w-full">
+                    <span
+                      className="font-display text-xs font-semibold uppercase tracking-[0.08em] shrink-0"
+                      style={{ color: 'var(--text-tertiary)' }}
+                    >
+                      Select by tag
+                    </span>
+                    {railPinned.map((t) => (
+                      <FilterPill
+                        key={t}
+                        label={railLabel(t, facetByTag)}
+                        count={countByTag[t]}
+                        selected={activeTags.has(t)}
+                        onClick={() => toggleTag(t)}
+                        multi
+                      />
+                    ))}
+
+                    {/* Shortened from "Uploaded in last 24h": at 197px it was
+                        the one item that pushed the merged rail onto a second
+                        line, and among upload-tag pills the recency is not
+                        ambiguous. */}
+                    <FilterPill
+                      label="Last 24h"
+                      count={recentCount}
+                      selected={activeTags.has(RECENT_TAG)}
+                      onClick={() => toggleTag(RECENT_TAG)}
+                      multi
+                    />
+
+                    {/* Only with a tail to separate — a rule at the end of the
+                        row with nothing after it is just a stray mark. */}
+                    {railSections.length > 0 && (
+                      <span
+                        className="w-px h-[20px] shrink-0 mx-xxs"
+                        style={{ backgroundColor: 'var(--border-default)' }}
+                        aria-hidden
+                      />
+                    )}
+
+                    <TagOverflowMenu
+                      groups={railSections}
+                      countByTag={countByTag}
+                      active={activeTags}
+                      onToggle={toggleTag}
+                      totalTags={allTags.length}
+                      labelFor={(t) => railLabel(t, facetByTag)}
+                    />
+                  </div>
+
+                  {/* Toolbar — search · facets. The row gap is wide enough to
+                      read as a break between two filters, while the label and
+                      its control keep the tighter gap inside their own group
+                      (and stay together when the row wraps). */}
+                  <div
+                    className="flex items-center gap-xl p-m w-full flex-wrap"
+                    style={{
+                      borderTop: '1px solid var(--border-subtle)',
+                      borderBottom: '1px solid var(--border-subtle)',
+                      backgroundColor: 'var(--bg-page-pale)',
+                    }}
+                  >
+                    <div className="library-search w-[320px] max-w-full">
+                      <Input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search sessions"
+                        aria-label="Search sessions"
+                        size="lg"
+                        leftIcon={<SearchIcon size={20} />}
+                      />
+                    </div>
+                    <div className="flex items-center gap-s flex-wrap">
+                      <span
+                        className="font-body text-s leading-[1.5] shrink-0"
+                        style={{ color: 'var(--text-tertiary)' }}
+                      >
+                        Source
+                      </span>
+                      <SegmentedControl<VideoUploadSource | 'all'>
+                        ariaLabel="Filter by capture source"
+                        size="sm"
+                        tone="contrast"
+                        value={sourceFacet}
+                        onChange={setSourceFacet}
+                        options={[
+                          { value: 'all', label: 'All' },
+                          ...SOURCE_ORDER.map((s) => ({ value: s, label: SOURCE_SHORT[s] })),
+                        ]}
+                      />
+                    </div>
+                    <span className="flex-1" />
+                  </div>
+
+                  {/* The one-click way out of a filtered view — only while filters are on */}
+                  {activeFacets > 0 && (
+                    <div className="flex items-center gap-s px-m pt-s w-full">
+                      <span className="font-body text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                        {filtered.length} {filtered.length === 1 ? 'video matches' : 'videos match'}
+                      </span>
+                      <button type="button" onClick={clearFacets} className="font-body text-xs font-semibold" style={{ color: 'var(--brand)' }}>
+                        Clear {activeFacets} {activeFacets === 1 ? 'filter' : 'filters'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Collection — grouped by batch · source · stage */}
+                  <div className="flex flex-col gap-xl px-m pt-m pb-l w-full" data-selecting={selecting ? 'true' : 'false'}>
+                    {groups.length === 0 ? (
+                      /* Same fallback, wording and way out as the session
+                         picker — an empty result should not feel like a
+                         different product depending on where you hit it. */
+                      <VideosEmptyState
+                        title="No recordings match these filters"
+                        message={
+                          activeFacets > 0 || q
+                            ? 'Clear a filter or two and your full library comes back.'
+                            : 'Upload or record a session — it appears here as soon as it finishes uploading.'
+                        }
+                        action={
+                          activeFacets > 0 || q ? (
+                            <Button
+                              variant="secondary"
+                              size="lg"
+                              onClick={() => {
+                                clearFacets()
+                                setQuery('')
+                              }}
+                            >
+                              {activeFacets > 0 ? 'Clear filters' : 'Clear search'}
+                            </Button>
+                          ) : undefined
+                        }
+                      />
+                    ) : (
+                      groups.map((g) => {
+                        const ids = g.videos.map((v) => v.id)
+                        const chosen = ids.filter((id) => selectedIds.has(id)).length
+                        const all = chosen === ids.length
+                        return (
+                          <section key={g.key} className="flex flex-col gap-m w-full" aria-label={g.title}>
+                            <div className="flex items-center gap-s pb-xs" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                              <Checkbox
+                                checked={all}
+                                indeterminate={chosen > 0 && !all}
+                                onChange={() => setGroupSelected(ids, !all)}
+                                aria-label={`Select all in ${g.title}`}
+                              />
+                              {/* Two type sizes on one line: baseline-aligned, not
+                                  box-centred. items-center on the row centres each
+                                  span's own line-box, and because the sizes carry
+                                  different line-heights that drifts the smaller
+                                  text ~1px above the title's baseline. The
+                                  checkbox still wants centring, so only the text
+                                  runs go in here. */}
+                              <div className="flex items-baseline gap-s min-w-0">
+                                <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
+                                  {g.title}
+                                </span>
+                                <span className="font-body text-s text-text-tertiary whitespace-nowrap">
+                                  {g.videos.length} {g.videos.length === 1 ? 'session' : 'sessions'}
+                                </span>
+                              </div>
+                              <span className="flex-1" />
+                              <button
+                                type="button"
+                                onClick={() => setGroupSelected(ids, !all)}
+                                className="font-body text-xs font-semibold text-text-brand hover:underline"
+                              >
+                                {all ? 'Deselect batch' : 'Select batch'}
+                              </button>
+                            </div>
+                            <div className="grid gap-l w-full" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                              {g.videos.map((v) => (
+                                <VideoLibraryCard
+                                  key={v.id}
+                                  layout="grid"
+                                  title={v.title}
+                                  dateLabel={formatDate(v.addedAt)}
+                                  source={v.source}
+                                  durationLabel={v.durationLabel}
+                                  thumbnailSrc={v.thumbnailSrc}
+                                  gradient={gradientFor(v.id)}
+                                  status={v.status}
+                                  progress={v.progress}
+                                  tags={v.tags}
+                                  errorMessage={v.error}
+                                  selected={selectedIds.has(v.id)}
+                                  checkboxVisibility="hover"
+                                  onToggleSelect={() => toggleSelect(v.id)}
+                                  onDelete={() => setDeleteIds([v.id])}
+                                  onRetry={() => retry(v.id)}
+                                  onSaveMeta={(next) => updateMeta(v.id, next)}
+                                  onOpen={() => setSelectedId(v.id)}
+                                />
+                              ))}
+                            </div>
+                          </section>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── Bulk tag ── */}
+            {/* Suggestions are the user vocabulary only — offering "Build V2.2"
+                here would invite hand-applying a batch, which ingest owns. */}
+            <AddTagsDialog
+              isOpen={tagDialogOpen}
+              onClose={() => setTagDialogOpen(false)}
+              count={selectedIds.size}
+              suggestions={allTags.filter((t) => originByTag[t] === 'user')}
+              onConfirm={addTagsToSelection}
+            />
+
+            {/* ── Delete confirmation ── */}
+            <PopupModal
+              isOpen={deleteIds !== null}
+              onClose={() => setDeleteIds(null)}
+              title={deleteIds && deleteIds.length > 1 ? `Delete ${deleteIds.length} videos?` : 'Delete video?'}
+              body="This removes the video and its analysis. Agents will no longer reference it. This can’t be undone."
+              primaryLabel="Delete"
+              primaryVariant="danger"
+              secondaryLabel="Cancel"
+              onConfirm={confirmDelete}
+            />
+
+            {/* ── Upload modal (files + tags · or CLI) ── */}
+            <UploadVideosModal
+              isOpen={uploadOpen}
+              onClose={() => setUploadOpen(false)}
+              initialFiles={dropFiles}
+              existingNames={existingNames}
+              onConfirm={commitUpload}
+              onSimulateImport={simulateCliImport}
+            />
           </div>
-          <span className="font-display text-2xs font-semibold uppercase tracking-[0.15em]" style={{ color: 'var(--text-tertiary)' }}>
-            MAX 500MB PER VIDEO
-          </span>
         </div>
-      ) : (
-        <>
-          {/* ── Agent gating note (dismissible) ── */}
-          {noteOpen && (
+
+        {/* ── Selection bar — floats in only while something is selected, so the
+            toolbar above never changes shape or colour to announce it. ── */}
+        {selecting && (
+          /* z above the review pills (z-40): dev chrome must never draw over
+             a product action bar, which is one reason this got missed. */
+          <div className="sticky bottom-l z-50 flex justify-center px-l pointer-events-none -mt-[72px]">
             <div
-              className="flex items-center gap-s px-m py-s rounded-xl"
-              style={{ backgroundColor: 'var(--bg-tint-light)', border: '1px solid var(--bg-tint)' }}
+              /* A surface card, not a dark pill. Because it no longer supplies
+                 its own contrast, the border, the elevation and the arrival
+                 animation are what make it register — see globals.css. */
+              className="library-selection-bar pointer-events-auto flex items-center gap-s pl-m pr-xs py-xs rounded-2xl max-w-full"
+              style={{
+                backgroundColor: 'var(--bg-elements)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-default)',
+              }}
+              role="toolbar"
+              aria-label="Selection actions"
             >
-              <span className="shrink-0" style={{ color: 'var(--brand)' }} aria-hidden>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.4" />
-                  <path d="M8 7.2V11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                  <circle cx="8" cy="5" r="0.9" fill="currentColor" />
-                </svg>
+              <span
+                className="font-display text-s font-semibold whitespace-nowrap"
+                style={{ color: 'var(--text-brand)' }}
+              >
+                {selectedIds.size} selected
               </span>
-              <span className="flex-1 min-w-0 font-body text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Only <span className="font-semibold" style={{ color: 'var(--brand)' }}>Ready</span> videos are referenced by
-                your agents. Analysis can take a few minutes per video.
-              </span>
+              {selectedPending.length > 0 && (
+                /* A token, not opacity — the bar is a real surface now, and a
+                   faded label on it reads as disabled rather than secondary. */
+                <span
+                  className="font-body text-xs whitespace-nowrap"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  {selectedPending.length} still uploading
+                </span>
+              )}
+              <span
+                className="w-px h-[20px] shrink-0 mx-xxs"
+                style={{ backgroundColor: 'var(--border-default)' }}
+                aria-hidden
+              />
+              {/* Real DS Buttons now that the surface is light: the hand-rolled
+                  BarButton existed only to survive a dark background, and it
+                  had no focus or disabled states of its own. */}
+              <Button
+                variant="secondary"
+                size="md"
+                leftIcon={<PlusIcon size={16} />}
+                onClick={() => setTagDialogOpen(true)}
+              >
+                Add tag
+              </Button>
+              <Button
+                variant="danger"
+                size="md"
+                leftIcon={<TrashIcon size={16} />}
+                onClick={() => setDeleteIds([...selectedIds])}
+              >
+                Delete
+              </Button>
               <Button
                 variant="transparent"
-                size="sm"
+                size="md"
                 iconOnly
-                onClick={() => setNoteOpen(false)}
-                aria-label="Dismiss note"
+                onClick={() => setSelectedIds(new Set())}
+                aria-label="Clear selection"
               >
                 <CloseIcon size={16} />
               </Button>
             </div>
-          )}
-
-          {/* ── Library container — toolbar header + collection ── */}
-          <div
-            className="flex flex-col w-full rounded-3xl overflow-hidden"
-            style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
-          >
-            {/* Header — search · filters */}
-            <div className="flex items-center gap-m p-l w-full flex-wrap">
-              {/* Search */}
-              <div className="w-[300px] max-w-full">
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search videos or tags…"
-                  aria-label="Search videos"
-                />
-              </div>
-
-              <div className="flex-1" />
-
-              {/* Filters — opens a modal (same style as Radiologist) with the library's tag filters */}
-              <Button
-                variant="tertiary"
-                size="md"
-                leftIcon={<FilterIcon size={20} />}
-                onClick={() => setFilterOpen(true)}
-                className={filterOpen || activeFilterCount > 0 ? 'toggle-btn-active' : ''}
-              >
-                Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
-              </Button>
-            </div>
-
-            <LibraryFilterDialog
-              isOpen={filterOpen}
-              onClose={() => setFilterOpen(false)}
-              allTags={allTags}
-              allAiTags={allAiTags}
-              value={{
-                status: statusFilter,
-                tags: Array.from(activeTags),
-                aiTags: Array.from(activeAiTags),
-              }}
-              onApply={(next: LibraryFilterValue) => {
-                setStatusFilter(next.status)
-                setActiveTags(new Set(next.tags))
-                setActiveAiTags(new Set(next.aiTags))
-                setFilterOpen(false)
-              }}
-            />
-
-            {/* Bulk action bar — quiet select-all, or active selection toolbar */}
-            {selectedIds.size === 0 ? (
-              <div className="flex items-center gap-m px-l pb-s min-h-[44px]">
-                <Checkbox
-                  checked={allFilteredSelected}
-                  onChange={toggleSelectAll}
-                  label={<span className="font-body text-xs" style={{ color: 'var(--text-secondary)' }}>Select all</span>}
-                />
-              </div>
-            ) : (
-              <div className="px-l pb-s">
-                <div
-                  className="flex items-center gap-s px-m py-xs rounded-xl flex-wrap min-h-[44px]"
-                  style={{ backgroundColor: 'var(--bg-tint-light)', border: '1px solid var(--bg-tint)' }}
-                >
-                  <Checkbox
-                    checked={allFilteredSelected}
-                    indeterminate={!allFilteredSelected}
-                    onChange={toggleSelectAll}
-                    label={
-                      <span className="font-display text-xs font-semibold" style={{ color: 'var(--brand)' }}>
-                        {selectedIds.size} selected
-                      </span>
-                    }
-                  />
-                  <div className="flex-1" />
-                  {selectedFailed.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="md"
-                      onClick={() => selectedFailed.forEach((v) => retry(v.id))}
-                    >
-                      Retry {selectedFailed.length} failed
-                    </Button>
-                  )}
-                  <Button
-                    variant="danger"
-                    size="md"
-                    leftIcon={<TrashIcon size={16} />}
-                    onClick={() => setDeleteIds([...selectedIds])}
-                  >
-                    Delete {selectedIds.size}
-                  </Button>
-                  <span className="w-px h-[20px] shrink-0" style={{ backgroundColor: 'var(--bg-tint)' }} aria-hidden />
-                  <Button
-                    variant="transparent"
-                    size="md"
-                    iconOnly
-                    onClick={() => setSelectedIds(new Set())}
-                    aria-label="Clear selection"
-                  >
-                    <CloseIcon size={16} />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Collection — grid or list */}
-            <div className="px-l pb-l w-full">
-              {filtered.length === 0 ? (
-                <VideosEmptyState message="No videos match your search or filters. Try clearing them to see your full library." />
-              ) : (
-                <div
-                  className="grid gap-l w-full"
-                  style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
-                >
-                  {filtered.map((v) => (
-                    <VideoLibraryCard
-                      key={v.id}
-                      layout="grid"
-                      title={v.title}
-                      sizeLabel={formatSize(v.sizeBytes)}
-                      dateLabel={formatDate(v.addedAt)}
-                      durationLabel={v.durationLabel}
-                      thumbnailSrc={v.thumbnailSrc}
-                      gradient={gradientFor(v.id)}
-                      status={v.status}
-                      progress={v.progress}
-                      tags={v.tags}
-                      aiTags={v.aiTags}
-                      aiSummary={v.aiSummary}
-                      description={v.description}
-                      errorMessage={v.error}
-                      selected={selectedIds.has(v.id)}
-                      selectionVisible={selectedIds.size > 0}
-                      onToggleSelect={() => toggleSelect(v.id)}
-                      onDelete={() => setDeleteIds([v.id])}
-                      onRetry={() => retry(v.id)}
-                      onSaveMeta={(next) => updateMeta(v.id, next)}
-                      onOpen={() => setSelectedId(v.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
-        </>
-      )}
-
-      {/* ── Delete confirmation ── */}
-      <PopupModal
-        isOpen={deleteIds !== null}
-        onClose={() => setDeleteIds(null)}
-        title={deleteIds && deleteIds.length > 1 ? `Delete ${deleteIds.length} videos?` : 'Delete video?'}
-        body="This removes the video and its analysis. Agents will no longer reference it. This can’t be undone."
-        primaryLabel="Delete"
-        primaryVariant="danger"
-        secondaryLabel="Cancel"
-        onConfirm={confirmDelete}
-      />
-
-      {/* ── Upload modal (files + tags · or CLI) ── */}
-      <UploadVideosModal
-        isOpen={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-        initialFiles={dropFiles}
-        existingNames={existingNames}
-        onConfirm={commitUpload}
-        onSimulateImport={simulateCliImport}
-      />
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* ── Details side panel — pushes the content in (mirrors Radiologist) ── */}
-      {panelMounted && selectedVideo && (
-        <div
-          className={['session-panel shrink-0', panelVisible ? 'session-panel-active' : ''].join(' ')}
-        >
-          <LibraryVideoSidePanel video={selectedVideo} onClose={closePanel} />
-        </div>
-      )}
+      {/* ── Player ── */}
+      <LibraryVideoLightbox video={selectedVideo} onClose={() => setSelectedId(null)} />
     </div>
   )
 }
+

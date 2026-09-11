@@ -21,6 +21,10 @@
   --bg-tint-dark:      rgba(23,112,239,0.40);
   --bg-highlighted:    #1770EF;
 
+  /* Matched-text highlight — AI summary phrases, transcript search hits, cited spans */
+  --highlight-match:   #FFF176;
+  --highlight-match-text: #412402;
+
   /* Text & Icon */
   --text-primary:      #030D2D;
   --text-secondary:    #4F566C;
@@ -64,6 +68,15 @@
   --success-bg:        rgba(22,163,74,0.07);
   --notice:            #67C3BB;
   --notice-bg:         rgba(103,195,187,0.07);
+
+  /* Testing area — per-test accents (revamp 2026-09-09). Teal has no
+     Apparatus primitive, so it is declared here; the others alias tokens. */
+  --testing-teal:      #178F7C;
+  --testing-teal-bg:   rgba(23,143,124,0.10);
+  /* AI testing's second green — cooler and deeper than --success, so the two
+     AI tests read as one family without their tiles looking identical. */
+  --testing-emerald:      #0E8F6B;
+  --testing-emerald-bg:   rgba(14,143,107,0.13);
 
   /* Shadows */
   --shadow-sm:         0px 2px 8px rgba(0,0,0,0.04);
@@ -136,6 +149,10 @@
   --bg-tint:          rgba(23,112,239,0.18);
   --bg-tint-light:    rgba(23,112,239,0.10);
 
+  /* Dimmed so the highlight does not glare against dark surfaces */
+  --highlight-match:  #D8C33F;
+  --highlight-match-text: #221200;
+
   --text-primary:     #FFFFFF;
   --text-secondary:   #9A9EAB;
   --text-tertiary:    #686E81;
@@ -151,9 +168,72 @@
   --shadow-big:       0px 8px 24px rgba(0,0,0,0.40);
 }
 
-/* ─── HomePage Content Background (matches Figma BG/HomePage BG) ─── */
+/* ─── Studio ground ─────────────────────────────────────────────────────────
+   The content region sits on the Soft mesh (chosen 2026-09-09): a near-white
+   cool base one step lighter than --bg-page — which is untouched, so rows,
+   wells and pale steps keep their value — plus a full-bleed pastel mesh in
+   brand hues at half strength. Intelligence leads with blue, Testing with the
+   Core Agents purple and its AI-testing green, so the two areas read as one
+   product lit differently. Dark mode keeps the geometry at higher alpha over
+   a deep navy base.
+
+   The mesh is one element inside HomePage's <main>, `.studio-ground`, carrying
+   `data-area` and `data-depth`:
+     home    the full mesh — landing screens, where the colour is the welcome
+     detail  a third of it, masked to the top edge — report, detail and Oracle
+             thread screens stay calm, but the top of the page still says which
+             product you are in */
 .homepage-content-bg {
-  background-color: var(--bg-page);
+  --ground: #F5F6FA;
+  background-color: var(--ground);
+}
+.dark .homepage-content-bg { --ground: #0F1420; }
+
+.studio-ground {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--ground-mesh, none);
+  /* Mesh alphas below are authored at full strength; Soft shows half. */
+  opacity: calc(0.5 * var(--depth-strength, 1));
+  transition: opacity 250ms ease;
+}
+.studio-ground[data-area='intelligence'] {
+  --ground-mesh:
+    radial-gradient(60% 70% at 12% 8%,   rgba(23,112,239,0.28) 0%, rgba(23,112,239,0) 70%),
+    radial-gradient(55% 60% at 88% 12%,  rgba(123,76,255,0.22) 0%, rgba(123,76,255,0) 70%),
+    radial-gradient(60% 55% at 85% 95%,  rgba(194,5,104,0.14)  0%, rgba(194,5,104,0)  70%),
+    radial-gradient(50% 50% at 10% 100%, rgba(22,163,74,0.12)  0%, rgba(22,163,74,0)  70%);
+}
+.studio-ground[data-area='testing'] {
+  --ground-mesh:
+    radial-gradient(60% 70% at 12% 8%,   rgba(123,76,255,0.25) 0%, rgba(123,76,255,0) 70%),
+    radial-gradient(55% 60% at 88% 12%,  rgba(22,163,74,0.18)  0%, rgba(22,163,74,0)  70%),
+    radial-gradient(60% 55% at 85% 95%,  rgba(23,112,239,0.20) 0%, rgba(23,112,239,0) 70%),
+    radial-gradient(50% 50% at 10% 100%, rgba(194,5,104,0.08)  0%, rgba(194,5,104,0)  70%);
+}
+.dark .studio-ground[data-area='intelligence'] {
+  --ground-mesh:
+    radial-gradient(60% 70% at 12% 8%,   rgba(23,112,239,0.46) 0%, rgba(23,112,239,0) 70%),
+    radial-gradient(55% 60% at 88% 12%,  rgba(123,76,255,0.38) 0%, rgba(123,76,255,0) 70%),
+    radial-gradient(60% 55% at 85% 95%,  rgba(194,5,104,0.22)  0%, rgba(194,5,104,0)  70%),
+    radial-gradient(50% 50% at 10% 100%, rgba(22,163,74,0.19)  0%, rgba(22,163,74,0)  70%);
+}
+.dark .studio-ground[data-area='testing'] {
+  --ground-mesh:
+    radial-gradient(60% 70% at 12% 8%,   rgba(123,76,255,0.42) 0%, rgba(123,76,255,0) 70%),
+    radial-gradient(55% 60% at 88% 12%,  rgba(22,163,74,0.30)  0%, rgba(22,163,74,0)  70%),
+    radial-gradient(60% 55% at 85% 95%,  rgba(23,112,239,0.34) 0%, rgba(23,112,239,0) 70%),
+    radial-gradient(50% 50% at 10% 100%, rgba(194,5,104,0.14)  0%, rgba(194,5,104,0)  70%);
+}
+/* Detail depth — a third of the colour, only along the top edge. */
+.studio-ground[data-depth='detail'] {
+  --depth-strength: 0.35;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 42%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 42%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-ground { transition: none; }
 }
 
 /* ─── Dropdown/Overlay Entrance Animation ─── */
@@ -255,12 +335,13 @@
 .video-lib-card {
   background-color: var(--bg-elements);
   border: 1px solid var(--border-subtle);
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
+/* No lift on hover: a card that moves takes its checkbox with it, so the
+   thing you are about to click slides away under the cursor. */
 .video-lib-card:hover {
   border-color: var(--border-default);
-  box-shadow: 0 10px 28px rgba(3, 13, 45, 0.12);
-  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(3, 13, 45, 0.10);
 }
 .video-lib-card[data-selected='true'] {
   border-color: var(--brand);
@@ -369,84 +450,40 @@
   opacity: 1;
   transform: translateY(0);
 }
+/* frosted icon button for on-thumbnail hover actions (edit / delete) */
+.video-lib-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text-secondary);
+  box-shadow: 0 1px 4px rgba(3, 13, 45, 0.2);
+  backdrop-filter: blur(8px);
+  transition: color 120ms ease, background 120ms ease;
+}
+.video-lib-icon-btn:hover {
+  color: var(--text-primary);
+  background: #fff;
+}
+.video-lib-icon-btn[data-danger='true']:hover {
+  color: var(--error);
+}
+
 /* small white pill behind the overlay checkbox so it reads on any thumbnail */
 .video-lib-check-bg {
   display: inline-flex;
   padding: 3px;
-  border-radius: 8px;
+  border-radius: 6px;
   background-color: var(--bg-elements);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
-.video-lib-spinner {
-  width: 9px;
-  height: 9px;
-  border: 1.5px solid rgba(255, 183, 0, 0.35);
-  border-top-color: var(--warning);
-  border-radius: 9999px;
-  animation: video-lib-spin 0.7s linear infinite;
-}
-/* white spinner variant for use over thumbnails */
-.video-lib-spinner-light {
-  width: 12px;
-  height: 12px;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #ffffff;
-  border-radius: 9999px;
-  animation: video-lib-spin 0.7s linear infinite;
-}
-@keyframes video-lib-spin {
-  to { transform: rotate(360deg); }
-}
-/* sweeping scan line over analyzing thumbnails — "AI is watching the video" */
-.video-lib-scanline {
-  position: absolute;
-  inset-inline: 0;
-  top: 0;
-  height: 34%;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.18) 78%,
-    rgba(255, 255, 255, 0.75) 100%
-  );
-  animation: video-lib-scan 2.4s ease-in-out infinite;
-  pointer-events: none;
-}
-@keyframes video-lib-scan {
-  0%   { transform: translateY(-100%); opacity: 0; }
-  12%  { opacity: 1; }
-  88%  { opacity: 1; }
-  100% { transform: translateY(300%); opacity: 0; }
-}
-/* frosted dark chip centered on analyzing thumbnails */
-.video-lib-analyzing-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 9999px;
-  background: rgba(3, 13, 45, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 14px rgba(3, 13, 45, 0.25);
-}
-/* shimmer skeleton bars — placeholder for the AI summary being generated */
-.video-lib-skeleton {
-  height: 8px;
-  border-radius: 9999px;
-  background: linear-gradient(
-    90deg,
-    var(--bg-subtle) 25%,
-    var(--border-subtle) 37%,
-    var(--bg-subtle) 50%
-  );
-  background-size: 400% 100%;
-  animation: video-lib-shimmer 1.6s ease-in-out infinite;
-}
-@keyframes video-lib-shimmer {
-  0%   { background-position: 100% 0; }
-  100% { background-position: 0 0; }
-}
+/* The analysing treatment lived here until 2026-09-10: two spinners, a sweeping
+   scan line, a frosted "Analyzing video…" chip and shimmer skeletons for the AI
+   summary. Nothing analyses library footage, so all of it is gone along with
+   the state it described. */
 
 /* ─── Apparatus: Description Box (atom) ─── */
 /* Common base — p-12, rounded-6, shadow-sm, Inter 14px */
@@ -1842,13 +1879,29 @@ textarea { resize: none; font-family: var(--font-body); }
   background-color: var(--bg-page-pale, #F5F5F5);
 }
 
-/* ─── Oracle Flow — Responsive chat content width ─── */
-/* Figma spec: 760px content inside 1160px container (65.5%).
-   Scales proportionally on wider viewports, capped at 960px. */
-.oracle-chat-content {
-  width: 65.5%;
-  min-width: 560px;
-  max-width: 960px;
+/* ─── One page measure ─── */
+/* Every screen's content sits in the same column, so moving between the
+   Intelligence hero, an Oracle thread, Connectors and any Testing screen never
+   moves the left and right edges. The gutter is part of the class, so nothing
+   outside it needs padding. Inner blocks that need a shorter line — a headline,
+   a paragraph — cap themselves inside this column rather than changing it. */
+.page-measure {
+  width: 100%;
+  max-width: 1164px;
+  margin-left: auto;
+  margin-right: auto;
+  /* The gutter lives inside the cap, so a screen that puts the measure on its
+     own root lands on the same left and right edge as one that nests it in a
+     shell. Never add px-* to an element that carries this class. */
+  padding-left: 32px;
+  padding-right: 32px;
+  box-sizing: border-box;
+}
+
+/* The content region always reserves room for its scrollbar, so a screen that
+   scrolls and one that does not put the measure on exactly the same pixels. */
+.page-scroll {
+  scrollbar-gutter: stable;
 }
 
 /* ─── Oracle Flow — Topbar tab hover ─── */
@@ -1911,6 +1964,32 @@ textarea { resize: none; font-family: var(--font-body); }
 }
 .oracle-step-enter {
   animation: oracle-step-fade-in 300ms ease-out;
+}
+
+/* ─── Pipeline Stepper — active-step ring loader ───────────────────────────── */
+/* Figma "Infinite Loader" is a 3-state Smart Animate loop (Start → Mid → End,   */
+/* 0.5s LINEAR each). Reproduced as a 1.5s rotation with a sweeping arc length.  */
+@keyframes pipeline-spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+@keyframes pipeline-spinner-sweep {
+  0%   { stroke-dasharray: 4 44;  stroke-dashoffset: 0; }
+  50%  { stroke-dasharray: 30 44; stroke-dashoffset: -12; }
+  100% { stroke-dasharray: 4 44;  stroke-dashoffset: -44; }
+}
+.pipeline-spinner {
+  transform-origin: 50% 50%;
+  animation: pipeline-spinner-rotate 1.5s linear infinite;
+}
+.pipeline-spinner-arc {
+  animation: pipeline-spinner-sweep 1.5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-spinner { animation: none; }
+  .pipeline-spinner-arc {
+    animation: none;
+    stroke-dasharray: 30 44;
+  }
 }
 
 /* ─── Oracle Flow — Shimmer text effect on active thinking step ─── */
@@ -1976,4 +2055,783 @@ textarea { resize: none; font-family: var(--font-body); }
 }
 .oracle-sources-title:hover {
   color: var(--brand);
+}
+
+/* ─── Transcript — rows, capped scroll, flash-on-arrival ─── */
+.transcript-row {
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background-color 120ms ease;
+}
+.transcript-row:hover {
+  background-color: var(--bg-tint-light);
+}
+.transcript-row[aria-current='true'] {
+  background-color: var(--bg-tint);
+}
+
+/* Cited segment arrived at from an Oracle citation — pulses once, then settles */
+.transcript-row-flash {
+  animation: transcript-flash 1600ms ease-out 1;
+}
+@keyframes transcript-flash {
+  0%, 40% {
+    box-shadow: inset 0 0 0 2px var(--brand);
+    background-color: var(--bg-tint);
+  }
+  100% {
+    box-shadow: inset 0 0 0 2px transparent;
+    background-color: transparent;
+  }
+}
+
+/* Level 2 of the side-panel disclosure — capped region with its own scrollbar */
+.transcript-capped {
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ─── Oracle citations — chips in response prose ─── */
+.oracle-cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0 5px;
+  margin: 0 1px;
+  border: none;
+  border-radius: 4px;
+  background-color: var(--bg-tint-light);
+  color: var(--brand);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: 3px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.oracle-cite:hover,
+.oracle-cite[data-active='true'] {
+  background-color: var(--brand);
+  color: #FFFFFF;
+}
+.oracle-cite:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* Citation preview card — anchored to the hovered/focused chip */
+.oracle-cite-preview {
+  position: fixed;
+  z-index: 60;
+  width: 340px;
+  border-radius: 12px;
+  background-color: var(--bg-elements);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-normal);
+}
+
+/* ─── Oracle Excerpts — clickable evidence rows ─── */
+.excerpt-row {
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.excerpt-row:hover {
+  background-color: var(--bg-tint-light);
+}
+
+/* PM review toolbar — floating pill, prototype only */
+/* ─── Run-history outcome counts — hover label ───
+   CSS-only so the label appears instantly: the native title tooltip's ~1s
+   delay reads as unresponsive on a three-chip cluster you scan in one pass.
+   Sits above the chip: the list clips to its rounded card, and a row leaves
+   more room over the chip than under it, so this is the side that stays whole
+   on the last row as well as the first. */
+.count-tip {
+  position: relative;
+}
+.count-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: var(--radius-xs, 6px);
+  background-color: var(--text-primary);
+  color: var(--bg-elements);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  z-index: 20;
+}
+.count-tip:hover::after,
+.count-tip:focus-visible::after {
+  opacity: 1;
+}
+
+.proto-switcher {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: calc(100vw - 32px);
+}
+
+/* Nav-restructure review toolbar — bottom-right and below the sidebar flyouts
+   (all z-50), so prototype chrome never covers the product UI under review.
+   Scoped override; the Oracle Excerpts switcher keeps the shared placement. */
+.proto-switcher.nav-review-switcher {
+  left: auto;
+  right: 16px;
+  transform: none;
+  z-index: 40;
+  max-width: min(560px, calc(100vw - 32px));
+}
+
+.proto-switcher-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background-color: #0B1220;
+  box-shadow: var(--shadow-normal);
+  overflow-x: auto;
+}
+.proto-switcher-label {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+  padding-right: 4px;
+}
+.proto-switcher-btn {
+  border: none;
+  border-radius: 999px;
+  background: none;
+  padding: 4px 10px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.proto-switcher-btn:hover {
+  color: #FFFFFF;
+}
+.proto-switcher-btn[data-active='true'] {
+  background-color: var(--brand);
+  color: #FFFFFF;
+}
+.proto-switcher-note {
+  padding: 6px 12px;
+  border-radius: 10px;
+  background-color: #0B1220;
+  box-shadow: var(--shadow-normal);
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* ─── User Test agent ───────────────────────────────────────────────────────
+   Hover states live here rather than as Tailwind `hover:` utilities, because
+   Tailwind cannot resolve a `hover:` prefix against an rgba CSS variable. */
+.user-test-issue {
+  border: 1px solid transparent;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.user-test-issue:hover {
+  background-color: var(--bg-page-pale);
+  border-color: var(--border-subtle);
+}
+
+.user-test-issue-hd,
+.user-test-clip,
+.user-test-tag-row,
+.user-test-doc-row {
+  transition: background-color 120ms ease;
+}
+.user-test-issue-hd:hover,
+.user-test-clip:hover,
+.user-test-tag-row:hover,
+.user-test-doc-row:hover {
+  background-color: var(--bg-page-pale);
+}
+
+.user-test-next {
+  transition: border-color 120ms ease;
+}
+.user-test-next:hover {
+  border-color: var(--border-brand-hover);
+}
+
+.user-test-tab {
+  transition: color 120ms ease;
+}
+.user-test-tab:hover {
+  color: var(--text-primary);
+}
+
+/* Friction reads as a caution, and the ink that works on a pale amber wash in
+   light mode disappears on the dark ground — so the token flips with the theme
+   rather than being fixed on the element. */
+.issue-amber-ink { color: #8A6300; }
+.dark .issue-amber-ink { color: var(--warning); }
+
+.user-test-ask-chip,
+.user-test-evidence {
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.user-test-ask-chip:hover,
+.user-test-evidence:hover {
+  border-color: var(--border-brand-hover);
+  color: var(--text-brand);
+}
+
+.user-test-run-row {
+  transition: background-color 120ms ease;
+}
+.user-test-run-row:hover {
+  background-color: var(--bg-page-pale);
+}
+.user-test-run-row:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+.segmented-option {
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.segmented-option[aria-checked='false']:hover {
+  color: var(--text-primary);
+}
+
+/* Step rail — three across when the card is wide enough to hold them without
+   the copy wrapping mid-phrase, stacked when it isn't. Measured against the
+   card rather than the viewport, because the sidebar changes the width the
+   card actually gets. */
+.step-rail-host {
+  container-type: inline-size;
+}
+.step-rail {
+  display: grid;
+  gap: var(--space-m);
+  grid-template-columns: 1fr;
+  /* Stacked, the rail is a block of text in a centred card — centre the block,
+     not each line, so the numbers stay in one column. */
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+.step-rail-arrow {
+  display: none;
+}
+@container (min-width: 620px) {
+  .step-rail {
+    grid-template-columns: var(--rail-cols);
+    width: 100%;
+    margin-inline: 0;
+  }
+  .step-rail-arrow {
+    display: flex;
+  }
+}
+
+/* Run summary — the qualifier rail sits beside the findings only when the
+   findings column can still hold a sentence. Measured against the page body,
+   because the sidebar's width is not the content region's. */
+.run-summary-host {
+  container-type: inline-size;
+}
+.run-summary-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+@container (min-width: 900px) {
+  .run-summary-body {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+}
+
+/* Finding rows: a wrapping row when the panel is narrow, the six-column grid
+   when it is wide enough that nothing has to be squeezed. */
+.user-test-issue-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-s);
+}
+.user-test-issue-grid > :nth-child(2) {
+  flex: 1 1 220px;
+}
+.user-test-issue-grid > :nth-child(6) {
+  margin-left: auto;
+}
+@container (min-width: 820px) {
+  .user-test-issue-grid {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 150px 170px 110px 20px;
+    align-items: center;
+    gap: var(--space-m);
+  }
+  .user-test-issue-grid > :nth-child(2),
+  .user-test-issue-grid > :nth-child(6) {
+    flex: initial;
+    margin-left: 0;
+  }
+}
+
+.report-panel-host {
+  container-type: inline-size;
+}
+
+/* Six tiles: two rows of three, or three rows of two. Never five and an
+   orphan, which is what auto-fit produces at the widths in between. */
+.summary-panel-host {
+  container-type: inline-size;
+}
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@container (min-width: 560px) {
+  .stat-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.user-test-ask-banner,
+.user-test-dock-launcher {
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.user-test-ask-banner:hover {
+  border-color: var(--border-brand-hover);
+}
+.user-test-dock-launcher:hover {
+  border-color: var(--border-brand-hover);
+}
+
+/* ─── Testing area (nav V1 · 1.1) ──────────────────────────────────────────
+   Sidebar groups, Overview tiles, run-history rows and the setup zones. Hover
+   states live here because Tailwind can't hover: against rgba variables. */
+
+/* AI-testing rows take the success tone instead of brand — same radial shape. */
+.nav-active-success,
+.nav-hover-success:hover {
+  background: radial-gradient(
+    ellipse at left center,
+    var(--success-bg) 0%,
+    rgba(22,163,74,0.04) 100%
+  );
+}
+
+.testing-tab {
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.testing-tab:hover {
+  color: var(--text-primary);
+}
+
+/* The base border lives here, not inline: an inline `border` shorthand would
+   set border-color at inline specificity and the accent hover below could
+   never win. */
+.testing-tile {
+  border: 1px solid var(--border-default);
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+.testing-tile:not([data-soon='true']):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(3, 13, 45, 0.08);
+  border-color: var(--tile-accent, var(--brand));
+}
+
+.run-history-row {
+  transition: background-color 120ms ease;
+}
+.run-history-row:hover {
+  background-color: var(--bg-page-pale);
+}
+.run-history-row:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+.testing-zone {
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.testing-zone[data-filled='false']:hover {
+  border-color: var(--zone-accent, var(--brand));
+  background-color: var(--bg-tint-light);
+}
+
+.testing-menu-row {
+  transition: background-color 120ms ease;
+}
+.testing-menu-row:hover {
+  background-color: var(--bg-page-pale);
+}
+
+/* Composer mode switch — the filled segment is the mode, not a CTA, but it
+   is the loudest thing on the card by design (artifact `.modeseg`). */
+.composer-mode[aria-checked='false']:hover {
+  color: var(--text-primary);
+}
+
+@keyframes testing-spin {
+  to { transform: rotate(360deg); }
+}
+.testing-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  border: 2.5px solid var(--bg-tint);
+  border-top-color: var(--brand);
+  animation: testing-spin 1s linear infinite;
+}
+.testing-spinner-sm {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--warning);
+  border-top-color: transparent;
+  animation: testing-spin 1s linear infinite;
+}
+
+/* Nav row ink — icon and label take the tone colour when the row is active or
+   hovered. Scoped to the hover class so disabled rows never light up. */
+.nav-active-gradient .nav-ink-on,
+.nav-hover-gradient:hover .nav-ink {
+  color: var(--brand);
+}
+.nav-active-success .nav-ink-on,
+.nav-hover-success:hover .nav-ink {
+  color: var(--success);
+}
+
+.testing-ink-hover:hover {
+  color: var(--text-primary);
+}
+.testing-focus-ring:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--bg-tint);
+}
+
+/* Composer fields — the ring belongs to the card, not the bare input inside
+   it. The global :focus-visible rule outranks Tailwind's outline-none, so the
+   inner control opts out explicitly and the container takes over. */
+.composer-input:focus,
+.composer-input:focus-visible,
+.testing-focus-ring:focus-visible {
+  outline: none;
+}
+.composer-field:focus-within {
+  border-color: var(--border-focus) !important;
+  box-shadow: 0 0 0 2px var(--bg-tint);
+}
+
+/* FilterPill — hover darkens the rule; the selected pill keeps its tint. */
+.filter-pill {
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.filter-pill[aria-checked='false']:hover:not(:disabled) {
+  border-color: var(--border-hover);
+}
+
+/* Radius tokens `l` (10px) and `s` (6px) collide with Tailwind's side utilities:
+   bare `rounded-l` / `rounded-s` compile to *left* / *start* corners at the 4px
+   default, which is why controls showed 4px on the left and 10px on the right.
+   Resolve the bare classes to the token so every usage in the codebase reads
+   the size the author meant. `rounded-l-*` / `rounded-s-*` (with an explicit
+   size) still mean a side, as in Tailwind. */
+.rounded-l { border-radius: 10px; }
+.rounded-s { border-radius: 6px; }
+
+/* Search beside FilterPills — pill-shaped to match the row it sits in. */
+.testing-search .input-wrapper {
+  border-radius: 9999px;
+}
+
+/* Gameplay Library toolbar search — 12px, the same radius as the segmented
+   control it sits beside, so the row reads as one set of controls instead of a
+   6px input parked next to a 12px group. Not the full pill `.testing-search`
+   uses: that row is all pills, this one is not. */
+.library-search .input-wrapper {
+  border-radius: var(--radius-xl);
+}
+
+/* ─── Gameplay Library — selection (revamp 2026-09-09) ─────────────────────
+   The checkbox rests hidden on library cards and shows on hover, on a selected
+   card, or while any selection is active; pickers keep it always on. Card
+   actions sit in the body and reveal on hover. The bulk bar floats at the
+   bottom of the viewport instead of recolouring the toolbar. */
+.video-lib-check[data-visibility='hover'] {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.video-lib-card:hover .video-lib-check[data-visibility='hover'],
+.video-lib-card[data-selected='true'] .video-lib-check[data-visibility='hover'],
+[data-selecting='true'] .video-lib-check[data-visibility='hover'],
+.video-lib-check[data-visibility='hover']:focus-within {
+  opacity: 1;
+}
+.video-lib-row-actions {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.video-lib-card:hover .video-lib-row-actions,
+.video-lib-row-actions:focus-within {
+  opacity: 1;
+}
+.video-lib-danger { color: var(--text-secondary); }
+.btn:hover .video-lib-danger { color: var(--error); }
+
+/* ─── Gameplay Library — selection action bar ──────────────────────────────
+   The bar was going unnoticed. Three reasons, all addressed here:
+   a 160ms/8px entrance is below the threshold where motion catches the eye;
+   a flat dark strip with text-only actions reads as a status line, not a
+   toolbar; and it shared the bottom of the viewport with the review pills.
+   So: a longer, further, decelerating entrance, real elevation, and a brand
+   ring that pulses twice on arrival and then gets out of the way. */
+.library-selection-bar {
+  position: relative;
+  /* Lighter than the dark pill's shadow was: a white card on a near-white page
+     is separated by the spread and its 1px border, not by weight. */
+  box-shadow:
+    0 16px 40px rgba(3, 13, 45, 0.16),
+    0 2px 8px rgba(3, 13, 45, 0.08);
+  animation: library-bar-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes library-bar-in {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* One-shot attention ring — twice, then gone, so it never becomes decoration. */
+.library-selection-bar::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 3px rgba(23, 112, 239, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  animation: library-bar-ping 820ms ease-out 2 both;
+}
+@keyframes library-bar-ping {
+  0%   { opacity: 0.85; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.03); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Motion is the cue here, so when it is unwelcome the ring stays put
+     instead of disappearing — a permanent outline does the same job. */
+  .library-selection-bar { animation: none; }
+  .library-selection-bar::before {
+    animation: none;
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgba(23, 112, 239, 0.55);
+  }
+}
+.facet-select {
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.facet-select:hover {
+  border-color: var(--border-hover);
+}
+.facet-select[data-active='true'] {
+  border-color: var(--border-tint);
+  background-color: var(--bg-tint-light);
+}
+
+/* Selection bar buttons — text on a dark bar, quiet until hovered */
+/* `.library-bar-btn` lived here for the dark selection bar. The bar is a light
+   surface now and its actions are real DS Buttons, so the custom chrome is gone. */
+
+/* ── StateMachineDock — collapsed review chrome, bottom-right ─────────────────── */
+.state-machine-dock {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: min(640px, calc(100vw - 32px));
+}
+.state-machine-dock-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px 6px 10px;
+  background-color: #0B1220;
+  box-shadow: var(--shadow-normal);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.state-machine-dock-toggle:hover,
+.state-machine-dock-toggle[aria-expanded='true'] {
+  color: #FFFFFF;
+}
+.state-machine-dock-toggle-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.35);
+}
+.state-machine-dock-toggle-dot[data-changed='true'] {
+  background-color: var(--brand);
+}
+.state-machine-dock-toggle-count {
+  min-width: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background-color: var(--brand);
+  color: #FFFFFF;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+.state-machine-dock-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background-color: #0B1220;
+  box-shadow: var(--shadow-normal);
+  max-width: 100%;
+}
+.state-machine-dock-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: 10px;
+}
+.state-machine-dock-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.state-machine-dock-row .proto-switcher-label {
+  min-width: 56px;
+  padding-right: 0;
+}
+.state-machine-dock-options {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+}
+.state-machine-dock-note {
+  padding: 2px 0 4px 64px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.55);
+  max-width: 460px;
+}
+
+/* ─── AI behavioural test — sessions and the screen-by-screen viewer ────────
+   A live session announces itself with one pulsing dot, and the same dot
+   appears wherever "live" is said (card badge, run status, session status) so
+   the state reads the same everywhere. Cards lift on hover the way library
+   cards do; the frame's step arrows only appear on hover, like a player. */
+@keyframes agent-live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+.agent-live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background-color: currentColor;
+  animation: agent-live-pulse 1.2s ease-in-out infinite;
+}
+.agent-session-card {
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.agent-session-card:hover,
+.agent-session-card:focus-visible {
+  border-color: var(--border-hover) !important;
+  box-shadow: var(--shadow-normal);
+  outline: none;
+}
+.agent-frame-nav {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.agent-frame:hover .agent-frame-nav,
+.agent-frame:focus-within .agent-frame-nav {
+  opacity: 1;
+}
+.agent-step-row {
+  transition: background-color 120ms ease;
+}
+.agent-step-row:hover {
+  background-color: var(--bg-page-pale);
+}
+.agent-step-row[data-active='true'] {
+  background-color: var(--bg-tint-light);
+}
+.agent-step-row:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+/* Recording left, the current screen's reading right, at one height: the two
+   are read together, so neither may scroll away from the other. Below 1100px
+   the panel drops under the frame. */
+.agent-session-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: stretch;
+}
+.agent-screen-panel {
+  border-left: 1px solid var(--border-subtle);
+}
+@media (max-width: 1100px) {
+  .agent-session-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .agent-screen-panel {
+    border-left: none;
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+.agent-session-play {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.agent-session-card:hover .agent-session-play,
+.agent-session-card:focus-visible .agent-session-play {
+  opacity: 1;
 }

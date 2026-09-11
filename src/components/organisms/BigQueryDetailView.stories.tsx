@@ -140,11 +140,11 @@ export const ConnectedNoTables: Story = {
   },
 }
 
-export const RefreshConfirmation: Story = {
-  name: 'Connected · refresh confirmation popup',
+export const DisconnectConfirmation: Story = {
+  name: 'Connected · disconnect confirmation popup',
   args: {
     connection: { ...getMockBigQueryConnection(), lastRefreshedAt: TWO_HOURS_AGO },
-    defaultRefreshConfirmOpen: true,
+    defaultDisconnectConfirmOpen: true,
   },
 }
 

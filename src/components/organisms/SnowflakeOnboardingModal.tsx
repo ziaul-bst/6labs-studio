@@ -29,6 +29,8 @@ import { CloseIcon } from '../icons/CloseIcon'
 import { CopyIcon } from '../icons/CopyIcon'
 import { CheckIcon } from '../icons/CheckIcon'
 import { ConnectionStatusPill } from '../atoms/ConnectionStatusPill'
+import { ConnectorErrorMessage } from '../molecules/ConnectorErrorMessage'
+import { ConnectorSharingCard } from '../molecules/ConnectorSharingCard'
 import { showToast } from '../atoms/Toast'
 import { SnowflakeIcon } from '../icons/connectors/SnowflakeIcon'
 import type {
@@ -117,6 +119,8 @@ export interface SuccessSummary {
   tableCount: number
   verdict: BigQueryVerdict
   verdictReason: string
+  /** Tables that still need descriptions — drives the done-card second line. */
+  needsDescriptions?: number
 }
 
 // A mock 6labs-generated public key. The real value comes from the backend's
@@ -148,7 +152,7 @@ export interface SnowflakeOnboardingModalProps {
   /** Summary content shown when `state="success"`. */
   summary?: SuccessSummary
   /** Called with the entered connection details when "Verify connection" is clicked. */
-  onConnect?: (payload: SnowflakeConnectionDetails & { orgWideAccess: boolean }) => void
+  onConnect?: (payload: SnowflakeConnectionDetails & { orgWideAccess: boolean; orgWideEdit: boolean }) => void
   /** Called when the user clicks "Done" after a successful connection. */
   onDone?: () => void
   /** Called when the user clicks "Try again" from the failed state. */
@@ -174,6 +178,9 @@ export function SnowflakeOnboardingModal({
   const [username, setUsername] = useState(details?.username ?? 'SIXLABS_READONLY')
   const [warehouse, setWarehouse] = useState(details?.warehouse ?? '')
   const [database, setDatabase] = useState(details?.database ?? '')
+  // Permission choice — on by default: teammates can edit descriptions.
+  // Off restricts them to view-only access to this connection.
+  const [orgWideEdit, setOrgWideEdit] = useState(true)
 
   useEffect(() => {
     if (details?.accountIdentifier !== undefined) setAccountIdentifier(details.accountIdentifier)
@@ -198,12 +205,13 @@ export function SnowflakeOnboardingModal({
   if (!isOpen) return null
 
   const acctValid = /^[a-z0-9][a-z0-9._-]+$/i.test(accountIdentifier.trim())
+  // Database is no longer asked in the form — it's discovered from the grants
+  // during verification (prototype: defaults downstream).
   const canVerify =
     accountIdentifier.trim().length > 0 &&
     acctValid &&
     username.trim().length > 0 &&
-    warehouse.trim().length > 0 &&
-    database.trim().length > 0
+    warehouse.trim().length > 0
 
   const handleVerify = () => {
     if (!canVerify) return
@@ -213,6 +221,7 @@ export function SnowflakeOnboardingModal({
       warehouse: warehouse.trim(),
       database: database.trim(),
       orgWideAccess: true,
+      orgWideEdit,
     })
   }
 
@@ -328,15 +337,15 @@ DESC USER ${username || 'SIXLABS_READONLY'};`
             accountIdentifier={accountIdentifier}
             username={username}
             warehouse={warehouse}
-            database={database}
             acctValid={accountIdentifier.trim().length === 0 || acctValid}
             canVerify={canVerify}
             onChange={{
               accountIdentifier: setAccountIdentifier,
               username: setUsername,
               warehouse: setWarehouse,
-              database: setDatabase,
             }}
+            orgWideEdit={orgWideEdit}
+            onOrgWideEditChange={setOrgWideEdit}
             onBack={() => setStep(1)}
             onVerify={handleVerify}
           />
@@ -373,56 +382,57 @@ ${sqlVerify}`
 
   return (
     <div className="flex flex-col gap-m w-full">
+      {/* Intro — matches the production connectors dialog copy. */}
       <p className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-        Run the setup SQL below in a Snowflake worksheet as an account admin. It does
-        three things, in order:
+        This sets up a dedicated, read-only user so 6labs can query the databases you
+        choose, and no password is shared.{' '}
+        <strong style={{ color: 'var(--text-primary)' }}>
+          Run the SQL below as an account admin.
+        </strong>{' '}
+        <a
+          href="https://docs.snowflake.com/en/user-guide/key-pair-auth"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium underline"
+          style={{ color: 'var(--brand)' }}
+        >
+          How it works
+        </a>
       </p>
 
-      <ol className="flex flex-col gap-xxs pl-m" style={{ listStyle: 'decimal' }}>
-        <li className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-          Creates a <strong style={{ color: 'var(--text-primary)' }}>read-only role</strong> and
-          grants it SELECT on the database(s) 6labs should see.
-        </li>
-        <li className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-          Creates the <strong style={{ color: 'var(--text-primary)' }}>user</strong> 6labs connects
-          as and registers our public key on it — no password is ever exchanged, and our private key
-          never leaves 6labs.
-        </li>
-        <li className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-          <strong style={{ color: 'var(--text-primary)' }}>Verifies</strong> the key registered
-          correctly.
-        </li>
-      </ol>
+      {/* One copyable block — key embedded, <placeholders> highlighted amber. */}
+      <CodeBlock label="Setup SQL" code={setupSql} highlight maxHeight={320} />
 
-      {/* All setup SQL in one copyable block — key embedded, no separate copy step. */}
-      <CodeBlock
-        label="Setup SQL"
-        sublabel="Run top to bottom in Snowflake — creates the read-only user, registers our key, and verifies it."
-        code={setupSql}
-      />
-
-      {/* Multiple-database note — mirrors the comma-separated input on step 2. */}
       <p className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-tertiary)' }}>
-        <strong style={{ color: 'var(--text-secondary)' }}>Connecting more than one database?</strong>{' '}
-        Re-run the three <code>GRANT … ON DATABASE / SCHEMA / TABLES</code> lines (step 3) once for
-        each database — a separate command per database.
+        Replace the{' '}
+        <mark
+          className="rounded-xs px-xxs font-medium"
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--warning) 22%, transparent)',
+            color: 'var(--text-primary)',
+          }}
+        >
+          highlighted
+        </mark>{' '}
+        values before running the script. More than one database? Re-run step 3 for each.
       </p>
 
-      <a
-        href="https://docs.snowflake.com/en/user-guide/key-pair-auth"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-body text-xs font-medium underline self-start"
-        style={{ color: 'var(--brand)' }}
+      {/* SELECT-only security card */}
+      <div
+        className="flex items-start gap-s p-m rounded-m"
+        style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}
       >
-        How key-pair authentication works
-      </a>
-
-      {/* Compact security note — no heavy box. */}
-      <p className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-tertiary)' }}>
-        Grant <strong style={{ color: 'var(--text-secondary)' }}>SELECT only</strong> — 6labs never
-        writes to your warehouse. A user with write or admin scope is rejected at the access check.
-      </p>
+        <span
+          className="shrink-0 mt-[1px] inline-flex items-center justify-center w-[20px] h-[20px] rounded-full"
+          style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success)' }}
+        >
+          <CheckIcon size={12} />
+        </span>
+        <p className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
+          <strong style={{ color: 'var(--text-primary)' }}>Grant ‘SELECT-only’ access.</strong>{' '}
+          6labs works in read-only mode and doesn’t require write access.
+        </p>
+      </div>
 
       <div className="flex gap-m w-full shrink-0">
         <Button variant="secondary" size="lg" className="flex-1" onClick={onCancel}>
@@ -442,33 +452,33 @@ function Step2Details({
   accountIdentifier,
   username,
   warehouse,
-  database,
   acctValid,
   canVerify,
   onChange,
+  orgWideEdit,
+  onOrgWideEditChange,
   onBack,
   onVerify,
 }: {
   accountIdentifier: string
   username: string
   warehouse: string
-  database: string
   acctValid: boolean
   canVerify: boolean
   onChange: {
     accountIdentifier: (v: string) => void
     username: (v: string) => void
     warehouse: (v: string) => void
-    database: (v: string) => void
   }
+  orgWideEdit: boolean
+  onOrgWideEditChange: (v: boolean) => void
   onBack: () => void
   onVerify: () => void
 }) {
   return (
     <div className="flex flex-col gap-m w-full">
       <p className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-        Enter the details from the user you created. None of these are sensitive —
-        no credentials are exchanged.
+        Enter the details for the user you just created.
       </p>
 
       <Input
@@ -477,12 +487,19 @@ function Step2Details({
         value={accountIdentifier}
         onChange={(e) => onChange.accountIdentifier(e.target.value)}
         error={!acctValid}
-        message={
-          !acctValid
-            ? 'Use your account locator and region, e.g. xy12345.us-east-1'
-            : 'Account locator and region, or your org-account name.'
-        }
+        message={!acctValid ? 'Use your account locator and region, e.g. xy12345.us-east-1' : undefined}
       />
+      {acctValid && (
+        <a
+          href="https://docs.snowflake.com/en/user-guide/admin-account-identifier"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-body text-xs font-medium underline self-start -mt-xs"
+          style={{ color: 'var(--brand)' }}
+        >
+          See how to find your account identifier
+        </a>
+      )}
       <Input
         label="Username"
         placeholder="SIXLABS_READONLY"
@@ -495,24 +512,28 @@ function Step2Details({
         value={warehouse}
         onChange={(e) => onChange.warehouse(e.target.value)}
       />
-      <Input
-        label="Database"
-        placeholder="GAME_TELEMETRY, MARKETING_ANALYTICS"
-        value={database}
-        onChange={(e) => onChange.database(e.target.value)}
-        message="Connecting more than one? Enter names comma-separated."
-      />
 
-      {/* Compact notes — kept light so the form stays the focus. */}
-      <div className="flex flex-col gap-xs">
-        <p className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-tertiary)' }}>
-          Add <code>COMMENT</code>s to your tables and columns in Snowflake so Oracle can
-          ground its answers — missing ones mark the connection <strong>needs descriptions</strong>.
-        </p>
-        <p className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-tertiary)' }}>
-          Everyone in this workspace can query these tables — read-only, 6labs never writes back.
-        </p>
+      {/* Compact pre-connect notice — same style as the BigQuery modal's. */}
+      <div
+        className="flex items-start gap-xs px-s py-xs rounded-m"
+        style={{ backgroundColor: 'var(--warning-bg)', border: '1px solid var(--warning)' }}
+      >
+        <span
+          aria-hidden
+          className="shrink-0 mt-[1px] inline-flex items-center justify-center w-[16px] h-[16px] rounded-full font-display text-2xs font-bold"
+          style={{ backgroundColor: 'var(--warning)', color: 'var(--text-on-brand)' }}
+        >
+          !
+        </span>
+        <span className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-primary)' }}>
+          Add <code>COMMENT</code>s to your tables and columns so Oracle can ground its
+          answers.
+        </span>
       </div>
+
+      {/* Shared connection management — what sharing means (always-true
+          baseline) plus the one thing the owner controls. */}
+      <ConnectorSharingCard orgWideEdit={orgWideEdit} onOrgWideEditChange={onOrgWideEditChange} />
 
       <div className="flex gap-m w-full shrink-0">
         <Button variant="secondary" size="lg" className="flex-1" onClick={onBack}>
@@ -528,16 +549,44 @@ function Step2Details({
 
 // ─── Copyable code block ─────────────────────────────────────────────────────
 
+// Highlights `<placeholder>` tokens (amber) so users see at a glance which
+// values to replace before running the script. Copy still yields plain text —
+// the highlighting is render-only.
+const SQL_PLACEHOLDER = /(<[^>]+>)/g
+function renderSqlWithHighlights(sql: string) {
+  return sql.split(SQL_PLACEHOLDER).map((part, i) =>
+    /^<[^>]+>$/.test(part) ? (
+      <mark
+        key={i}
+        className="rounded-xs px-xxs font-medium"
+        style={{
+          backgroundColor: 'color-mix(in srgb, var(--warning) 22%, transparent)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        {part}
+      </mark>
+    ) : (
+      part
+    ),
+  )
+}
+
 function CodeBlock({
   label,
   sublabel,
   code,
   mono = false,
+  highlight = false,
+  maxHeight = 120,
 }: {
   label: string
   sublabel?: string
   code: string
   mono?: boolean
+  /** Render `<placeholder>` tokens with an amber highlight. */
+  highlight?: boolean
+  maxHeight?: number
 }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
@@ -587,17 +636,17 @@ function CodeBlock({
         </span>
       )}
       <pre
-        className={`w-full min-w-0 overflow-x-auto p-m rounded-m font-mono text-xs leading-[1.6] ${
-          mono ? 'whitespace-pre-wrap break-all' : 'whitespace-pre'
+        className={`w-full min-w-0 overflow-y-auto overflow-x-auto p-m rounded-m font-mono text-xs leading-[1.6] ${
+          mono ? 'whitespace-pre-wrap break-all' : 'whitespace-pre-wrap break-words'
         }`}
         style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border-subtle)',
           color: 'var(--text-secondary)',
-          maxHeight: 120,
+          maxHeight,
         }}
       >
-        {code}
+        {highlight ? renderSqlWithHighlights(code) : code}
       </pre>
     </div>
   )
@@ -675,6 +724,7 @@ function ProgressBody({
 }) {
   const errorStep = state === 'failed' ? (progress.errorAtStep ?? progress.step) : undefined
   const errorMeta = errorStep != null ? STEP_ERROR_COPY[STEP_ORDER[errorStep]] : undefined
+  const customErrorMessage = progress.errorMessage ?? errorMessageOverride
 
   return (
     <div className="flex flex-col gap-m w-full">
@@ -728,24 +778,32 @@ function ProgressBody({
 
       {state === 'failed' && errorMeta && (
         <div
-          className="flex flex-col gap-xxs p-m rounded-m"
+          className="flex flex-col items-start gap-xs p-m rounded-m"
           style={{ backgroundColor: 'var(--error-bg)', border: '1px solid var(--error)' }}
         >
+          {/* Status pill — mirrors the production connectors dialog. */}
           <span
-            className="font-display text-xs font-semibold uppercase tracking-[0.12em]"
-            style={{ color: 'var(--error)' }}
+            className="inline-flex items-center gap-xxs px-xs py-xxxs rounded-full font-display text-2xs font-semibold uppercase tracking-[0.12em] shrink-0"
+            style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error)' }}
           >
-            {errorMeta.headline}
+            <span
+              aria-hidden
+              style={{ width: 6, height: 6, borderRadius: 999, backgroundColor: 'var(--error)' }}
+            />
+            Connection failed
           </span>
-          <span className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-primary)' }}>
-            {progress.errorMessage ?? errorMessageOverride ?? errorMeta.helper}
-          </span>
-          {errorMeta.helpLinkHref && errorMeta.helpLinkLabel && (
+          <ConnectorErrorMessage
+            text={progress.errorMessage ?? errorMessageOverride ?? errorMeta.helper}
+          />
+          {/* The step's doc link only applies to the generic step failure. When a
+              specific cause replaces the copy (duplicate account, write access),
+              the link is off-topic — suppress it. */}
+          {!customErrorMessage && errorMeta.helpLinkHref && errorMeta.helpLinkLabel && (
             <a
               href={errorMeta.helpLinkHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-body text-xs font-medium underline self-start mt-xxs"
+              className="font-body text-xs font-medium underline self-start"
               style={{ color: 'var(--brand)' }}
             >
               {errorMeta.helpLinkLabel}
@@ -757,7 +815,7 @@ function ProgressBody({
       {state === 'failed' && (
         <div className="flex gap-m w-full">
           <Button variant="secondary" size="lg" className="flex-1" onClick={onCancel}>
-            Cancel
+            Close
           </Button>
           <Button variant="primary" size="lg" className="flex-1" onClick={onRetry ?? onCancel}>
             Try again
@@ -914,32 +972,35 @@ function SuccessBody({
         ))}
       </ol>
 
+      {/* Done summary card — status pill on top, copy below (mirrors the
+          production connectors dialog). */}
       <div
-        className="flex items-center gap-s p-m rounded-m"
+        className="flex flex-col items-start gap-xs p-m rounded-m"
         style={{
           backgroundColor: verdict === 'GREEN' ? 'var(--success-bg)' : 'var(--warning-bg)',
           border: `1px solid ${verdict === 'GREEN' ? 'var(--success)' : 'var(--warning)'}`,
         }}
       >
         <ConnectionStatusPill variant={verdictVariant} />
-        <span className="font-body text-s flex-1 min-w-0 truncate" style={{ color: 'var(--text-primary)' }}>
-          {tableCount === 0 ? (
-            <>No tables were imported from <strong>{database || 'your database'}</strong>.</>
-          ) : (
-            <>
-              Imported <strong>{tableCount}</strong> table{tableCount === 1 ? '' : 's'} from{' '}
-              <strong>{database || 'your database'}</strong>.
-            </>
+        <span className="font-body text-s flex flex-col gap-xxxs leading-[1.5]" style={{ color: 'var(--text-primary)' }}>
+          <span>
+            {tableCount === 0 ? (
+              <>No tables were imported from <strong>{database || 'your database'}</strong>.</>
+            ) : (
+              <>
+                Imported <strong>{tableCount}</strong> table{tableCount === 1 ? '' : 's'} from{' '}
+                <strong>{database || 'your database'}</strong>.
+              </>
+            )}
+          </span>
+          {verdict === 'YELLOW' && (summary?.needsDescriptions ?? 0) > 0 && (
+            <span>
+              {summary!.needsDescriptions} table{summary!.needsDescriptions === 1 ? ' still needs' : 's still need'}{' '}
+              descriptions for sharper answers.
+            </span>
           )}
         </span>
       </div>
-
-      {summary?.verdictReason && verdict === 'YELLOW' && (
-        <p className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-          {summary.verdictReason} Add the missing descriptions on the Snowflake page
-          so Oracle&rsquo;s answers stay grounded.
-        </p>
-      )}
 
       <div className="flex gap-m w-full">
         <Button variant="primary" size="lg" className="flex-1" onClick={onDone}>
