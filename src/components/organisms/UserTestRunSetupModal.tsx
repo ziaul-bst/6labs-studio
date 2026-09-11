@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { VideoLibraryCard } from '../molecules/VideoLibraryCard'
 import { batchTag } from '../../lib/libraryTags'
+import { SearchIcon } from '../icons/SearchIcon'
 import { useLibraryDemoState } from '../../lib/libraryDemoState'
 import { VideosEmptyState } from '../molecules/VideosEmptyState'
 import { FilterPill } from '../atoms/FilterPill'
@@ -146,20 +147,27 @@ export function UserTestRunSetupModal({
     [pool, source, search, activeTags],
   )
 
-  const groups = useMemo(() => {
-    const byTag = new Map<string, PickerVideo[]>()
-    visible.forEach((v) => {
-      const list = byTag.get(v.tag) ?? []
-      list.push(v)
-      byTag.set(v.tag, list)
-    })
-    return [...byTag.entries()].sort(
-      (a, b) =>
-        Number(activeTags.has(b[0])) - Number(activeTags.has(a[0])) || b[1].length - a[1].length,
-    )
-  }, [visible, activeTags])
+  /* One flat grid, like the Gameplay Library. Sections by tag restated the tag
+     rail directly above them and the Batch pill on every card, and each header
+     carried its own "Select all <tag>" — a third way to do what the rail and
+     the card checkboxes already did. Clips the active tags picked out lead, so
+     filtering still surfaces what you asked for first. */
+  const shown = useMemo(
+    () =>
+      [...visible].sort(
+        (a, b) => Number(activeTags.has(b.tag)) - Number(activeTags.has(a.tag)),
+      ),
+    [visible, activeTags],
+  )
+
+  /* Pickable = ready; uploading and failed clips are shown but cannot be taken. */
+  const shownReady = useMemo(() => shown.filter((v) => v.status === 'ready'), [shown])
 
   if (!isOpen) return null
+
+  const shownReadySelected = shownReady.reduce((n, v) => n + (selected.has(v.id) ? 1 : 0), 0)
+  const allShownSelected = shownReady.length > 0 && shownReadySelected === shownReady.length
+  const someShownSelected = shownReadySelected > 0
 
   const selectedCount = selected.size
   const minutes = Math.round(selectedCount * AVG_MINUTES_PER_VIDEO)
@@ -195,12 +203,12 @@ export function UserTestRunSetupModal({
     })
   }
 
-  const setGroupSelection = (tag: string, on: boolean) => {
+  /* Scoped to what is on screen and pickable — a select-all under an active
+     filter has to mean the clips you can see. */
+  const setAllShownSelected = (on: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev)
-      pool.filter((v) => v.tag === tag && v.status === 'ready').forEach((v) =>
-        on ? next.add(v.id) : next.delete(v.id),
-      )
+      shownReady.forEach((v) => (on ? next.add(v.id) : next.delete(v.id)))
       return next
     })
   }
@@ -316,6 +324,22 @@ export function UserTestRunSetupModal({
                 />
               ))}
 
+              <FilterPill
+                label="Last 24h"
+                count={recentCount}
+                selected={activeTags.has('__recent')}
+                onClick={() => toggleTag('__recent')}
+                multi
+              />
+
+              {/* Same order as the Gameplay Library rail: everything left of
+                  the rule filters on click, the tail opens a menu. */}
+              <span
+                className="w-px h-[20px] shrink-0"
+                style={{ backgroundColor: 'var(--border-default)' }}
+                aria-hidden
+              />
+
               <TagOverflowMenu
                 tags={overflowTags}
                 countByTag={readyCountByTag}
@@ -324,38 +348,56 @@ export function UserTestRunSetupModal({
                 totalTags={allTags.length}
               />
 
-              <FilterPill
-                label="Last 24h"
-                count={recentCount}
-                selected={activeTags.has('__recent')}
-                onClick={() => toggleTag('__recent')}
-                multi
-              />
             </div>
 
             {/* Filter bar */}
             <div
-              className="flex items-center gap-xs px-xl py-s"
+              className="flex items-center gap-s px-xl py-s"
               style={{
                 backgroundColor: 'var(--bg-page-pale)',
                 borderTop: '1px solid var(--border-subtle)',
                 borderBottom: '1px solid var(--border-subtle)',
               }}
             >
-              <div className="w-[320px]">
+              {/* Same toolbar order as the Gameplay Library: the one control
+                  that acts on the collection leads, a rule separates it from the
+                  two that only narrow it, and search sits opposite on the right. */}
+              {shownReady.length > 0 && (
+                <>
+                  <label className="flex items-center gap-xs shrink-0 cursor-pointer">
+                    <Checkbox
+                      checked={allShownSelected}
+                      indeterminate={someShownSelected && !allShownSelected}
+                      onChange={() => setAllShownSelected(!allShownSelected)}
+                      aria-label={allShownSelected ? 'Deselect all shown videos' : 'Select all shown videos'}
+                    />
+                    <span className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
+                      {allShownSelected ? 'Deselect all' : `Select all ${shownReady.length}`}
+                    </span>
+                  </label>
+                  <span
+                    className="w-px h-[20px] shrink-0"
+                    style={{ backgroundColor: 'var(--border-default)' }}
+                    aria-hidden
+                  />
+                </>
+              )}
+
+              <span className="font-body text-s text-text-tertiary leading-[1.5] shrink-0">
+                Source
+              </span>
+              <SourceFilter value={source} onChange={setSource} />
+              <span className="flex-1" />
+              <div className="library-search w-[320px] shrink">
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search videos"
                   aria-label="Search videos"
                   size="lg"
+                  leftIcon={<SearchIcon size={20} />}
                 />
               </div>
-              <span className="font-body text-s text-text-tertiary leading-[1.5] shrink-0">
-                Source
-              </span>
-              <SourceFilter value={source} onChange={setSource} />
-              <span className="flex-1" />
             </div>
 
               </>
@@ -378,7 +420,7 @@ export function UserTestRunSetupModal({
                   }
                 />
               ) : (
-                groups.length === 0 && (
+                shown.length === 0 && (
                   /* The dialog used to shrink to one grey line here, which read
                      as a broken picker rather than an empty result — and hid the
                      fact that a selection was still held. So: the library's own
@@ -397,73 +439,28 @@ export function UserTestRunSetupModal({
                   />
                 )
               )}
-              {groups.map(([tag, videos]) => {
-                const ready = videos.filter((v) => v.status === 'ready')
-                const chosen = ready.filter((v) => selected.has(v.id)).length
-                const all = ready.length > 0 && chosen === ready.length
-                /* Both held-back reasons are named: a clip still arriving will
-                   become pickable, a failed one needs re-uploading. */
-                const uploading = videos.filter((v) => v.status === 'uploading').length
-                const failed = videos.filter((v) => v.status === 'failed').length
-
-                return (
-                  <div key={tag} className="flex flex-col gap-s">
-                    <div
-                      className="flex items-center gap-xs pb-xs"
-                      style={{ borderBottom: '1px solid var(--border-subtle)' }}
-                    >
-                      <Checkbox
-                        checked={all}
-                        indeterminate={chosen > 0 && !all}
-                        onChange={() => setGroupSelection(tag, !all)}
-                        aria-label={`Select all ${tag} recordings`}
-                      />
-                      {/* Baseline-aligned, matching the Gameplay Library group
-                          header — box-centring two type sizes drifts the smaller
-                          one above the title's baseline. */}
-                      <div className="flex items-baseline gap-xs min-w-0">
-                        <span className="font-display text-s font-semibold text-text-primary">
-                          {tag}
-                        </span>
-                        <span className="font-body text-xs text-text-tertiary whitespace-nowrap">
-                          {videos.length} video{videos.length > 1 ? 's' : ''}
-                          {uploading > 0 && ` · ${uploading} uploading`}
-                          {failed > 0 && ` · ${failed} failed`}
-                        </span>
-                      </div>
-                      <span className="flex-1" />
-                      <button
-                        type="button"
-                        onClick={() => setGroupSelection(tag, !all)}
-                        className="font-body text-xs font-semibold text-text-brand hover:underline"
-                      >
-                        {all ? 'Deselect ' + tag : 'Select all ' + tag}
-                      </button>
-                    </div>
-
-                    <div className="grid gap-m" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }}>
-                      {videos.map((v) => (
-                        <VideoLibraryCard
-                          key={v.id}
-                          title={v.title}
-                          dateLabel={v.meta}
-                          sourceLabel={PICKER_SOURCE_LABELS[v.source]}
-                          durationLabel={v.duration}
-                          gradient={v.gradient}
-                          status={v.status}
-                          progress={100}
-                          tags={[batchTag(v.tag)]}
-                          selected={selected.has(v.id)}
-                          onToggleSelect={() => toggleVideo(v)}
-                          onOpen={() => toggleVideo(v)}
-                          showRowActions={false}
-                          className={v.status === 'ready' ? undefined : 'opacity-60 pointer-events-none'}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
+              {shown.length > 0 && (
+                <div className="grid gap-m" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }}>
+                  {shown.map((v) => (
+                    <VideoLibraryCard
+                      key={v.id}
+                      title={v.title}
+                      dateLabel={v.meta}
+                      sourceLabel={PICKER_SOURCE_LABELS[v.source]}
+                      durationLabel={v.duration}
+                      gradient={v.gradient}
+                      status={v.status}
+                      progress={100}
+                      tags={[batchTag(v.tag)]}
+                      selected={selected.has(v.id)}
+                      onToggleSelect={() => toggleVideo(v)}
+                      onOpen={() => toggleVideo(v)}
+                      showRowActions={false}
+                      className={v.status === 'ready' ? undefined : 'opacity-60 pointer-events-none'}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
 
             <div
