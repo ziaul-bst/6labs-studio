@@ -14,6 +14,7 @@
  * Code-first prototype — no Figma source yet.
  */
 import { useSyncExternalStore } from 'react'
+import { runDateLabel } from './runDate'
 
 export type BuildStatus = 'uploading' | 'ready' | 'failed'
 
@@ -123,7 +124,7 @@ function run(id: string, fromProgress: number, outcome: 'ready' | 'failed') {
       return
     }
     /* The new build becomes the newest one; the old newest steps down. */
-    builds = builds.map((b) => (b.id === id ? { ...b, status: 'ready', progress: 100, newest: true, uploadedLabel: 'uploaded just now' } : { ...b, newest: false }))
+    builds = builds.map((b) => (b.id === id ? { ...b, status: 'ready', progress: 100, newest: true, uploadedLabel: `uploaded ${runDateLabel()}` } : { ...b, newest: false }))
     emit()
   }, 260)
   timers.set(id, t)

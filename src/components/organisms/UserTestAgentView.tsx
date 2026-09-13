@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { runDateLabel } from '../../lib/runDate'
 import { TestingHomeEmpty } from './TestingHomeEmpty'
 import { UserTestHome } from './UserTestHome'
 import { useRunDemoSeed } from '../../lib/runDemoState'
@@ -147,7 +148,7 @@ export function UserTestAgentView({
               id: 'demo-running',
               state: 'progress',
               result: undefined,
-              when: 'now',
+              when: runDateLabel(),
             }
           : { ...base, state: 'done' },
       gameContext: 'Onboarding flow v3',
@@ -179,7 +180,7 @@ export function UserTestAgentView({
       detail: `${chosen.length} videos${gameContext ? '' : ' · no game context'}`,
       meta: tags.join(', ') || 'untagged',
       state: 'progress',
-      when: 'now',
+      when: runDateLabel(),
     }
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)
@@ -249,7 +250,7 @@ export function UserTestAgentView({
                   [...new Set(PICKER_VIDEOS.filter((v) => videoIds.includes(v.id)).map((v) => v.tag))].join(', ') ||
                   'untagged',
                 state: 'done',
-                when: 'now',
+                when: runDateLabel(),
               }
               setRuns((prev) => [asked, ...prev])
               setThread({ run: asked, question, gameContext, videoCount: videoIds.length })

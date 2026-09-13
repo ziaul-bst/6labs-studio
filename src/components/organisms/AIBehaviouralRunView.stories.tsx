@@ -8,14 +8,14 @@ const meta = AI_BEHAVIOURAL_RUN_META[run.id]
 const sessions = buildAgentSessions(run.id, meta)
 const issues = buildAgentIssues(sessions, run.result?.kind === 'issues' ? run.result.count : 7)
 
-const liveMeta = { ...meta, finished: 12, startedLabel: 'just now' }
+const liveMeta = { ...meta, finished: 12, startedLabel: 'Sep 14' }
 const liveSessions = buildAgentSessions('demo-running', liveMeta, 6)
 
 function Host({ initialTab, live }: { initialTab: AIBehaviouralRunTab; live?: boolean }) {
   const [tab, setTab] = useState<AIBehaviouralRunTab>(initialTab)
   return (
     <AIBehaviouralRunView
-      run={live ? { ...run, id: 'demo-running', state: 'progress', result: undefined, when: 'now' } : run}
+      run={live ? { ...run, id: 'demo-running', state: 'progress', result: undefined, when: 'Sep 14' } : run}
       meta={live ? liveMeta : meta}
       sessions={live ? liveSessions : sessions}
       issues={live ? [] : issues}

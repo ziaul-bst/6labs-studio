@@ -42,7 +42,7 @@ export const Empty: Story = {
 export const MixedStates: Story = {
   args: {
     runs: [
-      { id: 'p', name: 'Season 10 — store', detail: '1 file · regression-suite.xlsx', meta: 'v2.3.1', state: 'progress', when: 'now' },
+      { id: 'p', name: 'Season 10 — store', detail: '1 file · regression-suite.xlsx', meta: 'v2.3.1', state: 'progress', when: 'Sep 14' },
       { id: 'clean', name: 'Daily smoke', detail: '4 sessions · 10 min', meta: 'v2.3.1', state: 'done', result: { kind: 'issues', count: 0 }, when: 'Sep 1' },
       ...AI_FUNCTIONAL_HISTORY,
     ],

@@ -13,6 +13,7 @@
  * Code-first prototype — no Figma source yet.
  */
 import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { runDateLabel } from './runDate'
 import type { TestRunHistoryItem } from './types/testing'
 
 export type HistoryDemoState = 'seeded' | 'empty' | 'progress' | 'failed' | 'many' | 'reports'
@@ -100,9 +101,9 @@ export function seedHistory(
             state: 'progress',
             result: undefined,
             detail: first.detail,
-            when: 'now',
+            when: runDateLabel(),
           }
-        : { id: 'demo-progress', name: 'Run', detail: '—', meta: '—', state: 'progress', when: 'now' }
+        : { id: 'demo-progress', name: 'Run', detail: '—', meta: '—', state: 'progress', when: runDateLabel() }
       return { runs: [live, ...base], highlightId: live.id }
     }
     default:

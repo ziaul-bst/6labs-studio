@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { runDateLabel } from '../../lib/runDate'
 import { TestingPageHeader } from '../molecules/TestingPageHeader'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
@@ -72,7 +73,7 @@ function metaForRun(run: TestRunHistoryItem): AIBehaviouralRunMeta {
       ? Object.fromEntries(parts.map((p) => [p.name, p.count as number]))
       : undefined,
     lengthLabel: m?.[2] ?? '30 min',
-    startedLabel: run.when === 'now' ? 'just now' : run.when,
+    startedLabel: run.when,
     finished: agents,
   }
   if (run.state === 'progress') return { ...base, finished: Math.round(agents * 0.6) }
@@ -157,7 +158,7 @@ export function AIBehaviouralTestView({
     const base = AI_BEHAVIOURAL_HISTORY[0]
     if (state === 'running') {
       /* Distinct id — a seeded id resolves back to its finished copy in `runs`. */
-      setOpenRun({ ...base, id: 'demo-running', state: 'progress', result: undefined, when: 'now' })
+      setOpenRun({ ...base, id: 'demo-running', state: 'progress', result: undefined, when: runDateLabel() })
       setLiveReached(4)
       setRunTab('videos')
     } else {
@@ -218,7 +219,7 @@ export function AIBehaviouralTestView({
       detail: `${totalAgents} sessions · ${lengthLabel} · ${build}`,
       meta: personas.map((p) => `${p.label} ×${countOf(p.id)}`).join(', '),
       state: 'progress',
-      when: 'now',
+      when: runDateLabel(),
     }
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)

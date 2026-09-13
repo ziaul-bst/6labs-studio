@@ -32,7 +32,7 @@ import { RunHistoryEmptyState, type RunHistoryEmptyAction } from './RunHistoryEm
 import { FailedGlyph } from './RunFailedNotice'
 import Button from '../ui/Button'
 import { ChevronIcon } from '../icons/ChevronIcon'
-import type { TestRunHistoryItem, TestRunKind, TestRunResult } from '../../lib/types/testing'
+import type { TestRunHistoryItem, TestRunKind } from '../../lib/types/testing'
 
 export interface RunHistoryListProps {
   runs: TestRunHistoryItem[]
@@ -65,9 +65,10 @@ export interface RunHistoryListProps {
 
 /* Every row is its own grid, so every column that isn't the flexible name must
    be a fixed width — an `auto` result column would resize per row and walk
-   the tag column left and right. 128px fits the widest result (three counts);
-   180px fits a two-persona split ("New player ×12, Whale ×8"). */
-const GRID = '40px minmax(0, 1fr) 180px 128px 64px'
+   the tag column left and right. 184px fits a two-persona split ("New player
+   ×12, Whale ×8"), 200px fits the widest result (three counts, or the Failed
+   pill with its reason under it), and 136px fits the longest row action. */
+const GRID = '40px minmax(0, 1fr) 184px 200px 72px 124px'
 
 type KindFilter = 'all' | TestRunKind
 
@@ -169,6 +170,7 @@ export function RunHistoryList({
           <HeaderCell>{metaLabel}</HeaderCell>
           <HeaderCell>Result</HeaderCell>
           <HeaderCell align="right">Date</HeaderCell>
+          <span aria-hidden />
         </div>
       )}
 
@@ -237,35 +239,52 @@ export function RunHistoryList({
                 <span className="font-display text-s font-semibold text-text-primary leading-[1.45] line-clamp-2 min-w-0">
                   {run.name}
                 </span>
-                {inProgress && onWatchLive && (
-                  /* The one thing worth doing with a run in flight is watching
-                     it — so the row says so, without waiting for a click-through. */
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onWatchLive(run)
-                    }}
-                    className="inline-flex shrink-0 items-center gap-xxs font-body text-xs font-semibold text-text-brand leading-[1.5] hover:underline whitespace-nowrap"
-                  >
-                    <i className="agent-live-dot" aria-hidden />
-                    Watch live
-                  </button>
-                )}
               </span>
-              {/* A failed row gives its line to why it stopped — that is the
-                  fact a reader needs before deciding whether to open it. */}
+              {/* What went in, on every row and in every state. A failed run
+                  still read 8 videos and a case file, and hiding that behind
+                  the failure left the reader unable to tell the rows apart —
+                  the reason now sits with the status instead. */}
               <span className="font-body text-xs text-text-tertiary leading-[1.5] truncate">
-                {failed && run.failure ? run.failure : run.detail}
-                {!failed && run.withUx ? ' · functional + UX' : ''}
+                {run.detail}
+                {run.withUx ? ' · functional + UX' : ''}
               </span>
             </span>
 
             <span className="font-body text-s text-text-secondary leading-[1.5] truncate">{run.meta}</span>
 
-            <ResultCell kind={kind} state={run.state} result={run.result} />
+            <ResultCell kind={kind} run={run} />
 
             <span className="font-body text-s text-text-tertiary leading-[1.5] text-right whitespace-nowrap">{run.when}</span>
+
+            {/* The row is clickable, but a table of ten rows needs the verb
+                spelled out somewhere — and a run still playing is opened for a
+                different reason than a finished one. */}
+            <span className="flex items-center justify-end">
+              {inProgress && onWatchLive ? (
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onWatchLive(run)
+                  }}
+                  leftIcon={<i className="agent-live-dot" aria-hidden />}
+                >
+                  Watch live
+                </Button>
+              ) : run.state === 'never' ? null : (
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onOpen?.(run)
+                  }}
+                >
+                  {failed ? 'View details' : isQuestion ? 'View answer' : inProgress ? 'View progress' : 'View report'}
+                </Button>
+              )}
+            </span>
           </div>
         )
       })}
@@ -331,22 +350,29 @@ function HeaderCell({ children, align }: { children: ReactNode; align?: 'right' 
   )
 }
 
-function ResultCell({
-  kind,
-  state,
-  result,
-}: {
-  kind: TestRunKind
-  state: TestRunHistoryItem['state']
-  result?: TestRunResult
-}) {
+function ResultCell({ kind, run }: { kind: TestRunKind; run: TestRunHistoryItem }) {
+  const { state, result } = run
   if (state === 'progress') {
     return <Pill bg="var(--bg-tint)" ink="var(--text-brand)">In progress</Pill>
   }
   /* Failed is a status, not a score, but it is the one status that must be
-     seen from across the room — so it takes a pill, in the error pair. */
+     seen from across the room — so it takes a pill, in the error pair, with
+     the reason directly under it: the status says stop, the line says why. */
   if (state === 'failed') {
-    return <Pill bg="var(--error-bg)" ink="var(--error)">Failed</Pill>
+    return (
+      <span className="flex flex-col items-start gap-xxs min-w-0">
+        <Pill bg="var(--error-bg)" ink="var(--error)">Failed</Pill>
+        {run.failure && (
+          <span
+            className="font-body text-xs leading-[1.45] line-clamp-2 min-w-0"
+            style={{ color: 'var(--error)' }}
+            title={run.failure}
+          >
+            {run.failure}
+          </span>
+        )}
+      </span>
+    )
   }
   /* No outcome to score: plain text, not a pill, so a pill always means a
      score. A question was answered; its follow-up count is in its detail. */

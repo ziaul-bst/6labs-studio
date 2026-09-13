@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { runDateLabel } from '../../lib/runDate'
 import { TestingPageHeader } from '../molecules/TestingPageHeader'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
@@ -101,7 +102,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
       detail: `${files.length} file${files.length === 1 ? '' : 's'} · ${files[0].name}`,
       meta: build,
       state: 'progress',
-      when: 'now',
+      when: runDateLabel(),
     }
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)

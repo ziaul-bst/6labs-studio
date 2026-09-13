@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { runDateLabel } from '../../lib/runDate'
 import { useRunDemoSeed } from '../../lib/runDemoState'
 import { TestingPageHeader } from '../molecules/TestingPageHeader'
 import { TestingTabs } from '../molecules/TestingTabs'
@@ -156,7 +157,7 @@ export function FunctionalTestView({
       state === 'running'
         ? /* Distinct id for the same reason as User Test — a seeded id resolves
              back to its finished copy. */
-          { ...base, id: 'demo-running', state: 'progress', result: undefined, when: 'now' }
+          { ...base, id: 'demo-running', state: 'progress', result: undefined, when: runDateLabel() }
         : { ...base, state: 'done' },
     )
   })
@@ -192,7 +193,7 @@ export function FunctionalTestView({
       detail: `${selected.length} videos · ${testCases[0].name}`,
       meta: tags[0] ?? '—',
       state: 'progress',
-      when: 'now',
+      when: runDateLabel(),
       withUx: agency,
     }
     setRuns((prev) => [run, ...prev])
