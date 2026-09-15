@@ -9,7 +9,6 @@ import type {
   AgentStep,
   AIBehaviouralRunMeta,
   BuildOption,
-  FunctionalModule,
   Persona,
   TestRunHistoryItem,
 } from '../types/testing'
@@ -48,57 +47,6 @@ export const AI_BEHAVIOURAL_HISTORY: TestRunHistoryItem[] = [
 
 // ── Functional report ─────────────────────────────────────────────────────────
 
-export const FUNCTIONAL_MODULES: FunctionalModule[] = [
-  {
-    name: 'Onboarding',
-    cases: [
-      { id: 'TC-01', title: 'Complete the tutorial on a fresh install', priority: 'p0', outcome: 'pass' },
-      { id: 'TC-02', title: 'Skip the tutorial at the first opportunity', priority: 'p1', outcome: 'pass' },
-      { id: 'TC-03', title: 'Open every primary tab once', priority: 'p1', outcome: 'pass' },
-      { id: 'TC-04', title: 'Account linking on first launch', priority: 'p2', outcome: 'pass' },
-      { id: 'TC-05', title: 'Resume onboarding after a force close', priority: 'p2', outcome: 'pass' },
-    ],
-  },
-  {
-    name: 'Store and purchases',
-    cases: [
-      { id: 'TC-06', title: 'Battle Pass premium purchase', priority: 'p0', severity: 'critical', outcome: 'fail' },
-      { id: 'TC-07', title: 'Limited offer countdown', priority: 'p1', outcome: 'pass' },
-      { id: 'TC-08', title: 'Insufficient balance on purchase', priority: 'p1', outcome: 'pass' },
-      { id: 'TC-09', title: 'Purchase restore after reinstall', priority: 'p1', outcome: 'review' },
-      { id: 'TC-10', title: 'Store grid after an offer expires', priority: 'p2', outcome: 'pass' },
-      { id: 'TC-11', title: 'Gift a bundle to an alliance member', priority: 'p2', outcome: 'pass' },
-    ],
-  },
-  {
-    name: 'Progression',
-    cases: [
-      { id: 'TC-12', title: 'Chapter 2 unlock after Chapter 1 stars', priority: 'p0', outcome: 'pass' },
-      { id: 'TC-13', title: 'Hero level-up with insufficient XP', priority: 'p1', outcome: 'pass' },
-      { id: 'TC-14', title: 'Furnace upgrade from tutorial hint', priority: 'p1', severity: 'major', outcome: 'fail' },
-      { id: 'TC-15', title: 'Daily quest reset at 00:00 UTC', priority: 'p2', outcome: 'blocked' },
-    ],
-  },
-  {
-    name: 'Alliance and social',
-    cases: [
-      { id: 'TC-16', title: 'Join an open alliance', priority: 'p1', outcome: 'pass' },
-      { id: 'TC-17', title: 'Rally start with 3 members', priority: 'p1', outcome: 'pass' },
-      { id: 'TC-18', title: 'Chat message with emoji', priority: 'p2', outcome: 'pass' },
-      { id: 'TC-19', title: 'Leave alliance during rally', priority: 'p2', outcome: 'review' },
-      { id: 'TC-20', title: 'Alliance help request cooldown', priority: 'p2', outcome: 'pass' },
-    ],
-  },
-  {
-    name: 'Settings',
-    cases: [
-      { id: 'TC-21', title: 'Language switch to Korean', priority: 'p1', outcome: 'pass' },
-      { id: 'TC-22', title: 'Notification toggle persists', priority: 'p2', outcome: 'pass' },
-      { id: 'TC-23', title: 'Cloud save restore', priority: 'p1', outcome: 'pass' },
-      { id: 'TC-24', title: 'Log out and log back in', priority: 'p2', outcome: 'pass' },
-    ],
-  },
-]
 
 /** Sample test-case files the upload zones resolve to (prototype only). */
 export const SAMPLE_TEST_CASE_FILES = [
@@ -205,6 +153,9 @@ const AI_ONLY_ISSUES: UserTestIssue[] = [
     id: 'bp-path',
     rank: 8,
     kind: 'friction',
+    severity: 'disruptive',
+    group: 'usability',
+    category: 'Friction — monetization',
     title: 'Battle pass upgrade path not reachable from the event screen',
     summary: 'Whale agents told to try the upgrade looked for it inside Frost Festival and gave up after two screens.',
     detail: 'Every whale session opened the event, scrolled the rules, and backed out to the store — the upgrade lives three taps away with no link from the event it boosts.',
@@ -214,12 +165,17 @@ const AI_ONLY_ISSUES: UserTestIssue[] = [
     affected: 6,
     totalTesters: 20,
     metric: '2 screens avg before giving up',
+    recommendation:
+      'Link the upgrade from the event screen it boosts, or surface the pass tier inline on the event reward list.',
     clips: [],
   },
   {
     id: 'rules-text',
     rank: 9,
     kind: 'friction',
+    severity: 'cosmetic',
+    group: 'usability',
+    category: 'Friction — usability',
     title: 'Event rules skipped in under 3 seconds',
     summary: 'New-player agents scrolled the rules once and started without reading — the text is below the fold.',
     detail: 'Time on the rules screen was 2–3s in every new-player session. Only the banner is above the fold; the rules start below it.',
@@ -228,6 +184,8 @@ const AI_ONLY_ISSUES: UserTestIssue[] = [
     confidence: 'medium',
     affected: 5,
     totalTesters: 20,
+    recommendation:
+      'Lift the first two rules above the fold, or collapse them into a one-line summary with a "full rules" link.',
     clips: [],
   },
 ]

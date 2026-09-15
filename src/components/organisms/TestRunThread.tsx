@@ -306,10 +306,10 @@ export function TestRunThread({
                   <div className="flex flex-col gap-xs px-xs pb-xs" style={{ borderTop: '1px solid var(--border-subtle)' }}>
                     <span className="flex items-baseline gap-xs px-m pt-m font-display text-s font-semibold text-text-primary">
                       What {agentName} found
-                      <span className="font-body text-xs font-normal text-text-tertiary">ranked by testers affected</span>
+                      <span className="font-body text-xs font-normal text-text-tertiary">ranked by sessions affected</span>
                     </span>
                     {issues.slice(0, 4).map((issue) => (
-                      <UserTestIssueCard key={issue.id} issue={issue} onClick={onOpenReport} baselineLabel="the previous run" />
+                      <UserTestIssueCard key={issue.id} issue={issue} onClick={onOpenReport} />
                     ))}
                   </div>
 

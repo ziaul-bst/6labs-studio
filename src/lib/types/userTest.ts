@@ -18,6 +18,25 @@
 
 export type IssueKind = 'bug' | 'friction'
 
+/**
+ * What the finding cost the tester, which is a different axis from what kind of
+ * defect it is. A cosmetic bug and a blocking one are the same kind and nothing
+ * like the same problem, and the report is read severity-first.
+ *
+ *   blocking   — progress was impossible from the on-screen controls.
+ *   disruptive — recoverable, but it cost taps, time, or a wrong turn.
+ *   cosmetic   — visible, with no behavioural consequence in the batch.
+ */
+export type IssueSeverity = 'blocking' | 'disruptive' | 'cosmetic'
+
+/**
+ * Section of the report a finding is filed under. Groups are about what a
+ * reader would fix together, which is why they don't line up one-to-one with
+ * `category` — "Struggle hotspots" collects repeated-action patterns wherever
+ * they come from.
+ */
+export type FindingGroup = 'stability' | 'usability' | 'struggle' | 'visual'
+
 /** How much the finding can be trusted. `verified` only ever applies to bugs. */
 export type IssueConfidence = 'verified' | 'high' | 'medium'
 
@@ -39,9 +58,14 @@ export interface UserTestClip {
 
 export interface UserTestIssue {
   id: string
-  /** Position in the ranked list — by testers affected, not by severity. */
+  /** Position in the ranked list — by sessions affected, not by severity. */
   rank: number
   kind: IssueKind
+  severity: IssueSeverity
+  /** Section of the full report this finding is filed under. */
+  group: FindingGroup
+  /** Row of the "findings by category" table — "Bug — technical". */
+  category: string
   title: string
   /** One line under the title on the summary screen. */
   summary: string
@@ -49,6 +73,14 @@ export interface UserTestIssue {
   detail: string
   /** Game step the issue sits on, named by the game context document. */
   step: string
+  /**
+   * The step as the report prints it, with the position in the flow —
+   * "Tutorial › Furnace upgrade · step 4 of 11". Falls back to `step`.
+   */
+  stepLabel?: string
+  /** What to do about it. Every finding carries one; a finding without a
+   *  recommendation is an observation, and the report does not ship those. */
+  recommendation: string
   status: IssueStatus
   confidence: IssueConfidence
   affected: number
@@ -79,6 +111,32 @@ export interface UserTestStepRow {
   dropOff: string
   /** Set when the step is the worst one in the batch — drives the red treatment. */
   critical?: boolean
+}
+
+/** One row of the report's "findings by category" table. */
+export interface UserTestCategoryRow {
+  label: string
+  /** Colours the dot — bugs red, friction amber. */
+  tone: IssueKind
+  findings: number
+  sessionsAffected: number
+  blocking: number
+}
+
+/** The report's masthead — what it is, of what, generated when. */
+export interface UserTestReportMeta {
+  /** "Build 2.2 — onboarding round" */
+  title: string
+  game: string
+  /** "14 Sep 2026" */
+  generated: string
+  /** "UT-0412" — printed as "run #UT-0412". */
+  runId: string
+  /** Sessions the run read, for the first tile. */
+  sessions: number
+  footageLabel: string
+  /** The paragraph under the tiles: what the run found, in prose. */
+  narrative: string
 }
 
 export type ComparisonChange = 'new' | 'open' | 'fixed' | 'not-comparable'

@@ -28,3 +28,15 @@ export const AllIssuesPreviewed: Story = {
 export const BugScopeOnly: Story = {
   args: { issues: USER_TEST_ISSUES.filter((i) => i.kind === 'bug') },
 }
+
+/** No game-context document: findings are per video, and the facts line says so. */
+export const WithoutGameContext: Story = {
+  args: {
+    facts: {
+      videos: '10 videos · tag Build V2.1',
+      context: null,
+      devices: 'Pixel 7 · iPhone 13 · Galaxy S23',
+      when: 'Aug 26 · 31 min',
+    },
+  },
+}

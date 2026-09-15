@@ -35,7 +35,7 @@ import {
   ZoneFooter,
 } from '../molecules/TestingSetupPieces'
 import { UserTestRunSetupModal } from './UserTestRunSetupModal'
-import { FunctionalReportView } from './FunctionalReportView'
+import { FunctionalTestReport } from './FunctionalTestReport'
 import { runFailureText } from '../molecules/RunFailedNotice'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
@@ -205,7 +205,7 @@ export function FunctionalTestView({
   if (openRun) {
     const run = runs.find((r) => r.id === openRun.id) ?? openRun
     return (
-      <FunctionalReportView
+      <FunctionalTestReport
         title={run.name}
         subtitle={`${run.detail} · ${run.meta} · verified by 6labs agent`}
         mode="human"

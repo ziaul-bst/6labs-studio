@@ -18,9 +18,9 @@
 import { useEffect, useRef } from 'react'
 import { useSyncExternalStore } from 'react'
 
-export type RunDemoState = 'composer' | 'running' | 'thread' | 'report'
+export type RunDemoState = 'composer' | 'running' | 'thread' | 'summary' | 'report'
 
-export const RUN_DEMO_STATES: RunDemoState[] = ['composer', 'running', 'thread', 'report']
+export const RUN_DEMO_STATES: RunDemoState[] = ['composer', 'running', 'thread', 'summary', 'report']
 
 /** For views with no thread step between composing and the report. */
 export const RUN_DEMO_STATES_NO_THREAD: RunDemoState[] = ['composer', 'running', 'report']
@@ -29,6 +29,7 @@ export const RUN_DEMO_LABELS: Record<RunDemoState, string> = {
   composer: 'Composer',
   running: 'Running',
   thread: 'Thread',
+  summary: 'Run summary',
   report: 'Report',
 }
 
@@ -36,6 +37,7 @@ export const RUN_DEMO_NOTES: Record<RunDemoState, string> = {
   composer: 'Before a run — pick footage, add context, name it.',
   running: 'A run in flight. Normally a 16-second window; this holds it open.',
   thread: 'The finished run thread, with the answer and the follow-up dock.',
+  summary: 'The run page a finished report opens on — what it found, and how big.',
   report: 'The full report: issues ranked by testers affected, with clips.',
 }
 

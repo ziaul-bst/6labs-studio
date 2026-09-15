@@ -1,7 +1,7 @@
 /**
  * SearchIcon — magnifier for search fields.
  *
- * Promoted from the local `SearchGlyph` that FunctionalReportView had been
+ * Promoted from the local `SearchGlyph` the functional report had been
  * carrying, so the Testing area's search fields share one glyph instead of
  * redrawing it per view.
  *

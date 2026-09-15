@@ -10,26 +10,18 @@
  */
 
 import { ISSUE_KIND_FILL, IssueKindTag } from '../atoms/IssueKindTag'
+import { FindingSeverityTag } from '../atoms/FindingSeverityTag'
 import { PlayIcon } from '../icons/PlayIcon'
 import type { UserTestIssue } from '../../lib/types/userTest'
 
 export interface UserTestIssueCardProps {
   issue: UserTestIssue
-  /** Name of the run this one is compared against — drives the "new since" chip. */
-  baselineLabel?: string
   onClick?: () => void
   className?: string
 }
 
-const QUALIFIER: Record<UserTestIssue['confidence'], string> = {
-  verified: 'verified',
-  high: 'high confidence',
-  medium: 'medium confidence',
-}
-
 export function UserTestIssueCard({
   issue,
-  baselineLabel = 'batch 1',
   onClick,
   className,
 }: UserTestIssueCardProps) {
@@ -64,10 +56,15 @@ export function UserTestIssueCard({
           {issue.summary}
         </span>
 
+        {/* Severity first, kind second: "Bug" does not say whether to stop the
+            build, and the list is scanned for the ones that do. Three tags is
+            the ceiling — the confidence qualifier and the baseline chip both
+            said something the full report says properly, and a row carrying
+            five chips is read as none. */}
         <span className="flex flex-wrap items-center gap-xs pt-xxs">
-          <IssueKindTag kind={issue.kind} qualifier={QUALIFIER[issue.confidence]} />
+          <FindingSeverityTag severity={issue.severity} />
+          <IssueKindTag kind={issue.kind} />
           <span className="font-body text-xs text-text-tertiary leading-[1.5]">{issue.step}</span>
-          <StatusChip status={issue.status} baselineLabel={baselineLabel} />
           {issue.clips.length > 0 && (
             <span className="inline-flex items-center gap-xxs font-body text-xs text-text-brand leading-[1.5]">
               <PlayIcon size={12} />
@@ -82,7 +79,7 @@ export function UserTestIssueCard({
         <span className="font-display text-m font-semibold text-text-primary leading-[1.3] whitespace-nowrap">
           {issue.affected} / {issue.totalTesters}
         </span>
-        <span className="font-body text-xs text-text-tertiary leading-[1.5]">testers</span>
+        <span className="font-body text-xs text-text-tertiary leading-[1.5]">sessions</span>
         {(issue.metric || issue.scopeNote) && (
           <span className="font-body text-xs text-text-tertiary leading-[1.5] whitespace-nowrap">
             {issue.metric ?? issue.scopeNote}
@@ -90,34 +87,5 @@ export function UserTestIssueCard({
         )}
       </span>
     </button>
-  )
-}
-
-function StatusChip({
-  status,
-  baselineLabel,
-}: {
-  status: UserTestIssue['status']
-  baselineLabel: string
-}) {
-  if (status === 'fixed') return null
-  const isNew = status === 'new'
-  const label =
-    status === 'no-baseline'
-      ? `No baseline in ${baselineLabel}`
-      : isNew
-        ? `New since ${baselineLabel}`
-        : 'Still open'
-  return (
-    <span
-      className="inline-flex items-center px-xs py-xxxs rounded-xs font-body text-xs font-medium leading-[1.5] whitespace-nowrap"
-      style={
-        isNew
-          ? { color: 'var(--error)', backgroundColor: 'var(--error-bg)' }
-          : { color: 'var(--text-secondary)', backgroundColor: 'var(--bg-subtle)' }
-      }
-    >
-      {label}
-    </span>
   )
 }

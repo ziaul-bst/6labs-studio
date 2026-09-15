@@ -5,9 +5,9 @@
  * produces it. So the setup swaps the recordings zone for a build picker: drop
  * the cases, pick the build (an older build re-checks a failure you think a
  * new one introduced), optionally tell the agents where to start, and run.
- * The report is the same FunctionalReportView the human test uses — same
- * question, same table — with the progress card narrating agents instead of
- * videos.
+ * The report is the same FunctionalTestReport the human test uses — same
+ * question, same table, same case-detail modal — with the progress card
+ * narrating agents instead of videos.
  *
  * Code-first prototype — from the revamp artifact (screen s45).
  */
@@ -31,7 +31,7 @@ import {
   ZoneFilledHeader,
   ZoneFooter,
 } from '../molecules/TestingSetupPieces'
-import { FunctionalReportView } from './FunctionalReportView'
+import { FunctionalTestReport } from './FunctionalTestReport'
 import { runFailureText } from '../molecules/RunFailedNotice'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
@@ -113,7 +113,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
   if (openRun) {
     const run = runs.find((r) => r.id === openRun.id) ?? openRun
     return (
-      <FunctionalReportView
+      <FunctionalTestReport
         title={run.name}
         subtitle={`${run.detail} · build ${run.meta} · executed by AI Player, 3 agents`}
         mode="ai"

@@ -42,18 +42,16 @@ export const RunThread: Story = {
   },
 }
 
-/** The full report, landing on the ranked issue list. */
+/** The full report — the whole document, findings grouped by section. */
 export const FullReport: Story = {
   args: {
     initialScreen: 'report',
-    initialReportTab: 'issues',
   },
 }
 
-/** Arriving from "See what changed" — the report opens on the comparison cut. */
-export const CompareWithPreviousRun: Story = {
+/** The run summary a finished report opens on, one click above the report. */
+export const RunSummary: Story = {
   args: {
-    initialScreen: 'report',
-    initialReportTab: 'comparison',
+    initialScreen: 'summary',
   },
 }

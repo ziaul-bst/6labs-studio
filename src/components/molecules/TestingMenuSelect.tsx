@@ -84,14 +84,15 @@ export function TestingMenuSelect({
           chip
             ? 'rounded-round px-m py-xs font-body text-s font-medium'
             /* Matches Input size=lg exactly — 40px tall, same radius — so a select
-               beside a text field reads as the same family of control. */
-            : 'w-full h-[40px] px-s font-body text-s',
+               beside a text field reads as the same family of control. The radius
+               lives in the class, not inline, so a toolbar that rounds its whole
+               row can round this too. */
+            : 'testing-select-trigger w-full h-[40px] px-s font-body text-s',
         ].join(' ')}
         style={{
           backgroundColor: chip && chosen ? 'var(--bg-tint-light)' : 'var(--bg-elements)',
           border: `1px solid ${chip && chosen ? 'var(--border-tint)' : 'var(--border-default)'}`,
           color: chosen ? (chip ? 'var(--text-brand)' : 'var(--text-primary)') : 'var(--text-placeholder)',
-          borderRadius: chip ? undefined : 'var(--radius-input)',
         }}
       >
         {chip && !chosen && (

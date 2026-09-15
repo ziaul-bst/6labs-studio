@@ -15,6 +15,10 @@
   --bg-page-pale:      #F5F5F5;
   --bg-elements:       #FFFFFF;
   --bg-card:           #FFFFFF;
+  /* One step inside an --bg-elements surface. The scale had nothing between
+     white and --bg-page-pale, so a panel nested in a card had to borrow the
+     page grey and landed heavier than whatever it held. */
+  --bg-inset:          #FAFAFB;
   --bg-subtle:         #E6E7EA;
   --bg-tint:           rgba(23,112,239,0.14);
   --bg-tint-light:     rgba(23,112,239,0.07);
@@ -145,6 +149,7 @@
   --bg-page-pale:     #1A2236;
   --bg-elements:      #080D1A;
   --bg-card:          #111827;
+  --bg-inset:         #0E1524;
   --bg-subtle:        #1C2542;
   --bg-tint:          rgba(23,112,239,0.18);
   --bg-tint-light:    rgba(23,112,239,0.10);
@@ -2273,6 +2278,21 @@ textarea { resize: none; font-family: var(--font-body); }
   background-color: var(--bg-page-pale);
   border-color: var(--border-subtle);
 }
+/* Narrow: the reach column drops under the finding instead of squeezing the
+   title into a three-line column. "5 / 10 testers" is one line of text — it
+   does not need its own column badly enough to cost the title its measure. */
+@media (max-width: 820px) {
+  .user-test-issue {
+    flex-wrap: wrap;
+  }
+  .user-test-issue > :last-child {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-xs);
+    width: 100%;
+    padding-left: calc(28px + var(--space-m));
+  }
+}
 
 .user-test-issue-hd,
 .user-test-clip,
@@ -2285,13 +2305,6 @@ textarea { resize: none; font-family: var(--font-body); }
 .user-test-tag-row:hover,
 .user-test-doc-row:hover {
   background-color: var(--bg-page-pale);
-}
-
-.user-test-next {
-  transition: border-color 120ms ease;
-}
-.user-test-next:hover {
-  border-color: var(--border-brand-hover);
 }
 
 .user-test-tab {
@@ -2366,22 +2379,6 @@ textarea { resize: none; font-family: var(--font-body); }
   }
 }
 
-/* Run summary — the qualifier rail sits beside the findings only when the
-   findings column can still hold a sentence. Measured against the page body,
-   because the sidebar's width is not the content region's. */
-.run-summary-host {
-  container-type: inline-size;
-}
-.run-summary-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-}
-@container (min-width: 900px) {
-  .run-summary-body {
-    grid-template-columns: minmax(0, 1fr) 320px;
-  }
-}
-
 /* Finding rows: a wrapping row when the panel is narrow, the six-column grid
    when it is wide enough that nothing has to be squeezed. */
 .user-test-issue-grid {
@@ -2414,8 +2411,8 @@ textarea { resize: none; font-family: var(--font-body); }
   container-type: inline-size;
 }
 
-/* Six tiles: two rows of three, or three rows of two. Never five and an
-   orphan, which is what auto-fit produces at the widths in between. */
+/* Four tiles: one row, or two rows of two. Never three and an orphan, which
+   is what auto-fit produces at the widths in between. */
 .summary-panel-host {
   container-type: inline-size;
 }
@@ -2425,16 +2422,12 @@ textarea { resize: none; font-family: var(--font-body); }
 }
 @container (min-width: 560px) {
   .stat-tiles {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
-.user-test-ask-banner,
 .user-test-dock-launcher {
   transition: border-color 120ms ease, box-shadow 120ms ease;
-}
-.user-test-ask-banner:hover {
-  border-color: var(--border-brand-hover);
 }
 .user-test-dock-launcher:hover {
   border-color: var(--border-brand-hover);
@@ -2575,16 +2568,24 @@ textarea { resize: none; font-family: var(--font-body); }
 .rounded-l { border-radius: 10px; }
 .rounded-s { border-radius: 6px; }
 
-/* Search beside FilterPills — pill-shaped to match the row it sits in. */
-.testing-search .input-wrapper {
-  border-radius: 9999px;
-}
-
 /* Gameplay Library toolbar search — 12px, the same radius as the segmented
    control it sits beside, so the row reads as one set of controls instead of a
    6px input parked next to a 12px group. Not the full pill `.testing-search`
    uses: that row is all pills, this one is not. */
 .library-search .input-wrapper {
+  border-radius: var(--radius-xl);
+}
+
+.testing-select-trigger {
+  border-radius: var(--radius-input);
+}
+
+/* Report toolbars — search, select and the segmented control below them are one
+   row of controls, so they take one radius. Without this the search kept the
+   pill `.testing-search` gives a filter row and sat next to a 6px select
+   looking like it came from a different kit. */
+.report-toolbar .input-wrapper,
+.report-toolbar .testing-select-trigger {
   border-radius: var(--radius-xl);
 }
 
@@ -3007,4 +3008,197 @@ textarea { resize: none; font-family: var(--font-body); }
   bottom: 0;
   width: 2px;
   background-color: var(--branch-ink, var(--border-subtle));
+}
+
+/* ── Functional verification report ──────────────────────────────────────── */
+
+/* Case rows. Narrow, a row is a stack — the id and status ride the first line
+   so a scan still works; wide, it is the six-column table the header draws. */
+.verification-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'id status'
+    'title title'
+    'category category'
+    'reason reason';
+  align-items: center;
+  gap: var(--space-xs) var(--space-m);
+  width: 100%;
+}
+.verification-row > :nth-child(1) {
+  grid-area: id;
+}
+.verification-row > :nth-child(2) {
+  grid-area: title;
+}
+.verification-row > :nth-child(3) {
+  grid-area: category;
+}
+.verification-row > :nth-child(4) {
+  grid-area: reason;
+}
+.verification-row > :nth-child(5) {
+  grid-area: status;
+  justify-self: end;
+}
+.verification-row > :nth-child(6) {
+  display: none;
+}
+@media (min-width: 900px) {
+  .verification-row {
+    grid-template-columns: 84px minmax(0, 1.4fr) 150px minmax(0, 1.5fr) 110px 20px;
+    grid-template-areas: none;
+    align-items: start;
+    gap: var(--space-m);
+  }
+  .verification-row > :nth-child(n) {
+    grid-area: auto;
+    justify-self: stretch;
+  }
+  .verification-row > :nth-child(5) {
+    justify-self: start;
+  }
+  .verification-row > :nth-child(6) {
+    display: flex;
+  }
+}
+/* Column headings only make sense over columns. Below the table breakpoint a
+   row is a stack that labels itself, and the heading block read as a broken
+   first row. */
+.verification-head {
+  display: none;
+}
+@media (min-width: 900px) {
+  .verification-head {
+    display: grid;
+  }
+}
+.case-row {
+  transition: background-color 120ms ease;
+}
+.case-row:hover {
+  background-color: var(--bg-page-pale);
+}
+
+/* Detail modal: rail + content. The rail is the first thing to go when the
+   viewport cannot hold two columns — the clip and the comparison are the
+   content, the list is navigation. */
+.case-modal-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+.case-modal-rail {
+  display: none;
+}
+@media (min-width: 900px) {
+  .case-modal-body {
+    grid-template-columns: 268px minmax(0, 1fr);
+  }
+  .case-modal-rail {
+    display: flex;
+  }
+}
+
+/* Expected beside observed — stacked only when the column cannot hold two
+   readable measures. */
+.case-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 820px) {
+  .case-compare {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+.case-clip {
+  transition: filter 120ms ease;
+}
+.case-clip:hover {
+  filter: brightness(1.08);
+}
+
+.case-rail-item {
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.case-rail-item:hover {
+  background-color: var(--bg-page-pale);
+}
+
+
+/* ── User test report document ───────────────────────────────────────────── */
+
+/* Category table: four columns wide, a label-over-value stack when the page is
+   too narrow to keep them honest. */
+.category-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px 156px 84px;
+  align-items: center;
+  gap: var(--space-s);
+  width: 100%;
+}
+@media (max-width: 700px) {
+  .category-row {
+    grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+    gap: var(--space-xs);
+  }
+}
+
+.report-card {
+  container-type: inline-size;
+}
+
+.finding-chip,
+.evidence-chip {
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.finding-chip:hover {
+  border-color: var(--border-brand-hover);
+  color: var(--text-brand);
+}
+.evidence-chip:hover {
+  background-color: var(--bg-tint-light);
+  border-color: var(--border-tint);
+  color: var(--text-brand);
+}
+
+/* Grouping is carried by space, so the ratios have to be unmistakable: cards
+   inside a group sit at 12px, groups are 40px apart, and a part break is 40px
+   again on top of its own rule. Anything closer and two groups read as one
+   list. */
+.finding-section + .finding-section {
+  margin-top: var(--space-xxxl);
+}
+.report-part {
+  margin-top: var(--space-xl);
+}
+
+/* The preview is a peek, not a navigation: it fades in where the reader is
+   already looking rather than sliding in from an edge. */
+.clip-pip {
+  animation: clip-pip-in 140ms ease-out;
+}
+@keyframes clip-pip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* A filter row that clips its last option is a filter the reader cannot tell
+   is there. Scroll it instead, without the scrollbar taking a row of height. */
+.segment-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.segment-scroll::-webkit-scrollbar {
+  display: none;
 }

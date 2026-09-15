@@ -149,7 +149,7 @@ export const AREA_NAV: Record<StudioArea, AreaNavConfig> = {
         items: [
           { nav: 'oracle', label: 'Oracle', icon: 'oracle' },
           { nav: 'radiologist', label: 'Radiologist', icon: 'radiologist' },
-          { nav: 'forecaster', label: 'Forecaster', icon: 'forecaster', badge: 'COMING SOON', disabled: true },
+          { nav: 'forecaster', label: 'Forecaster', icon: 'forecaster', badge: 'SOON', disabled: true },
         ],
       },
       {

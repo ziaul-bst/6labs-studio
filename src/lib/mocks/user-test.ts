@@ -1,8 +1,9 @@
 /**
- * User Test fixtures — the "Build V2.1 — onboarding" batch, compared against
- * batch 1. Numbers are internally consistent on purpose: the tester table, the
- * step table and the comparison table all resolve to the same seven issues, so
- * a reviewer can cross-check any figure against another screen and it holds.
+ * User Test fixtures — the "Build 2.2 — onboarding round" batch (run #UT-0412),
+ * matching the reference flow's full report. Seven findings, four report
+ * sections, five category rows; the summary card, the report and the category
+ * table all resolve to the same seven, so a reviewer can cross-check any figure
+ * against another screen and it holds.
  */
 
 import { MANY_TAG_BATCHES, type LibraryDemoState } from '../libraryDemoState'
@@ -12,12 +13,11 @@ import type {
   PickerSource,
   PickerStatus,
   PickerVideo,
-  UserTestComparisonRow,
-  UserTestComparisonStat,
+  FindingGroup,
+  UserTestCategoryRow,
   UserTestIssue,
+  UserTestReportMeta,
   UserTestRun,
-  UserTestStepRow,
-  UserTestTester,
 } from '../types/userTest'
 
 export const USER_TEST_RUNS: UserTestRun[] = [
@@ -68,235 +68,255 @@ export const USER_TEST_ISSUES: UserTestIssue[] = [
     id: 'furnace',
     rank: 1,
     kind: 'bug',
-    title: '“Upgrade Furnace” button unresponsive after tutorial hint',
+    severity: 'blocking',
+    group: 'stability',
+    category: 'Bug — technical',
+    title: '“Upgrade Furnace” button unresponsive while tutorial hint is showing',
     summary:
-      'Testers tap the highlighted button 3–7 times before it responds. Hint overlay is intercepting the tap.',
+      'The hint overlay intercepts the tap; testers tap 3–7 times before it registers.',
     detail:
-      'The tutorial hint overlay stays mounted for ~2s after the “Tap to upgrade” pointer appears, and swallows taps on the button beneath it. Testers who waited before tapping (T04, T08, T09) didn’t hit it. Reproduces on both device sizes in the batch.',
+      'At tutorial step 4 the hint overlay sits over the Upgrade Furnace button, and taps on the button produce no state change until the overlay times out. Testers tapped 3 to 7 times before it responded. Three of the seven closed the app within a minute of the first failed tap and never reached step 5 — this one finding explains every tutorial abandon in the batch.',
+    recommendation:
+      'Let the hint overlay pass taps through to the highlighted control, or dismiss the hint on the first tap of its target. Verify on the 18:9 layout where the overlay covers the full button.',
     step: 'Tutorial › Furnace upgrade',
+    stepLabel: 'Tutorial › Furnace upgrade · step 4 of 11',
     status: 'new',
     confidence: 'verified',
     affected: 7,
-    totalTesters: 10,
+    totalTesters: 9,
     metric: 'avg 34s lost',
     clips: [
-      { tester: 'T01', device: 'Pixel 7', note: '5 taps, no response, then success at 6th', timeRange: '03:42 – 04:18' },
-      { tester: 'T02', device: 'iPhone 13', note: '3 taps, backs out to map, returns', timeRange: '02:57 – 03:49' },
-      { tester: 'T03', device: 'Pixel 7', note: '7 taps, 41s stuck', timeRange: '04:05 – 04:46' },
-      { tester: 'T05', device: 'iPhone 13', note: '4 taps', timeRange: '03:11 – 03:38' },
-      { tester: 'T06', device: 'Galaxy S23', note: '3 taps, closes game (reopened later)', timeRange: '03:30 – 03:57' },
-      { tester: 'T07', device: 'Pixel 7', note: '6 taps', timeRange: '02:48 – 03:29' },
-      { tester: 'T10', device: 'Galaxy S23', note: '3 taps', timeRange: '03:19 – 03:44' },
-    ],
-  },
-  {
-    id: 'hero-recruit',
-    rank: 2,
-    kind: 'friction',
-    title: 'Repeated taps on locked Hero Recruit',
-    summary:
-      'Locked state isn’t visually distinct from active. Testers try it, get no feedback, try again.',
-    detail:
-      'Locked and active Recruit buttons share the same colour; only a small padlock differs. Testers tap the locked state 2–4 times with no feedback. Inferred from repeated-tap pattern with no state change — not a crash.',
-    step: 'Tutorial › Hero screen',
-    status: 'open',
-    confidence: 'high',
-    affected: 5,
-    totalTesters: 10,
-    metric: '2.8 taps avg',
-    clips: [
-      { tester: 'T01', device: 'Pixel 7', note: '3 taps', timeRange: '06:12 – 06:20' },
-      { tester: 'T04', device: 'iPhone 13', note: '4 taps', timeRange: '05:48 – 06:01' },
-      { tester: 'T05', device: 'iPhone 13', note: '2 taps', timeRange: '06:40 – 06:44' },
+      { tester: 'tester_01', device: 'Pixel 7', note: '5 taps, no response, then success at the 6th', timeRange: '00:06 – 00:41' },
+      { tester: 'tester_02', device: 'iPhone 13', note: '3 taps, backs out to the map, returns', timeRange: '02:57 – 03:49' },
+      { tester: 'tester_03', device: 'Pixel 7', note: '7 taps, 41s stuck', timeRange: '04:05 – 04:46' },
+      { tester: 'tester_05', device: 'iPhone 13', note: '4 taps, then closes the app', timeRange: '03:11 – 03:38' },
+      { tester: 'tester_06', device: 'Galaxy S23', note: '3 taps, closes the app at step 4', timeRange: '03:30 – 03:57' },
+      { tester: 'tester_07', device: 'Pixel 7', note: '6 taps', timeRange: '02:48 – 03:29' },
+      { tester: 'tester_09', device: 'Galaxy S23', note: '3 taps, closes the app', timeRange: '03:19 – 03:44' },
     ],
   },
   {
     id: 'daily-reward',
-    rank: 3,
+    rank: 2,
     kind: 'bug',
-    title: 'Daily reward dialog overlaps chapter-complete popup',
+    severity: 'blocking',
+    group: 'stability',
+    category: 'Bug — technical',
+    title: 'Daily reward dialog opens on top of the chapter-complete popup',
     summary:
-      'Two dialogs open at once at Chapter 1 end; close button of the top dialog is off-screen on 18:9 devices.',
+      'Two dialogs stack at Chapter 1 end; the top dialog’s close button is off-screen on 18:9 devices.',
     detail:
-      'Both dialogs fire on the same frame. On 18:9 screens the top dialog’s close button renders outside the safe area.',
+      'When Chapter 1 completes, the daily reward dialog opens on top of the chapter-complete popup, and on the 18:9 layout the top dialog’s close control sits outside the visible area. All four testers recovered with the system back gesture after 6–21 seconds. It is marked Blocking because progress is impossible from the on-screen controls, even though nobody abandoned here.',
+    recommendation:
+      'Queue the daily reward dialog behind chapter completion instead of stacking, and keep dialog close controls inside the safe area on tall screens.',
     step: 'Chapter 1 › Completion',
+    stepLabel: 'Chapter 1 › Completion',
     status: 'new',
     confidence: 'verified',
     affected: 4,
-    totalTesters: 10,
+    totalTesters: 9,
     scopeNote: '18:9 devices only',
     clips: [
-      { tester: 'T02', device: 'iPhone 13', note: 'Close button off-screen, force-quit', timeRange: '11:03 – 11:40' },
+      { tester: 'tester_02', device: 'iPhone 13', note: 'Close control off-screen, recovers with back gesture', timeRange: '11:03 – 11:24' },
+      { tester: 'tester_04', device: 'iPhone 13', note: 'Back gesture after 6s', timeRange: '10:12 – 10:18' },
+      { tester: 'tester_07', device: 'Pixel 7', note: 'Back gesture after 21s', timeRange: '12:40 – 13:01' },
+      { tester: 'tester_08', device: 'Galaxy S23', note: 'Taps around the dialog before backing out', timeRange: '09:31 – 09:52' },
     ],
   },
   {
     id: 'alliance-backtrack',
-    rank: 4,
+    rank: 3,
     kind: 'friction',
+    severity: 'disruptive',
+    group: 'usability',
+    category: 'Friction — flow',
     title: 'Backtracking between Alliance and World Map',
     summary: 'Testers open Alliance, leave, return within 15s — looking for where to join.',
     detail:
-      'Open → leave → return within 15s, repeated. Consistent with searching for the Join button, but intent isn’t directly observable — treat as a hypothesis to check in interviews.',
+      'After the tutorial, four testers opened Alliance, left for the World Map, and came back — three or more times within 90 seconds — looking for where to join. Two of them eventually joined; two left the session without joining. The loop suggests the join action isn’t where testers expect it, though the recording can’t show what they were looking for.',
+    recommendation:
+      'Surface the join action from the World Map alliance marker, or add a “Join” call to action on the Alliance screen’s empty state.',
     step: 'Post-tutorial › Alliance',
+    stepLabel: 'Post-tutorial › Alliance',
     status: 'open',
     confidence: 'medium',
     affected: 4,
-    totalTesters: 10,
+    totalTesters: 9,
     metric: '2.5 round-trips',
-    clips: [],
+    clips: [
+      { tester: 'tester_01', device: 'Pixel 7', note: '3 round-trips in 80s, joins on the third', timeRange: '15:02 – 16:22' },
+      { tester: 'tester_03', device: 'Pixel 7', note: '4 round-trips, leaves without joining', timeRange: '14:10 – 15:38' },
+      { tester: 'tester_05', device: 'iPhone 13', note: '3 round-trips, joins from the roster', timeRange: '16:44 – 18:01' },
+      { tester: 'tester_09', device: 'Galaxy S23', note: '3 round-trips, session ends', timeRange: '13:55 – 15:11' },
+    ],
   },
   {
-    id: 'chat-swipe',
-    rank: 5,
-    kind: 'bug',
-    title: 'Chat panel opens on accidental swipe during march',
-    summary: 'Edge-swipe gesture region overlaps the map drag area on the left edge.',
-    detail: 'Edge-swipe gesture region overlaps the map drag area on the left edge.',
-    step: 'Post-tutorial › World Map',
-    status: 'no-baseline',
-    confidence: 'verified',
-    affected: 3,
-    totalTesters: 10,
-    clips: [],
-  },
-  {
-    id: 'research-hesitation',
-    rank: 6,
+    id: 'reward-dismiss',
+    rank: 4,
     kind: 'friction',
-    title: 'Hesitation >20s at Research screen',
-    summary: 'No taps for 20–40s on first visit, then exit without researching anything.',
-    detail: 'No taps for 20–40s on first visit, then exit without researching anything.',
-    step: 'Post-tutorial › Research',
-    status: 'open',
-    confidence: 'medium',
-    affected: 3,
-    totalTesters: 10,
-    clips: [],
-  },
-  {
-    id: 'tutorial-skip',
-    rank: 7,
-    kind: 'friction',
-    title: 'Tutorial skipped at step 4',
-    summary: 'Skip tapped within 3s of step 4 appearing.',
+    severity: 'cosmetic',
+    group: 'usability',
+    category: 'Friction — usability',
+    title: 'Reward summary dismiss lands on Exploration instead of City',
+    summary: 'Dismissing the idle-income summary returns to Exploration, not the screen it started from.',
     detail:
-      'Skip tapped within 3s of step 4 appearing. Both testers later got stuck at Furnace upgrade (issue 1).',
-    step: 'Tutorial › Step 4',
+      'After claiming idle income, dismissing the reward summary with “tap anywhere to exit” lands the tester on the Exploration screen instead of the City view they started from. Every tester recovered with a single back-tap, so the cost is small. It is listed because it happened in six of nine sessions and breaks the expectation that closing a popup returns you to where you were.',
+    recommendation:
+      'Return to the screen the claim was started from; if the Exploration redirect is intentional, offer it as an explicit button beside “Return to City”.',
+    step: 'City view › Idle chest',
+    stepLabel: 'City view › Idle chest',
     status: 'open',
     confidence: 'high',
-    affected: 2,
-    totalTesters: 10,
-    clips: [],
-  },
-]
-
-export const USER_TEST_TESTERS: UserTestTester[] = [
-  { id: 'T01', device: 'Pixel 7', completed: true, completionLabel: 'Yes · 14:20', issues: [1, 2, 5] },
-  { id: 'T02', device: 'iPhone 13', completed: false, completionLabel: 'No · quit 11:40', issues: [1, 3] },
-  { id: 'T03', device: 'Pixel 7', completed: true, completionLabel: 'Yes · 16:05', issues: [1, 4, 6] },
-  { id: 'T04', device: 'iPhone 13', completed: true, completionLabel: 'Yes · 12:48', issues: [2, 7] },
-  { id: 'T05', device: 'iPhone 13', completed: true, completionLabel: 'Yes · 13:31', issues: [1, 2, 4] },
-  { id: 'T06', device: 'Galaxy S23', completed: false, completionLabel: 'No · quit 03:57', issues: [1] },
-  { id: 'T07', device: 'Pixel 7', completed: true, completionLabel: 'Yes · 15:12', issues: [1, 3, 4, 5] },
-  { id: 'T08', device: 'Galaxy S23', completed: false, completionLabel: 'No · quit 09:20', issues: [3, 6] },
-  { id: 'T09', device: 'Pixel 7', completed: true, completionLabel: 'Yes · 13:55', issues: [2, 4] },
-  { id: 'T10', device: 'Galaxy S23', completed: false, completionLabel: 'No · quit 07:44', issues: [1, 3, 7] },
-]
-
-export const USER_TEST_STEPS: UserTestStepRow[] = [
-  { step: 'Tutorial › Steps 1–3', reached: 10, issues: [], avgTime: '1m 40s', dropOff: '0' },
-  { step: 'Tutorial › Step 4', reached: 10, issues: [7], avgTime: '0m 22s', dropOff: '0' },
-  { step: 'Tutorial › Furnace upgrade', reached: 10, issues: [1], avgTime: '1m 04s', dropOff: '1 (T06)', critical: true },
-  { step: 'Tutorial › Hero screen', reached: 9, issues: [2], avgTime: '0m 48s', dropOff: '0' },
-  { step: 'Chapter 1 › Completion', reached: 9, issues: [3], avgTime: '0m 31s', dropOff: '2 (T02, T10)' },
-  { step: 'Post-tutorial › Alliance', reached: 7, issues: [4], avgTime: '1m 12s', dropOff: '0' },
-  { step: 'Post-tutorial › Research', reached: 7, issues: [6], avgTime: '0m 44s', dropOff: '1 (T08)' },
-  { step: 'Post-tutorial › World Map', reached: 6, issues: [5], avgTime: '2m 03s', dropOff: '0' },
-]
-
-export const USER_TEST_COMPARISON_STATS: UserTestComparisonStat[] = [
-  { label: 'Completed onboarding', value: '60%', delta: '↑ from 50%', deltaTone: 'good' },
-  { label: 'Avg time to complete', value: '14m 18s', delta: '↓ 2m 40s', deltaTone: 'good' },
-  { label: 'Testers hitting ≥1 bug', value: '80%', delta: '↑ from 67%', deltaTone: 'bad' },
-  { label: 'Worst step', value: 'Furnace upgrade', delta: 'was: Hero screen', deltaTone: 'bad' },
-]
-
-export const USER_TEST_COMPARISON_ROWS: UserTestComparisonRow[] = [
-  {
-    change: 'new',
-    title: '“Upgrade Furnace” button unresponsive after hint',
-    current: '7/10 · verified',
-    step: 'Tutorial › Furnace',
+    affected: 6,
+    totalTesters: 9,
+    metric: '1 back-tap each',
+    clips: [
+      { tester: 'tester_01', device: 'Pixel 7', note: 'Back-tap to City', timeRange: '08:14 – 08:20' },
+      { tester: 'tester_02', device: 'iPhone 13', note: 'Back-tap to City', timeRange: '07:48 – 07:53' },
+      { tester: 'tester_04', device: 'iPhone 13', note: 'Pauses, then back-taps', timeRange: '09:02 – 09:12' },
+      { tester: 'tester_06', device: 'Galaxy S23', note: 'Back-tap to City', timeRange: '06:31 – 06:36' },
+      { tester: 'tester_07', device: 'Pixel 7', note: 'Back-tap to City', timeRange: '10:20 – 10:25' },
+      { tester: 'tester_08', device: 'Galaxy S23', note: 'Back-tap to City', timeRange: '05:57 – 06:02' },
+    ],
   },
   {
-    change: 'new',
-    title: 'Daily reward dialog overlaps chapter-complete popup',
-    current: '4/10 · verified',
-    step: 'Chapter 1 › Completion',
-  },
-  {
-    change: 'open',
+    id: 'hero-recruit',
+    rank: 5,
+    kind: 'friction',
+    severity: 'disruptive',
+    group: 'struggle',
+    category: 'Friction — usability',
     title: 'Repeated taps on locked Hero Recruit',
-    baseline: '4/6',
-    current: '5/10',
-    delta: '67% → 50%',
-    deltaTone: 'good',
+    summary: 'Locked state isn’t visually distinct. Testers try it, get no feedback, try again.',
+    detail:
+      'On the tutorial Hero screen the locked Recruit control looks the same as an active one. Five testers tapped it, got no feedback, and tapped again — a median of 4 taps and 20 occurrences in total before moving on. Nobody was blocked, but the repeated taps with no response are the clearest struggle pattern in the batch after the Furnace button.',
+    recommendation:
+      'Grey out or lock-badge the Recruit control until it is available, and show a one-line reason on tap (“Unlocks at step 9”).',
     step: 'Tutorial › Hero screen',
+    stepLabel: 'Tutorial › Hero screen · step 7',
+    status: 'open',
+    confidence: 'high',
+    affected: 5,
+    totalTesters: 9,
+    metric: 'median 4 taps',
+    clips: [
+      { tester: 'tester_01', device: 'Pixel 7', note: '3 taps', timeRange: '06:12 – 06:20' },
+      { tester: 'tester_03', device: 'Pixel 7', note: '5 taps', timeRange: '05:20 – 05:34' },
+      { tester: 'tester_04', device: 'iPhone 13', note: '4 taps', timeRange: '05:48 – 06:01' },
+      { tester: 'tester_05', device: 'iPhone 13', note: '4 taps', timeRange: '06:40 – 06:52' },
+      { tester: 'tester_08', device: 'Galaxy S23', note: '4 taps', timeRange: '07:02 – 07:15' },
+    ],
   },
   {
-    change: 'open',
-    title: 'Backtracking between Alliance and World Map',
-    baseline: '3/6',
-    current: '4/10',
-    delta: '50% → 40%',
-    deltaTone: 'good',
-    step: 'Post-tutorial › Alliance',
+    id: 'resource-icon',
+    rank: 6,
+    kind: 'friction',
+    severity: 'disruptive',
+    group: 'struggle',
+    category: 'Friction — monetization',
+    title: 'Tap on floating resource icon opens the building underneath',
+    summary: 'Collectible icons sit over buildings; taps aimed at the icon open the building menu.',
+    detail:
+      'In the City view, floating resource icons hover over buildings, and taps aimed at the icon open the building menu underneath instead. Testers closed the menu and re-aimed 2 to 4 times per collection; 9 occurrences across 5 sessions, all recovered. It is a small cost each time, but it recurs every time resources are collected.',
+    recommendation:
+      'Give floating collectible icons tap priority over building hitboxes, or enlarge their tap target by ~30%.',
+    step: 'City view',
+    stepLabel: 'City view',
+    status: 'open',
+    confidence: 'high',
+    affected: 5,
+    totalTesters: 9,
+    metric: '9 occurrences',
+    clips: [
+      { tester: 'tester_01', device: 'Pixel 7', note: 'Building menu opens twice before the icon registers', timeRange: '09:41 – 09:58' },
+      { tester: 'tester_02', device: 'iPhone 13', note: 'Re-aims 3 times', timeRange: '08:22 – 08:44' },
+      { tester: 'tester_03', device: 'Pixel 7', note: 'Re-aims twice', timeRange: '11:15 – 11:29' },
+      { tester: 'tester_05', device: 'iPhone 13', note: 'Closes the menu, taps again', timeRange: '07:33 – 07:46' },
+      { tester: 'tester_06', device: 'Galaxy S23', note: 'Re-aims 4 times', timeRange: '10:04 – 10:31' },
+      { tester: 'tester_07', device: 'Pixel 7', note: 'Building menu opens on collection', timeRange: '12:18 – 12:29' },
+      { tester: 'tester_09', device: 'Galaxy S23', note: 'Re-aims twice', timeRange: '06:50 – 07:04' },
+    ],
   },
   {
-    change: 'open',
-    title: 'Hesitation >20s at Research screen',
-    baseline: '2/6',
-    current: '3/10',
-    delta: '33% → 30%',
-    deltaTone: 'neutral',
-    step: 'Post-tutorial › Research',
-  },
-  {
-    change: 'open',
-    title: 'Tutorial skipped at step 4',
-    baseline: '1/6',
-    current: '2/10',
-    delta: '17% → 20%',
-    deltaTone: 'neutral',
-    step: 'Tutorial › Step 4',
-  },
-  {
-    change: 'fixed',
-    title: 'Loading spinner stuck after first login',
-    baseline: '5/6 · verified',
-    current: '0/10',
-    step: 'Tutorial › Step 1',
-  },
-  {
-    change: 'fixed',
-    title: 'Map pinch-zoom inverted on Android',
-    baseline: '3/6 · verified',
-    current: '0/10',
-    step: 'Post-tutorial › World Map',
-  },
-  {
-    change: 'fixed',
-    title: 'Reward chest not tappable on 18:9 devices',
-    baseline: '2/6 · verified',
-    current: '0/10',
-    step: 'Chapter 1 › Completion',
-  },
-  {
-    change: 'not-comparable',
-    title: 'New (bug) — Chat panel on accidental swipe',
-    note: 'Not comparable: World Map wasn’t reached by any batch 1 tester, so there is no baseline for this step.',
+    id: 'pack-truncated',
+    rank: 7,
+    kind: 'bug',
+    severity: 'cosmetic',
+    group: 'visual',
+    category: 'Bug — visual',
+    title: 'Pack name truncated in launch promo popup',
+    summary: 'The promo card clips long pack titles at the card edge on the 18:9 layout.',
+    detail:
+      'On launch, the promo popup for “Sports Field Glory Pack 2” clips the pack name at the card edge on the 18:9 layout. No tester reacted to it and there is no behavioural consequence. Listed as cosmetic because it appeared in three sessions on the first screen testers see.',
+    recommendation: 'Auto-shrink or wrap pack titles longer than 22 characters on the promo card.',
+    step: 'Launch › Promo popup',
+    stepLabel: 'Launch › Promo popup',
+    status: 'open',
+    confidence: 'verified',
+    affected: 3,
+    totalTesters: 9,
+    scopeNote: '18:9 devices only',
+    clips: [
+      { tester: 'tester_02', device: 'iPhone 13', note: 'Title clipped at the card edge', timeRange: '00:04 – 00:09' },
+      { tester: 'tester_06', device: 'Galaxy S23', note: 'Title clipped, dismissed immediately', timeRange: '00:03 – 00:07' },
+      { tester: 'tester_08', device: 'Galaxy S23', note: 'Title clipped', timeRange: '00:05 – 00:10' },
+    ],
   },
 ]
+
+/**
+ * The category table on the report. Sessions affected is a *union* across the
+ * findings in a row, not a sum — the same tester usually hits several — so it
+ * is carried rather than derived; nothing in the UI can compute a union from
+ * per-finding counts.
+ */
+export const USER_TEST_CATEGORY_ROWS: UserTestCategoryRow[] = [
+  { label: 'Bug — technical', tone: 'bug', findings: 2, sessionsAffected: 9, blocking: 2 },
+  { label: 'Bug — visual', tone: 'bug', findings: 1, sessionsAffected: 4, blocking: 0 },
+  { label: 'Friction — usability', tone: 'friction', findings: 2, sessionsAffected: 7, blocking: 0 },
+  { label: 'Friction — flow', tone: 'friction', findings: 1, sessionsAffected: 4, blocking: 0 },
+  { label: 'Friction — monetization', tone: 'friction', findings: 1, sessionsAffected: 3, blocking: 0 },
+]
+
+export const USER_TEST_REPORT_META: UserTestReportMeta = {
+  title: 'Build 2.2 — onboarding round',
+  game: 'Whiteout Survival',
+  generated: '14 Sep 2026',
+  runId: 'UT-0412',
+  sessions: 10,
+  footageLabel: '2h 14m',
+  narrative:
+    '7 of 9 sessions hit an unresponsive Upgrade Furnace button at tutorial step 4, and the 3 sessions that ended early all ended there. Two findings blocked progress, both in the tutorial or at Chapter 1 completion; the remaining five are recoverable friction in the City, Hero and Alliance screens. Everything after the tutorial was reached by 6 sessions with no further blockers.',
+}
+
+/** Section headings, in report order. The chip label is the short form. */
+export const USER_TEST_FINDING_GROUPS: {
+  id: FindingGroup
+  chip: string
+  heading: string
+  note?: string
+}[] = [
+  {
+    id: 'stability',
+    chip: 'Stability & functional',
+    heading: 'Stability & functional defects',
+    note: '3 sessions ended on one of them',
+  },
+  { id: 'usability', chip: 'Usability friction', heading: 'Usability friction' },
+  {
+    id: 'struggle',
+    chip: 'Struggle',
+    heading: 'Struggle hotspots',
+    note: 'where testers repeated actions without progress',
+  },
+  { id: 'visual', chip: 'Visual', heading: 'Visual defects' },
+]
+
+/* The per-tester, per-step and vs-previous-batch tables were dropped when the
+   full report became a document — the reference has no tabs, and every cut they
+   offered is now either in the category table or on the finding itself. Their
+   fixtures went with them; the types stay for whatever brings the comparison
+   back. */
 
 const GRADIENTS = {
   a: 'linear-gradient(135deg, #2F9FD8 0%, #3FBF8A 100%)',

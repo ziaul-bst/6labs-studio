@@ -1,12 +1,13 @@
 /**
  * UserTestAgentView — the whole User Test agent, from home to report.
  *
- * Three screens, one owner. Home is a composer with a history tab holding both
- * the reports it has produced and the questions it has answered; a
- * run opens as a thread (progress, then the report, then questions); the full
- * report is the thread's leaf. They stay in one view because they are one
- * task — a batch is set up, watched, read, and then read in detail — and a
- * run has no id worth putting in the URL until it has run.
+ * Four screens, one owner. Home is a composer with a history tab holding both
+ * the reports it has produced and the questions it has answered; a run in
+ * flight opens as a thread you watch; a finished run opens as its summary —
+ * what it found and how big it was; and the full report is the summary's leaf.
+ * They stay in one view because they are one task — a batch is set up,
+ * watched, read, and then read in detail — and a run has no id worth putting
+ * in the URL until it has run.
  *
  * With no footage in the library the home is replaced by the zero-state
  * blocker: nothing here can run without recordings, so the first step is
@@ -22,7 +23,8 @@ import { UserTestHome } from './UserTestHome'
 import { useRunDemoSeed } from '../../lib/runDemoState'
 import { runFailureText } from '../molecules/RunFailedNotice'
 import { TestRunThread } from './TestRunThread'
-import { UserTestReport, type ReportTab } from './UserTestReport'
+import { UserTestReport } from './UserTestReport'
+import { UserTestRunSummary } from './UserTestRunSummary'
 import { MembersIcon } from '../icons/MembersIcon'
 import { showToast } from '../atoms/Toast'
 import { THREAD_SESSIONS, USER_TEST_HISTORY } from '../../lib/mocks/testing'
@@ -31,7 +33,10 @@ import { PICKER_VIDEOS, USER_TEST_ISSUES } from '../../lib/mocks/user-test'
 import type { TestRunHistoryItem } from '../../lib/types/testing'
 import type { UserTestAskTurn } from '../../lib/types/userTest'
 
-export type UserTestScreen = 'home' | 'thread' | 'report'
+export type UserTestScreen = 'home' | 'thread' | 'summary' | 'report'
+
+/** The screens an open run can be on — every one but the home. */
+type RunStage = Exclude<UserTestScreen, 'home'>
 
 export interface UserTestAgentViewProps {
   /** Videos in the Gameplay Library — 0 turns the home into a blocker. */
@@ -39,8 +44,6 @@ export interface UserTestAgentViewProps {
   gameContextAdded?: boolean
   /** Screen to land on. Storybook and review links use this. */
   initialScreen?: UserTestScreen
-  /** Report tab to land on when arriving straight at the report. */
-  initialReportTab?: ReportTab
   /** Home tab to open on — Storybook shows the history directly. */
   initialTab?: 'new' | 'history'
   /**
@@ -93,7 +96,6 @@ export function UserTestAgentView({
   libraryVideoCount = 42,
   gameContextAdded = true,
   initialScreen = 'home',
-  initialReportTab = 'issues',
   initialTab = 'new',
   onScreenChange,
   onTabChange,
@@ -118,8 +120,11 @@ export function UserTestAgentView({
       ? null
       : { run: USER_TEST_HISTORY[0], gameContext: 'Onboarding flow v3', videoCount: 10 },
   )
-  const [reportOpen, setReportOpen] = useState(initialScreen === 'report')
-  const [reportTab, setReportTab] = useState<ReportTab>(initialReportTab)
+  /* Which leaf of an open run is showing. Only meaningful while `thread` is
+     set; the screen falls back to the home the moment it is cleared. */
+  const [stage, setStage] = useState<RunStage>(
+    initialScreen === 'home' ? 'thread' : (initialScreen as RunStage),
+  )
   /* The follow-up thread lives here, not in the thread view, so it survives
      the trip to the full report and back. */
   const [askTurns, setAskTurns] = useState<UserTestAskTurn[]>([])
@@ -132,7 +137,7 @@ export function UserTestAgentView({
   useRunDemoSeed((state) => {
     if (state === 'composer') {
       setThread(null)
-      setReportOpen(false)
+      setStage('thread')
       return
     }
     const base = USER_TEST_HISTORY[0]
@@ -154,10 +159,10 @@ export function UserTestAgentView({
       gameContext: 'Onboarding flow v3',
       videoCount: 10,
     })
-    setReportOpen(state === 'report')
+    setStage(state === 'thread' ? 'thread' : state === 'summary' ? 'summary' : state === 'report' ? 'report' : 'thread')
   })
 
-  const screen: UserTestScreen = reportOpen ? 'report' : thread ? 'thread' : 'home'
+  const screen: UserTestScreen = thread ? stage : 'home'
   useEffect(() => {
     onScreenChange?.(screen)
   }, [screen, onScreenChange])
@@ -169,14 +174,14 @@ export function UserTestAgentView({
       prev.map((r) => (r.id === id ? { ...r, state: 'done', result: { kind: 'issues', count: 7 } } : r)),
     )
 
-  const generate = (videoIds: string[], gameContext: string | null) => {
+  const generate = (videoIds: string[], gameContext: string | null, runName: string) => {
     const chosen = PICKER_VIDEOS.filter((v) => videoIds.includes(v.id))
     const tags = [...new Set(chosen.map((v) => v.tag))]
     const run: TestRunHistoryItem = {
       id: `ut-${Date.now()}`,
-      /* The tag fills its own column, so the name is the flow the footage was
-         read against — the same shape as the seeded rows. */
-      name: gameContext ?? 'User test',
+      /* The tag fills its own column, so an unnamed run falls back to the flow
+         the footage was read against — the same shape as the seeded rows. */
+      name: runName.trim() || gameContext || 'User test',
       detail: `${chosen.length} videos${gameContext ? '' : ' · no game context'}`,
       meta: tags.join(', ') || 'untagged',
       state: 'progress',
@@ -187,11 +192,16 @@ export function UserTestAgentView({
     timers.current.push(window.setTimeout(() => finishRun(run.id), SIMULATED_RUN_MS))
     showToast(`Analysis started — ${chosen.length} recording${chosen.length === 1 ? '' : 's'}. Reading in the background.`)
     setAskTurns([])
+    setStage('thread')
     setThread({ run, gameContext, videoCount: chosen.length })
   }
 
   const openRun = (run: TestRunHistoryItem) => {
     setAskTurns([])
+    /* A finished report opens on its summary — the run page. A run still in
+       flight, and any question, has no summary to open: one is not done and
+       the other was answered in the thread it was asked in. */
+    setStage(run.state === 'done' && run.kind !== 'question' ? 'summary' : 'thread')
     setThread({
       run,
       /* A question row reopens as the question it was — the thread's request
@@ -204,7 +214,7 @@ export function UserTestAgentView({
   }
 
   const closeThread = () => {
-    setReportOpen(false)
+    setStage('thread')
     setThread(null)
   }
 
@@ -253,10 +263,12 @@ export function UserTestAgentView({
                 when: runDateLabel(),
               }
               setRuns((prev) => [asked, ...prev])
+              setStage('thread')
               setThread({ run: asked, question, gameContext, videoCount: videoIds.length })
             }}
             onOpenSample={() => {
               setAskTurns([])
+              setStage('summary')
               setThread({ run: SAMPLE_RUN, gameContext: 'Onboarding flow v3', videoCount: 10 })
             }}
           />
@@ -292,15 +304,31 @@ export function UserTestAgentView({
           question={thread.question}
           askTurns={askTurns}
           onAskTurnsChange={setAskTurns}
-          onOpenReport={() => {
-            setReportTab('issues')
-            setReportOpen(true)
-          }}
-          onOpenEvidence={() => {
-            setReportTab('issues')
-            setReportOpen(true)
-          }}
+          /* The thread's report card hands off to the run page, not straight
+             to the evidence — the summary is what a finished run *is*. */
+          onOpenReport={() => setStage('summary')}
+          onOpenEvidence={() => setStage('report')}
           onOpenLibrary={onOpenLibrary}
+          onHandoffToOracle={(q) => onAskOracle?.(q)}
+        />
+      )}
+
+      {screen === 'summary' && (
+        <UserTestRunSummary
+          runName={thread?.run.name ?? USER_TEST_HISTORY[0].name}
+          issues={USER_TEST_ISSUES}
+          sessionCount={thread?.videoCount ?? 10}
+          facts={{
+            videos: thread ? `${thread.videoCount} videos · tag ${thread.run.meta}` : '10 videos',
+            context: thread?.gameContext ?? null,
+            devices: 'Pixel 7 · iPhone 13 · Galaxy S23',
+            when: `${thread?.run.when ?? 'Aug 26'} · 31 min`,
+          }}
+          askTurns={askTurns}
+          onAskTurnsChange={setAskTurns}
+          onBack={closeThread}
+          onOpenReport={() => setStage('report')}
+          onOpenEvidence={() => setStage('report')}
           onHandoffToOracle={(q) => onAskOracle?.(q)}
         />
       )}
@@ -309,10 +337,7 @@ export function UserTestAgentView({
         <UserTestReport
           runName={thread?.run.name ?? USER_TEST_HISTORY[0].name}
           issues={USER_TEST_ISSUES}
-          tab={reportTab}
-          onTabChange={setReportTab}
-          onBackToRun={() => setReportOpen(false)}
-          onOpenSession={() => onOpenLibrary?.()}
+          onBackToRun={() => setStage('summary')}
         />
       )}
     </div>

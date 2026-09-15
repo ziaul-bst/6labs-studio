@@ -23,9 +23,10 @@ import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
 import { SelectedVideosStrip } from '../molecules/SelectedVideosStrip'
 import { TestingMenuSelect } from '../molecules/TestingMenuSelect'
-import { SetupNote } from '../molecules/TestingSetupPieces'
+import { FieldLabel, SetupNote } from '../molecules/TestingSetupPieces'
 import { UserTestRunSetupModal } from './UserTestRunSetupModal'
 import Button from '../ui/Button'
+import Input from '../ui/Input'
 import { MembersIcon } from '../icons/MembersIcon'
 import { PlusIcon } from '../icons/PlusIcon'
 import { SendIcon } from '../icons/SendIcon'
@@ -41,7 +42,7 @@ export interface UserTestHomeProps {
   highlightId?: string | null
   onOpenRun?: (run: TestRunHistoryItem) => void
   /** Generate a report on the selected videos, with the chosen context (or none). */
-  onGenerate?: (videoIds: string[], gameContext: string | null) => void
+  onGenerate?: (videoIds: string[], gameContext: string | null, runName: string) => void
   /** Ask the selected videos a question. */
   onAsk?: (question: string, videoIds: string[], gameContext: string | null) => void
   /** Way out of the picker's empty-library state — navigates to the Library. */
@@ -90,6 +91,7 @@ export function UserTestHome({
     onPickerOpenChange?.(pickerOpen)
   }, [pickerOpen, onPickerOpenChange])
   const [docId, setDocId] = useState<string | null>(null)
+  const [runName, setRunName] = useState('')
   const [question, setQuestion] = useState('')
 
   const selected = useMemo(() => PICKER_VIDEOS.filter((v) => selectedIds.includes(v.id)), [selectedIds])
@@ -201,6 +203,24 @@ export function UserTestHome({
                   className="composer-input w-full resize-none bg-transparent border-0 outline-none font-body text-l text-text-primary placeholder:text-text-placeholder leading-[1.5] py-xs"
                 />
               )}
+
+              {/* A report is filed and read later, so it needs a name to be
+                  found by — the same field every other test carries. It is part
+                  of the run's shape, not a consequence of the selection, so it
+                  stands whether or not videos are picked yet. A question is
+                  answered in place and never filed, so it has none. */}
+              {mode === 'report' && (
+                <label className="flex flex-col gap-xs">
+                  <FieldLabel optional>Run name</FieldLabel>
+                  <Input
+                    value={runName}
+                    onChange={(e) => setRunName(e.target.value)}
+                    placeholder={gameContext ?? 'User test'}
+                    aria-label="Run name"
+                    size="lg"
+                  />
+                </label>
+              )}
             </div>
 
             {/* Bar — context on the left, the action on the right */}
@@ -229,7 +249,7 @@ export function UserTestHome({
                   variant="primary"
                   size="lg"
                   disabled={!hasVideos}
-                  onClick={() => onGenerate?.(selectedIds, gameContext)}
+                  onClick={() => onGenerate?.(selectedIds, gameContext, runName)}
                 >
                   Generate report
                 </Button>
@@ -293,8 +313,8 @@ export function UserTestHome({
                   Preview a finished report
                 </span>
                 <span className="font-body text-s text-text-secondary leading-[1.5]">
-                  A completed report on 10 onboarding sessions: issues ranked by testers affected, each with
-                  clips, plus a comparison with the previous build.
+                  A completed report on 10 onboarding sessions: every finding grouped by what you would
+                  fix together, each with its evidence clips and a recommendation.
                 </span>
               </div>
               <Button variant="secondary" size="lg" onClick={onOpenSample}>

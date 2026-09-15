@@ -61,20 +61,62 @@ export interface BuildOption {
 }
 
 export type CaseOutcome = 'pass' | 'fail' | 'review' | 'blocked'
-export type CasePriority = 'p0' | 'p1' | 'p2'
 
-export interface FunctionalCase {
-  id: string
-  title: string
-  priority: CasePriority
-  /** "critical" / "major" — only set on failures. */
-  severity?: string
-  outcome: CaseOutcome
+// ── Verified test cases — the functional report's own row model ──────────────
+
+/**
+ * One step the tester (or AI player) was meant to take, and what the footage
+ * shows happened. A case is only ever as credible as the moment it points at,
+ * so every step carries the second it starts on.
+ */
+export interface VerifiedCaseStep {
+  /** What the case asked for — "Tap close on the privacy notice". */
+  action: string
+  /** What the video shows instead, when it differs from the action. */
+  observed?: string
+  /** "01:14" — where in the clip this step begins. */
+  at: string
 }
 
-export interface FunctionalModule {
-  name: string
-  cases: FunctionalCase[]
+/**
+ * A test case checked against footage. Where FunctionalCase is the thin row the
+ * old module list needed, this carries what the reader has to see to accept the
+ * verdict: the clip, what was expected, and what was actually observed.
+ *
+ * `category` is the case's own suite; `path` is where in the game it sits. They
+ * are different things — a Startup-notices case runs at Launch › First run —
+ * and collapsing them loses the grouping the reader filters by.
+ */
+export interface VerifiedCase {
+  id: string
+  title: string
+  category: string
+  /** "Launch › First run" */
+  path: string
+  outcome: CaseOutcome
+  /** One line: why the verdict is what it is. Shown on the row. */
+  reason: string
+  /** State the game had to be in before the case could run. */
+  precondition: string
+  expected: string
+  /** Recording the verdict was read from — "qa-0902.mp4". */
+  clip: string
+  /** "01:14–01:31" */
+  clipRange: string
+  steps: VerifiedCaseStep[]
+}
+
+/** The counts above a verification report — every case the run touched. */
+export interface VerificationTotals {
+  /** Cases the run actually reached. */
+  run: number
+  /** Cases in the uploaded file. `run` can be lower; the gap is the point. */
+  total: number
+  videos: number
+  pass: number
+  fail: number
+  blocked: number
+  review: number
 }
 
 /** Persona the AI behavioural test can play as. Comes from the player model. */
