@@ -97,7 +97,19 @@ export interface AIBehaviouralTestViewProps {
   className?: string
 }
 
+/** Agents per persona before anyone touches the stepper. */
+const DEFAULT_AGENT_COUNT = 1
+
 const SIMULATED_RUN_MS = 16000
+/**
+ * The gap between the last agent stopping and the report existing. The human
+ * tests have always had this beat — a row that says "Analysing…" while the
+ * agent reads the footage — and the AI tests skipped straight from "Watch live"
+ * to "View report", which claimed a report was written the instant the last
+ * frame was recorded. Analysis is the slower half of the run; it gets its own
+ * state (2026-09-16 dev call).
+ */
+const SIMULATED_ANALYSIS_MS = 6000
 
 export function AIBehaviouralTestView({
   onScreenChange,
@@ -112,11 +124,17 @@ export function AIBehaviouralTestView({
   const [build, setBuild] = useState<string | null>('v2.3.1')
   const [runName, setRunName] = useState('')
   /* Agents are asked per persona — "twelve new players, eight whales" is how a
-     run is thought about — and the total is derived and shown, never typed. */
-  const [counts, setCounts] = useState<Record<string, number>>({ 'new-player': 5, whale: 5 })
-  const countOf = (id: string) => counts[id] ?? 5
+     run is thought about — and the total is derived and shown, never typed.
+     One each by default: five was a batch nobody asked for, and a stepper
+     starting above the floor makes the cheap first run the one that takes the
+     most clicks to reach (2026-09-16 dev call). */
+  const [counts, setCounts] = useState<Record<string, number>>({})
+  const countOf = (id: string) => counts[id] ?? DEFAULT_AGENT_COUNT
   const setCount = (id: string, n: number) => setCounts((c) => ({ ...c, [id]: Math.min(100, Math.max(1, n)) }))
-  const [personaIds, setPersonaIds] = useState<string[]>(['new-player', 'whale'])
+  /* Generic, not a persona pair: the default run plays the build as it is, and
+     asking for a New player and a Whale is a decision the composer should not
+     be making on the reader's behalf. */
+  const [personaIds, setPersonaIds] = useState<string[]>(['generic'])
   const [personasOpen, setPersonasOpen] = useState(false)
   const [length, setLength] = useState<SessionLength>('15')
   const [customLength, setCustomLength] = useState('45')
@@ -156,11 +174,31 @@ export function AIBehaviouralTestView({
       return
     }
     const base = AI_BEHAVIOURAL_HISTORY[0]
+    if (state === 'no-sessions') {
+      /* A run that has started and recorded nothing. The session builder always
+         produces one row per agent, so the only honest way to reach this state
+         is to say the run has none — which is what a run looks like in its
+         first seconds, before any agent has finished a screen. */
+      setOpenRun({ ...base, id: 'demo-empty', state: 'progress', result: undefined, when: runDateLabel() })
+      setLiveReached(0)
+      /* Videos, not Report. The report cannot exist yet and says so in a line;
+         the footage is the thing that is *about to* arrive, so the tab a reader
+         wants open is the one it will arrive in. */
+      setRunTab('videos')
+      return
+    }
     if (state === 'running') {
       /* Distinct id — a seeded id resolves back to its finished copy in `runs`. */
       setOpenRun({ ...base, id: 'demo-running', state: 'progress', result: undefined, when: runDateLabel() })
       setLiveReached(4)
       setRunTab('videos')
+    } else if (state === 'analysing') {
+      /* Every session finished and no report yet — so the Report tab is the
+         one worth landing on: it is the tab that changes when the analysis
+         lands, and the Videos tab beside it is already complete. */
+      setOpenRun({ ...base, id: 'demo-analysing', state: 'analysing', result: undefined, when: runDateLabel() })
+      setLiveReached(AI_BEHAVIOURAL_STEPS.length)
+      setRunTab('report')
     } else {
       setOpenRun({ ...base, state: 'done' })
       setRunTab('report')
@@ -173,13 +211,20 @@ export function AIBehaviouralTestView({
   const activeMeta = useMemo(() => (activeRun ? metaForRun(activeRun) : null), [activeRun])
   useEffect(() => {
     if (!activeRun || activeRun.state !== 'progress') return
+    /* Zero is the "nothing recorded yet" preset, and it has to stay there. The
+       clock below moves a run off zero on its first tick, so the state the
+       preset exists to hold was visible for one interval and then gone — which
+       is the same reason the preset exists. A real run is seeded at 4. */
+    if (liveReached === 0) return
     /* The run produces a screen on the same clock the viewer walks one, so the
        live strip's counts and the walkthrough never drift apart. */
     const t = window.setInterval(() => setLiveReached((r) => Math.min(AI_BEHAVIOURAL_STEPS.length - 1, r + 1)), AGENT_LOOP_MS)
     return () => window.clearInterval(t)
-  }, [activeRun])
+  }, [activeRun, liveReached])
   const sessions = useMemo(() => {
     if (!activeRun || !activeMeta) return []
+    /* Nothing recorded yet — see the 'no-sessions' preset. */
+    if (liveReached === 0 && activeRun.state === 'progress') return []
     const built = buildAgentSessions(activeRun.id, activeMeta, liveReached)
     return activeRun.state === 'failed' ? built.slice(0, activeMeta.finished) : built
   }, [activeRun, activeMeta, liveReached])
@@ -203,6 +248,12 @@ export function AIBehaviouralTestView({
   const lengthLabel = length === 'custom' ? `${customLength} min` : `${length} min`
   const totalAgents = personas.reduce((n, p) => n + countOf(p.id), 0)
 
+  /* The agents have stopped; nothing is live any more and there is no report
+     yet. The row stays open — the sessions it recorded are all watchable, which
+     is exactly what a reader waiting on the report wants to do. */
+  const analyseRun = (id: string) =>
+    setRuns((prev) => prev.map((r) => (r.id === id ? { ...r, state: 'analysing' } : r)))
+
   const finishRun = (id: string) =>
     setRuns((prev) =>
       prev.map((r) => (r.id === id ? { ...r, state: 'done', result: { kind: 'issues', count: 7 } } : r)),
@@ -218,6 +269,10 @@ export function AIBehaviouralTestView({
       name: runName.trim() || `${names.join(' & ')} · ${build}`,
       detail: `${totalAgents} sessions · ${lengthLabel} · ${build}`,
       meta: personas.map((p) => `${p.label} ×${countOf(p.id)}`).join(', '),
+      /* One pill per persona, so a four-persona run clamps to "+2" instead of
+         truncating a name mid-word — the same Tag column every other history
+         table has. `meta` stays as the plain-text fallback. */
+      tags: personas.map((p) => `${p.label} ×${countOf(p.id)}`),
       state: 'progress',
       when: runDateLabel(),
     }
@@ -225,7 +280,12 @@ export function AIBehaviouralTestView({
     setHighlightId(run.id)
     setRunName('')
     setTab('history')
-    timers.current.push(window.setTimeout(() => finishRun(run.id), SIMULATED_RUN_MS))
+    /* Two beats, not one: the agents stop playing, then the analysis reads what
+       they recorded. */
+    timers.current.push(window.setTimeout(() => analyseRun(run.id), SIMULATED_RUN_MS))
+    timers.current.push(
+      window.setTimeout(() => finishRun(run.id), SIMULATED_RUN_MS + SIMULATED_ANALYSIS_MS),
+    )
   }
 
   if (activeRun && activeMeta) {
@@ -239,10 +299,20 @@ export function AIBehaviouralTestView({
           meta={activeMeta}
           instructions={instructions.trim() || DEFAULT_INSTRUCTIONS}
           initialStep={openSession?.step}
-          onBack={() => {
-            setOpenSession(null)
-            setRunTab('videos')
-          }}
+          /* The run's findings, narrowed to the ones this recording produced —
+             each carrying the screen in *this* session it was flagged on. */
+          findings={issues.flatMap((issue) => {
+            const ref = issue.clipRefs.find((c) => c.sessionId === session.id)
+            return ref
+              ? [{ id: issue.id, title: issue.title, kind: issue.kind, stepIndex: ref.stepIndex }]
+              : []
+          })}
+          /* Just close the session. `runTab` is still whatever tab the session
+             was opened from — opening one does not change it — so leaving it
+             alone returns the reader exactly where they were. Forcing 'videos'
+             here sent anyone who opened a session from a finding's clip back to
+             a tab they had not chosen: one level back, and sideways. */
+          onBack={() => setOpenSession(null)}
           className={className}
         />
       )
@@ -413,7 +483,11 @@ export function AIBehaviouralTestView({
                     className="flex items-center gap-xs px-m py-xs font-body text-s text-text-tertiary leading-[1.5]"
                     style={{ borderTop: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-page-pale)' }}
                   >
-                    <span className="font-semibold text-text-primary">{totalAgents} agents</span> in total
+                    {/* One is now the default, so the line has to survive it. */}
+                    <span className="font-semibold text-text-primary">
+                      {totalAgents} {totalAgents === 1 ? 'agent' : 'agents'}
+                    </span>{' '}
+                    in total
                   </div>
                 </div>
               )}
@@ -491,20 +565,18 @@ export function AIBehaviouralTestView({
             setRunVideosStatus('all')
             setOpenRun(run)
           }}
-          /* Agents play in parallel, so "watch live" is usually a set, not a
-             session. It lands on the run's Videos tab filtered to what is
-             playing right now — the count is the point, and picking one of
-             twenty by "furthest along" is a choice nobody asked for and one
-             that lands somewhere different on every click. A single live
-             session is its own list, so that case opens the player directly. */
+          /* Agents play in parallel, so "watch live" is a set, not a session.
+             It lands on the run's Videos tab filtered to Live — always, even
+             when only one agent is still going. The shortcut that opened a
+             lone live session directly meant the same button went two
+             different places depending on a count the reader could not see
+             before pressing it, and there is no way back to the list from a
+             player you did not choose to open. */
           onWatchLive={(run) => {
-            const live = buildAgentSessions(run.id, metaForRun(run), liveReached).filter(
-              (s) => s.status === 'live',
-            )
             setRunTab('videos')
             setRunVideosStatus('live')
             setOpenRun(run)
-            setOpenSession(live.length === 1 ? { id: live[0].id } : null)
+            setOpenSession(null)
           }}
         />
       )}

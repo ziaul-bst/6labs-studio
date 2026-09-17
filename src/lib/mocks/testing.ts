@@ -10,6 +10,7 @@ import type {
   AIBehaviouralRunMeta,
   BuildOption,
   Persona,
+  TestCaseFile,
   TestRunHistoryItem,
 } from '../types/testing'
 import type { UserTestIssue } from '../types/userTest'
@@ -23,39 +24,67 @@ export const USER_TEST_HISTORY: TestRunHistoryItem[] = [
      Each fact appears once: the library tag lives in `meta` (the "Tag"
      column), the game-context flow is the run's name, and `detail` holds only
      what went in. */
-  { id: 'ut-q-onboarding', kind: 'question', name: 'Which testers quit before finishing onboarding, and what were they doing right before?', detail: '6 videos · 3 follow-ups', meta: 'Build V2.2', state: 'done', when: 'Sep 8' },
-  { id: 'ut-v22', name: 'Onboarding flow v3', detail: '10 videos', meta: 'Build V2.2', state: 'done', result: { kind: 'issues', count: 7 }, when: 'Sep 7' },
-  { id: 'ut-v21', name: 'Onboarding flow v3', detail: '10 videos', meta: 'Build V2.1', state: 'done', result: { kind: 'issues', count: 7 }, when: 'Aug 26' },
-  { id: 'ut-alliance', name: 'Alliance join — pilot', detail: '5 videos · no game context', meta: 'Alliance', state: 'done', result: { kind: 'issues', count: 3 }, when: 'Aug 19' },
+  { id: 'ut-q-onboarding', kind: 'question', name: 'Which testers quit before finishing onboarding, and what were they doing right before?', detail: '6 videos · 3 follow-ups', meta: 'Build V2.2', tags: ['Build V2.2'], state: 'done', when: 'Sep 8' },
+  /* Picked from three tags — the row the Tag column has to survive. */
+  { id: 'ut-v22', name: 'Onboarding flow v3', detail: '10 videos', meta: 'Build V2.2, Tutorial, Last 24h', tags: ['Build V2.2', 'Tutorial', 'Last 24h'], state: 'done', result: { kind: 'issues', count: 7 }, when: 'Sep 7' },
+  { id: 'ut-v21', name: 'Onboarding flow v3', detail: '10 videos', meta: 'Build V2.1', tags: ['Build V2.1'], state: 'done', result: { kind: 'issues', count: 7 }, when: 'Aug 26' },
+  { id: 'ut-alliance', name: 'Alliance join — pilot', detail: '5 videos · no game context', meta: 'Alliance, New event', tags: ['Alliance', 'New event'], state: 'done', result: { kind: 'issues', count: 3 }, when: 'Aug 19' },
 ]
 
 export const FUNCTIONAL_HISTORY: TestRunHistoryItem[] = [
-  { id: 'ft-v22', name: 'Tutorial regression', detail: '8 videos · regression-suite.xlsx', meta: 'Build V2.2', state: 'done', result: { kind: 'counts', passed: 42, failed: 3, review: 2 }, when: 'Sep 5' },
-  { id: 'ft-agency', name: 'Agency batch — Digital Hearts', detail: '24 videos · agency-cases-aug.xlsx', meta: 'CBT', state: 'done', result: { kind: 'counts', passed: 118, failed: 9, review: 4 }, when: 'Sep 2', withUx: true },
+  { id: 'ft-v22', name: 'Tutorial regression', detail: '8 videos · regression-suite.xlsx', meta: 'Build V2.2, Tutorial', tags: ['Build V2.2', 'Tutorial'], caseFiles: [{ name: 'regression-suite.xlsx', meta: '48 cases', href: '#/files/regression-suite.xlsx' }], state: 'done', result: { kind: 'counts', passed: 42, failed: 3, review: 2, blocked: 1 }, when: 'Sep 5' },
+  { id: 'ft-agency', name: 'Agency batch — Digital Hearts', detail: '24 videos · agency-cases-aug.xlsx', meta: 'CBT', tags: ['CBT'], caseFiles: [{ name: 'agency-cases-aug.xlsx', meta: '131 cases', href: '#/files/agency-cases-aug.xlsx' }], state: 'done', result: { kind: 'counts', passed: 118, failed: 9, review: 4, blocked: 2 }, when: 'Sep 2', withUx: true },
 ]
 
 export const AI_FUNCTIONAL_HISTORY: TestRunHistoryItem[] = [
-  { id: 'aif-s9', name: 'Season 9 — core loop', detail: '24 cases · FreeFire-PRD-s9-cases.xlsx', meta: 'v2.3.1', state: 'done', result: { kind: 'counts', passed: 19, failed: 2, review: 3 }, when: 'Aug 29' },
-  { id: 'aif-bp', name: 'Battle Pass v2 — store', detail: '5 cases · BattlePass-cases-v2.csv', meta: '—', state: 'never', when: 'Aug 28' },
+  { id: 'aif-s9', name: 'Season 9 — core loop', detail: '24 cases · FreeFire-PRD-s9-cases.xlsx', meta: 'v2.3.1', caseFiles: [{ name: 'FreeFire-PRD-s9-cases.xlsx', meta: '24 cases', href: '#/files/FreeFire-PRD-s9-cases.xlsx' }], state: 'done', result: { kind: 'counts', passed: 19, failed: 2, review: 3, blocked: 1 }, when: 'Aug 29' },
+  { id: 'aif-bp', name: 'Battle Pass v2 — store', detail: '5 cases · BattlePass-cases-v2.csv', meta: '—', caseFiles: [{ name: 'BattlePass-cases-v2.csv', meta: '5 cases', href: '#/files/BattlePass-cases-v2.csv' }], state: 'never', when: 'Aug 28' },
 ]
 
 export const AI_BEHAVIOURAL_HISTORY: TestRunHistoryItem[] = [
-  /* Personas live in `meta` (the "Personas" column) — the name is the scenario. */
-  { id: 'aib-frost', name: 'Frost Festival', detail: '20 sessions · 30 min · v2.3.1', meta: 'New player ×12, Whale ×8', state: 'done', result: { kind: 'issues', count: 9 }, when: 'Sep 6' },
-  { id: 'aib-onb', name: 'Onboarding', detail: '10 sessions · 15 min · v2.3.0', meta: 'New player ×10', state: 'done', result: { kind: 'issues', count: 6 }, when: 'Aug 30' },
+  /* Personas ride in `tags`, not in `meta`: a run with four of them used to
+     truncate mid-name in a 184px column ("New player ×12, Wha…"), which is the
+     one thing the Personas column exists to say. Pills clamp to the row and
+     put what will not fit on a "+N", the same way every other history table's
+     tag column does — `meta` is kept as the plain-text fallback. */
+  { id: 'aib-frost', name: 'Frost Festival', detail: '20 sessions · 30 min · v2.3.1', meta: 'New player ×12, Whale ×8', tags: ['New player ×12', 'Whale ×8'], state: 'done', result: { kind: 'issues', count: 9 }, when: 'Sep 6' },
+  { id: 'aib-onb', name: 'Onboarding', detail: '10 sessions · 15 min · v2.3.0', meta: 'New player ×10', tags: ['New player ×10'], state: 'done', result: { kind: 'issues', count: 6 }, when: 'Aug 30' },
+  { id: 'aib-smoke', name: 'Store smoke check', detail: '1 session · 10 min · v2.3.2', meta: 'Generic ×1', tags: ['Generic ×1'], state: 'done', result: { kind: 'issues', count: 2 }, when: 'Sep 8' },
+  /* Four personas — the row the clamped Personas column has to survive. */
+  { id: 'aib-season', name: 'Season 9 — full sweep', detail: '32 sessions · 60 min · v2.3.1', meta: 'Generic ×8, New player ×8, Core ×8, Whale ×8', tags: ['Generic ×8', 'New player ×8', 'Core ×8', 'Whale ×8'], state: 'done', result: { kind: 'issues', count: 14 }, when: 'Sep 4' },
 ]
 
 // ── Functional report ─────────────────────────────────────────────────────────
 
 
 /** Sample test-case files the upload zones resolve to (prototype only). */
-export const SAMPLE_TEST_CASE_FILES = [
-  { name: 'regression-suite.xlsx', meta: '48 cases · exported from TestRail' },
-  { name: 'FreeFire-PRD-s9-cases.xlsx', meta: '24 cases' },
-  { name: 'checkout-flow-cases.csv', meta: '12 cases' },
-  { name: 'alliance-rally-cases.csv', meta: '9 cases' },
-  { name: 'settings-smoke.csv', meta: '6 cases' },
+export const SAMPLE_TEST_CASE_FILES: TestCaseFile[] = [
+  { name: 'regression-suite.xlsx', meta: '48 cases', href: '#/files/regression-suite.xlsx' },
+  { name: 'FreeFire-PRD-s9-cases.xlsx', meta: '24 cases', href: '#/files/FreeFire-PRD-s9-cases.xlsx' },
+  { name: 'checkout-flow-cases.csv', meta: '12 cases', href: '#/files/checkout-flow-cases.csv' },
+  { name: 'alliance-rally-cases.csv', meta: '9 cases', href: '#/files/alliance-rally-cases.csv' },
+  { name: 'settings-smoke.csv', meta: '6 cases', href: '#/files/settings-smoke.csv' },
 ]
+
+/**
+ * What a case file has to contain for 6labs to verify anything, and a sheet in
+ * that shape to start from.
+ *
+ * The three required columns are not house style: a verdict is the comparison
+ * of an expected result against footage, taken from the state the precondition
+ * names, and a sheet missing any of them produces cases the run can only mark
+ * Not verified. Saying so on the upload zone is cheaper than saying it in the
+ * report.
+ *
+ * TODO: point `href` at the real sample sheet once it is shared (dev call,
+ * 2026-09-16) — the link is deliberately here and wired now so the copy around
+ * it does not have to change later.
+ */
+export const SAMPLE_TEST_CASE_SHEET = {
+  href: '#/sample-test-case-sheet.xlsx',
+  label: 'See a sample sheet',
+  required: ['Precondition', 'Expected result', 'Steps'],
+}
 
 // ── Builds and personas (AI tests) ────────────────────────────────────────────
 
@@ -66,6 +95,10 @@ export const BUILDS: BuildOption[] = [
 ]
 
 export const PERSONAS: Persona[] = [
+  /* First, and deliberately not a persona: a run that just wants the build
+     played needs an option that says so, rather than a "New player" whose
+     behaviour it did not ask for and cannot tell apart from the real thing. */
+  { id: 'generic', label: 'Generic', detail: 'no persona — plays the build as-is' },
   { id: 'new-player', label: 'New player', detail: 'day 0–3' },
   { id: 'core', label: 'Core', detail: 'day 7–30' },
   { id: 'whale', label: 'Whale', detail: 'top 2% spend' },
@@ -103,6 +136,7 @@ export const USER_TEST_HOME_PROMPTS = [
 
 /** One line on who the persona is — shown wherever a session names its player. */
 export const PERSONA_DETAIL: Record<string, string> = {
+  Generic: 'No persona · plays the build as-is',
   'New player': 'Day 0–3 · first session, no prior knowledge',
   Whale: 'Top 2% spend · optimises for power, buys early',
   Core: 'Day 7–30 · knows the loop, chases progression',
@@ -114,6 +148,9 @@ export const PERSONA_DETAIL: Record<string, string> = {
 
 /** Accent per persona — the one colour a session card carries. */
 export const PERSONA_TONE: Record<string, string> = {
+  /* Neutral on purpose — Generic is the absence of a persona, so it does not
+     take a colour that would read as one more player type beside the others. */
+  Generic: 'var(--text-tertiary)',
   'New player': 'var(--success)',
   Whale: 'var(--purple)',
   Core: 'var(--brand)',
@@ -194,6 +231,11 @@ const AI_ONLY_ISSUES: UserTestIssue[] = [
 export const AI_BEHAVIOURAL_RUN_META: Record<string, AIBehaviouralRunMeta> = {
   'aib-frost': { build: 'v2.3.1', agents: 20, personas: ['New player', 'Whale'], personaCounts: { 'New player': 12, Whale: 8 }, lengthLabel: '30 min', startedLabel: 'Sep 6', finished: 20 },
   'aib-onb': { build: 'v2.3.0', agents: 10, personas: ['New player'], personaCounts: { 'New player': 10 }, lengthLabel: '15 min', startedLabel: 'Aug 30', finished: 10 },
+  /* A one-agent smoke run. Kept as a fixture because N=1 is the size every
+     count, label and layout in this test has to survive — "1 / 1 agents",
+     "sessions played", a one-card grid, a single-row persona split — and it is
+     a real way to use the product, not an edge case to be reasoned about. */
+  'aib-smoke': { build: 'v2.3.2', agents: 1, personas: ['New player'], personaCounts: { 'New player': 1 }, lengthLabel: '10 min', startedLabel: 'Sep 8', finished: 1 },
 }
 
 export const formatSessionTime = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`

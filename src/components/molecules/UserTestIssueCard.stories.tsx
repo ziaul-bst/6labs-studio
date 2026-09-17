@@ -21,7 +21,7 @@ export const HighConfidenceFriction: Story = {
   args: { issue: USER_TEST_ISSUES[1] },
 }
 
-/** A bug that only reproduces on some screens — the scope note replaces the metric. */
+/** A bug that only reproduces on some screens — the scope is the report's to state. */
 export const DeviceScopedBug: Story = {
   args: { issue: USER_TEST_ISSUES[2] },
 }

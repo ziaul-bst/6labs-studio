@@ -14,15 +14,17 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { runDateLabel } from '../../lib/runDate'
+import { useRunDemoSeed } from '../../lib/runDemoState'
 import { TestingPageHeader } from '../molecules/TestingPageHeader'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
-import { BuildPickerModal } from './BuildPickerModal'
+import { BuildPickerModal, BuildPlatformBadge } from './BuildPickerModal'
 import { useBuilds, versionOf } from '../../lib/buildsDemoState'
-import { CheckIcon } from '../icons/CheckIcon'
 import {
+  CaseSheetNote,
   FieldLabel,
   InstructionsField,
+  SampleSheetLink,
   SetupCard,
   SetupFooter,
   SetupNote,
@@ -37,7 +39,7 @@ import Button from '../ui/Button'
 import Input from '../ui/Input'
 import { AIFunctionalIcon } from '../icons/AIFunctionalIcon'
 import { UploadIcon } from '../icons/UploadIcon'
-import { AI_FUNCTIONAL_HISTORY, SAMPLE_TEST_CASE_FILES } from '../../lib/mocks/testing'
+import { AI_FUNCTIONAL_HISTORY, SAMPLE_TEST_CASE_FILES, SAMPLE_TEST_CASE_SHEET } from '../../lib/mocks/testing'
 import { useHistoryDemoSeed } from '../../lib/historyDemoState'
 import type { TestCaseFile, TestRunHistoryItem } from '../../lib/types/testing'
 
@@ -78,6 +80,17 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
   useEffect(() => {
     onScreenChange?.(openRun ? 'report' : 'home')
   }, [openRun, onScreenChange])
+  /* Run-flow presets. This view had none, so the dock's Run row rendered here
+     and did nothing when pressed — the one screen it could hold open, the
+     report, was reachable only by sitting through a 14-second run. Two states,
+     the same two the human functional test has. */
+  useRunDemoSeed((state) => {
+    if (state === 'composer') {
+      setOpenRun(null)
+      return
+    }
+    setOpenRun({ ...AI_FUNCTIONAL_HISTORY[0], state: 'done' })
+  })
   /* Review dock: reseed the history and show it. */
   useHistoryDemoSeed(AI_FUNCTIONAL_HISTORY, ({ runs: seeded, highlightId: hl, initial }) => {
     setRuns(seeded)
@@ -90,7 +103,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
   const finishRun = (id: string) =>
     setRuns((prev) =>
       prev.map((r) =>
-        r.id === id ? { ...r, state: 'done', result: { kind: 'counts', passed: 19, failed: 2, review: 3 } } : r,
+        r.id === id ? { ...r, state: 'done', result: { kind: 'counts', passed: 19, failed: 2, review: 3, blocked: 1 } } : r,
       ),
     )
 
@@ -101,6 +114,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
       name: runName.trim() || 'AI functional test',
       detail: `${files.length} file${files.length === 1 ? '' : 's'} · ${files[0].name}`,
       meta: build,
+      caseFiles: files,
       state: 'progress',
       when: runDateLabel(),
     }
@@ -117,6 +131,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
         title={run.name}
         subtitle={`${run.detail} · build ${run.meta} · executed by AI Player, 3 agents`}
         mode="ai"
+        caseFiles={run.caseFiles}
         inProgress={run.state === 'progress'}
         failure={runFailureText(run)}
         onDone={() => finishRun(run.id)}
@@ -155,42 +170,38 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
             Each run records its own test cases, build and report, so results remain comparable across builds.
           </p>
 
-          {/* The two inputs a run needs, side by side — the same shape the human
-              functional test gives its recordings and cases. */}
+          {/* The two inputs a run needs, side by side, in the same order the
+              human functional test asks for them: what the cases run against
+              first, then the cases. Cases were on the left here, so the two
+              functional composers mirrored each other — and the case-sheet note
+              hung under the left column where it read as a footnote to the page
+              rather than to the zone it belongs to. */}
           <div className="grid gap-m w-full" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-            <SetupZone
-              filled={files.length > 0}
-              icon={<UploadIcon size={20} />}
-              title="Add your test cases"
-              description="Upload a spreadsheet of test cases — one row per case."
-              formats="CSV · XLSX"
-              required
-              accent="success"
-              onClick={() => setFiles([SAMPLE_TEST_CASE_FILES[0]])}
-            >
-              <ZoneFileList
-                files={files}
-                onRemove={(f) => setFiles((prev) => prev.filter((x) => x.name !== f.name))}
-                onAdd={() =>
-                  setFiles((prev) => {
-                    const next = SAMPLE_TEST_CASE_FILES.find((f) => !prev.some((p) => p.name === f.name))
-                    return next ? [...prev, next] : prev
-                  })
-                }
-              />
-            </SetupZone>
-
             <SetupZone
               filled={build !== null}
               icon={<UploadIcon size={20} />}
               title="Choose a build"
+              filledTitle="Build"
               description="Upload an APK, or pick one you uploaded before. An earlier build shows whether a failure is new."
               formats="APK"
               required
               accent="success"
               onClick={() => setBuildPickerOpen(true)}
             >
-              <ZoneFilledHeader icon={<CheckIcon size={16} />} title={build ?? ''} onRemove={() => setBuild(null)} />
+              {/* Not the compact row the case sheet uses. A zone that can only
+                  ever hold one build has the whole card to itself, and the row
+                  spent that space truncating the file name to fit a list shape
+                  it is never in a list of. The version gets the heading, its
+                  file gets a full line under it. */}
+              {/* The package mark, not a tick — the same badge the build
+                  picker and the behavioural composer's build field carry, so a
+                  chosen build looks the same wherever it is shown. The tick
+                  only said "attached", which the filled zone already is. */}
+              <ZoneFilledHeader
+                icon={<BuildPlatformBadge plain>{chosenBuild?.platform ?? 'APK'}</BuildPlatformBadge>}
+                title={build ?? ''}
+                onRemove={() => setBuild(null)}
+              />
               {chosenBuild && (
                 <p className="font-body text-s text-text-secondary leading-[1.5] m-0 truncate">
                   {chosenBuild.fileName} · {chosenBuild.sizeLabel} · {chosenBuild.uploadedLabel}
@@ -202,6 +213,41 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
                   Change build
                 </button>
               </ZoneFooter>
+            </SetupZone>
+
+            <SetupZone
+              filled={files.length > 0}
+              icon={<UploadIcon size={20} />}
+              title="Add your test cases"
+              filledTitle="Test cases"
+              description="Upload a spreadsheet of test cases — one row per case."
+              formats="CSV · XLSX"
+              required
+              accent="success"
+              /* Empty only: once a sheet is attached the link moves into the
+                 file list's own footer row, opposite "Add another file". */
+              note={
+                files.length === 0 ? (
+                  <CaseSheetNote
+                    required={SAMPLE_TEST_CASE_SHEET.required}
+                    href={SAMPLE_TEST_CASE_SHEET.href}
+                    label={SAMPLE_TEST_CASE_SHEET.label}
+                  />
+                ) : undefined
+              }
+              onClick={() => setFiles([SAMPLE_TEST_CASE_FILES[0]])}
+            >
+              <ZoneFileList
+                files={files}
+                trailing={<SampleSheetLink href={SAMPLE_TEST_CASE_SHEET.href} label={SAMPLE_TEST_CASE_SHEET.label} />}
+                onRemove={(f) => setFiles((prev) => prev.filter((x) => x.name !== f.name))}
+                onAdd={() =>
+                  setFiles((prev) => {
+                    const next = SAMPLE_TEST_CASE_FILES.find((f) => !prev.some((p) => p.name === f.name))
+                    return next ? [...prev, next] : prev
+                  })
+                }
+              />
             </SetupZone>
           </div>
 

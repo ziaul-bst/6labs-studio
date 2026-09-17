@@ -25,7 +25,9 @@ import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
 import { SelectedVideosStrip } from '../molecules/SelectedVideosStrip'
 import {
+  CaseSheetNote,
   FieldLabel,
+  SampleSheetLink,
   SetupCard,
   SetupFooter,
   SetupNote,
@@ -43,7 +45,7 @@ import { FunctionalTestIcon } from '../icons/FunctionalTestIcon'
 import { AgencyTestIcon } from '../icons/AgencyTestIcon'
 import { PlayIcon } from '../icons/PlayIcon'
 import { UploadIcon } from '../icons/UploadIcon'
-import { FUNCTIONAL_HISTORY, SAMPLE_TEST_CASE_FILES } from '../../lib/mocks/testing'
+import { FUNCTIONAL_HISTORY, SAMPLE_TEST_CASE_FILES, SAMPLE_TEST_CASE_SHEET } from '../../lib/mocks/testing'
 import { useHistoryDemoSeed } from '../../lib/historyDemoState'
 import { PICKER_VIDEOS } from '../../lib/mocks/user-test'
 import type { TestCaseFile, TestRunHistoryItem } from '../../lib/types/testing'
@@ -180,7 +182,7 @@ export function FunctionalTestView({
   const finishRun = (id: string) =>
     setRuns((prev) =>
       prev.map((r) =>
-        r.id === id ? { ...r, state: 'done', result: { kind: 'counts', passed: 42, failed: 3, review: 2 } } : r,
+        r.id === id ? { ...r, state: 'done', result: { kind: 'counts', passed: 42, failed: 3, review: 2, blocked: 1 } } : r,
       ),
     )
 
@@ -191,7 +193,14 @@ export function FunctionalTestView({
       id: `ft-${Date.now()}`,
       name: runName.trim() || 'Functional verification',
       detail: `${selected.length} videos · ${testCases[0].name}`,
-      meta: tags[0] ?? '—',
+      /* The sheets the run was verified against, kept on the row so the report
+         can hand them back as a download. */
+      caseFiles: testCases,
+      /* Every tag the selection carried, not just the first. A batch picked
+         from three tags used to file itself under one of them, so the history
+         said less about the run than the picker did. */
+      meta: tags.join(', ') || '—',
+      tags: tags.length ? tags : ['—'],
       state: 'progress',
       when: runDateLabel(),
       withUx: agency,
@@ -210,6 +219,7 @@ export function FunctionalTestView({
         subtitle={`${run.detail} · ${run.meta} · verified by 6labs agent`}
         mode="human"
         withUx={run.withUx}
+        caseFiles={run.caseFiles}
         inProgress={run.state === 'progress'}
         failure={runFailureText(run)}
         onDone={() => finishRun(run.id)}
@@ -256,6 +266,7 @@ export function FunctionalTestView({
               filled={selected.length > 0}
               icon={<PlayIcon size={20} />}
               title="Select the recordings"
+              filledTitle="Recordings"
               description={copy.recordingsHint}
               required
               accent={copy.accent}
@@ -278,14 +289,27 @@ export function FunctionalTestView({
               filled={testCases.length > 0}
               icon={<UploadIcon size={20} />}
               title="Add the test cases"
+              filledTitle="Test cases"
               description={copy.casesHint}
               formats="CSV · XLSX"
               required
               accent={copy.accent}
+              /* Empty only: once a sheet is attached the link moves into the
+                 file list's own footer row, opposite "Add another file". */
+              note={
+                testCases.length === 0 ? (
+                  <CaseSheetNote
+                    required={SAMPLE_TEST_CASE_SHEET.required}
+                    href={SAMPLE_TEST_CASE_SHEET.href}
+                    label={SAMPLE_TEST_CASE_SHEET.label}
+                  />
+                ) : undefined
+              }
               onClick={() => setTestCases([SAMPLE_TEST_CASE_FILES[0]])}
             >
               <ZoneFileList
                 files={testCases}
+                trailing={<SampleSheetLink href={SAMPLE_TEST_CASE_SHEET.href} label={SAMPLE_TEST_CASE_SHEET.label} />}
                 onRemove={(f) => setTestCases((prev) => prev.filter((x) => x.name !== f.name))}
                 onAdd={() =>
                   setTestCases((prev) => {
@@ -332,7 +356,7 @@ export function FunctionalTestView({
         <RunHistoryList
           runs={runs}
           highlightId={highlightId}
-          metaLabel="Tag"
+          metaLabel="Tags"
           emptyTitle="No runs yet"
           emptyLabel="Pick footage and a test-case file, run it, and the report lands here."
           emptyAction={{ label: 'New run', onClick: () => setTab('new') }}

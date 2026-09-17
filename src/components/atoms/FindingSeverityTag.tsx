@@ -13,7 +13,7 @@ import type { IssueSeverity } from '../../lib/types/userTest'
 
 export const SEVERITY_STYLE: Record<
   IssueSeverity,
-  { label: string; bg: string; ink?: string; inkClass?: string; border?: string; dot: string }
+  { label: string; bg: string; ink?: string; inkClass?: string; dot: string }
 > = {
   blocking: { label: 'Blocking', bg: 'var(--error-bg)', ink: 'var(--error)', dot: 'var(--error)' },
   disruptive: {
@@ -22,13 +22,14 @@ export const SEVERITY_STYLE: Record<
     inkClass: 'issue-amber-ink',
     dot: 'var(--warning)',
   },
-  /* Cosmetic sits on a bordered white chip rather than a grey fill — on the
-     grey page a grey chip read as a hole rather than a tag. */
+  /* Filled, like the other two. Cosmetic used to be the one outlined chip in
+     the family, which made the lowest severity the most visually distinct
+     thing in the row. It sits on a card now, not on the grey page, so a
+     neutral fill reads as a tag rather than as a hole. */
   cosmetic: {
     label: 'Cosmetic',
-    bg: 'var(--bg-elements)',
+    bg: 'var(--bg-subtle)',
     ink: 'var(--text-secondary)',
-    border: 'var(--border-default)',
     dot: 'var(--text-tertiary)',
   },
 }
@@ -52,7 +53,6 @@ export function FindingSeverityTag({ severity, className }: FindingSeverityTagPr
       style={{
         backgroundColor: style.bg,
         color: style.inkClass ? undefined : style.ink,
-        border: style.border ? `1px solid ${style.border}` : undefined,
       }}
     >
       {style.label}
@@ -60,14 +60,17 @@ export function FindingSeverityTag({ severity, className }: FindingSeverityTagPr
   )
 }
 
-/** The game step a finding sits on, as the report prints it. */
+/**
+ * The game step a finding sits on, as the report prints it.
+ *
+ * Not a chip. A tag classifies the finding — severity, kind — and the step does
+ * not: it says where the thing happened. It was a brand-tinted pill here and
+ * plain text on the run summary, which made one datum look like two different
+ * kinds of thing depending on which screen you were reading. Plain text in both
+ * now, and the chips are left to mean classification alone.
+ */
 export function FindingStepTag({ children }: { children: React.ReactNode }) {
   return (
-    <span
-      className="inline-flex items-center px-xs py-xxxs rounded-xs font-body text-xs leading-[1.5]"
-      style={{ backgroundColor: 'var(--bg-tint-light)', color: 'var(--text-brand)' }}
-    >
-      {children}
-    </span>
+    <span className="font-body text-xs text-text-tertiary leading-[1.5]">{children}</span>
   )
 }

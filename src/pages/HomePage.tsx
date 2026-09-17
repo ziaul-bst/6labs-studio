@@ -85,6 +85,7 @@ import {
   HISTORY_DEMO_LABELS,
   HISTORY_DEMO_NOTES,
   HISTORY_DEMO_STATES,
+  HISTORY_DEMO_STATES_AI_BEHAVIOURAL,
   HISTORY_DEMO_STATES_REPORTS_ONLY,
   setHistoryDemoState,
   useHistoryDemoState,
@@ -94,12 +95,29 @@ import { setLibraryDemoState, useLibraryDemoState } from '../lib/libraryDemoStat
 import {
   RUN_DEMO_LABELS,
   RUN_DEMO_NOTES,
-  RUN_DEMO_STATES,
-  RUN_DEMO_STATES_NO_THREAD,
+  RUN_DEMO_STATES_AI_BEHAVIOURAL,
+  RUN_DEMO_STATES_FUNCTIONAL,
+  RUN_DEMO_STATES_USER_TEST,
   setRunDemoState,
   useRunDemoState,
   type RunDemoState,
 } from '../lib/runDemoState'
+import {
+  CASE_DEPTH_DEMO_LABELS,
+  CASE_DEPTH_DEMO_NOTES,
+  CASE_DEPTH_DEMO_STATES,
+  setCaseDepthDemoState,
+  useCaseDepthDemoState,
+  type CaseDepthDemoState,
+} from '../lib/caseDepthDemoState'
+import {
+  CASE_LAYOUT_DEMO_LABELS,
+  CASE_LAYOUT_DEMO_NOTES,
+  CASE_LAYOUT_DEMO_STATES,
+  setCaseLayoutDemoState,
+  useCaseLayoutDemoState,
+  type CaseLayoutDemoState,
+} from '../lib/caseLayoutDemoState'
 import {
   BUILDS_DEMO_LABELS,
   BUILDS_DEMO_NOTES,
@@ -456,6 +474,8 @@ export function HomePage() {
   const connectorsDemoState = useConnectorsDemoState()
   const uploadsDemoState = useUploadsDemoState()
   const runDemoState = useRunDemoState()
+  const caseDepthDemoState = useCaseDepthDemoState()
+  const caseLayoutDemoState = useCaseLayoutDemoState()
   const buildsDemoState = useBuildsDemoState()
   /* Which tab the current test view is on. The dock offers Run or History,
      never both — they drive different halves of the same screen, and showing
@@ -1645,17 +1665,56 @@ export function HomePage() {
                 } satisfies StateMachineDockRow,
               ]
             : []),
+          /* Case modal shape — the same screens the Cases row appears on,
+             because it is the modal those cases open into. */
+          ...((activeNav === 'functional-test' || activeNav === 'ai-functional-test') &&
+          testingSubScreen === 'report'
+            ? [
+                {
+                  id: 'case-modal',
+                  label: 'Case modal',
+                  value: caseLayoutDemoState,
+                  options: CASE_LAYOUT_DEMO_STATES.map((key) => ({
+                    key,
+                    label: CASE_LAYOUT_DEMO_LABELS[key],
+                    note: CASE_LAYOUT_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => setCaseLayoutDemoState(key as CaseLayoutDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          /* Case depth — only inside a functional report, which is the only
+             screen the fixture's prose length shows up on. */
+          ...((activeNav === 'functional-test' || activeNav === 'ai-functional-test') &&
+          testingSubScreen === 'report'
+            ? [
+                {
+                  id: 'cases',
+                  label: 'Cases',
+                  value: caseDepthDemoState,
+                  options: CASE_DEPTH_DEMO_STATES.map((key) => ({
+                    key,
+                    label: CASE_DEPTH_DEMO_LABELS[key],
+                    note: CASE_DEPTH_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => setCaseDepthDemoState(key as CaseDepthDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
           ...(area === 'testing' && HISTORY_STATE_NAVS.has(activeNav) && !onHistoryTab
             ? [
                 {
                   id: 'run',
                   label: 'Run',
                   value: runDemoState,
-                  /* Only User Test has a thread step between the composer and
-                     the report; the rest go straight there. */
+                  /* Each test offers the screens it actually has — see
+                     lib/runDemoState for why only the AI tests keep "Running". */
                   options: (activeNav === 'user-test'
-                    ? RUN_DEMO_STATES
-                    : RUN_DEMO_STATES_NO_THREAD
+                    ? RUN_DEMO_STATES_USER_TEST
+                    : activeNav === 'ai-behavioural-test'
+                      ? RUN_DEMO_STATES_AI_BEHAVIOURAL
+                      : /* Both functional tests have the same two screens. */
+                        RUN_DEMO_STATES_FUNCTIONAL
                   ).map((key) => ({
                     key,
                     label: RUN_DEMO_LABELS[key],
@@ -1674,9 +1733,15 @@ export function HomePage() {
                      seeded and the row shows it that way. */
                   value:
                     activeNav !== 'user-test' && historyDemoState === 'reports' ? 'seeded' : historyDemoState,
-                  options: (activeNav === 'user-test' ? HISTORY_DEMO_STATES : HISTORY_DEMO_STATES_REPORTS_ONLY).map(
-                    (key) => ({ key, label: HISTORY_DEMO_LABELS[key], note: HISTORY_DEMO_NOTES[key] }),
-                  ),
+                  options: (activeNav === 'user-test'
+                    ? HISTORY_DEMO_STATES
+                    : activeNav === 'ai-behavioural-test'
+                      ? /* The only test whose runs record and read in two
+                           separate beats — so the only one with an analysing
+                           row to review. */
+                        HISTORY_DEMO_STATES_AI_BEHAVIOURAL
+                      : HISTORY_DEMO_STATES_REPORTS_ONLY
+                  ).map((key) => ({ key, label: HISTORY_DEMO_LABELS[key], note: HISTORY_DEMO_NOTES[key] })),
                   onChange: (key: string) => setHistoryDemoState(key as HistoryDemoState),
                 } satisfies StateMachineDockRow,
               ]

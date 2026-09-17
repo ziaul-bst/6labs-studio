@@ -18,26 +18,79 @@
 import { useEffect, useRef } from 'react'
 import { useSyncExternalStore } from 'react'
 
-export type RunDemoState = 'composer' | 'running' | 'thread' | 'summary' | 'report'
+export type RunDemoState =
+  | 'composer'
+  | 'running'
+  | 'no-sessions'
+  | 'analysing'
+  | 'thread'
+  | 'summary'
+  | 'asking'
+  | 'report'
 
-export const RUN_DEMO_STATES: RunDemoState[] = ['composer', 'running', 'thread', 'summary', 'report']
+/**
+ * The screens a test can be held on, per test — they no longer share one list,
+ * because they no longer have the same screens.
+ *
+ * None of the human tests keep `running`. A new run lands on its History tab as
+ * a row in progress and the detail page is disabled until it finishes, so a
+ * preset for a run in flight would hold open a page nothing routes to.
+ */
 
-/** For views with no thread step between composing and the report. */
-export const RUN_DEMO_STATES_NO_THREAD: RunDemoState[] = ['composer', 'running', 'report']
+/** User Test: a thread (an opened question), the run page, and the report. */
+export const RUN_DEMO_STATES_USER_TEST: RunDemoState[] = [
+  'composer',
+  'thread',
+  'summary',
+  /* The follow-up loader is only up for ANSWER_DELAY_MS — too short to review
+     without a preset holding it. */
+  'asking',
+  'report',
+]
+
+/**
+ * Both functional tests — human and AI. Set it up, or read what it found;
+ * nothing in between. The AI one used to be offered the behavioural list, so
+ * its dock advertised "No videos yet" and "Analysing", two screens it does not
+ * have, on a row nothing was listening to.
+ */
+export const RUN_DEMO_STATES_FUNCTIONAL: RunDemoState[] = ['composer', 'report']
+
+/**
+ * AI behavioural keeps `running` and the two states either side of it. Theirs
+ * is a real destination: agents are playing the build, sessions are arriving
+ * one at a time, and there is a live one to watch — none of which the row in a
+ * list can show.
+ */
+export const RUN_DEMO_STATES_AI_BEHAVIOURAL: RunDemoState[] = [
+  'composer',
+  'no-sessions',
+  'running',
+  'analysing',
+  'report',
+]
 
 export const RUN_DEMO_LABELS: Record<RunDemoState, string> = {
   composer: 'Composer',
   running: 'Running',
+  analysing: 'Analysing',
+  'no-sessions': 'No videos yet',
   thread: 'Thread',
   summary: 'Run summary',
+  asking: 'Follow-up loading',
   report: 'Report',
 }
 
 export const RUN_DEMO_NOTES: Record<RunDemoState, string> = {
   composer: 'Before a run — pick footage, add context, name it.',
   running: 'A run in flight. Normally a 16-second window; this holds it open.',
+  analysing:
+    'Every agent has stopped and the report is being written — the sessions are all watchable, the report is not there yet.',
   thread: 'The finished run thread, with the answer and the follow-up dock.',
+  'no-sessions':
+    'A run that has started and recorded nothing yet. Opens on Videos — the tab the first session will arrive in — with the illustrated empty state.',
   summary: 'The run page a finished report opens on — what it found, and how big.',
+  asking: 'A follow-up asked and still being answered — the pending answer sheet, held open.',
   report: 'The full report: issues ranked by testers affected, with clips.',
 }
 

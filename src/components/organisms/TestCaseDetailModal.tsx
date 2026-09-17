@@ -4,7 +4,7 @@
  * A verification result is a claim, and the reader is doing exactly one thing
  * with it: comparing what the case asked for against what the footage shows. So
  * the body is that comparison, side by side, under the clip it is drawn from —
- * expected on the left, observed on the right. The earlier three-column version
+ * specified on the left, observed on the right. The earlier three-column version
  * put the list, the clip and the observation in competition and left the
  * expected result stranded under the video where nobody read it.
  *
@@ -20,6 +20,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { TestingMenuSelect } from '../molecules/TestingMenuSelect'
+import { VideoControlsBar } from '../molecules/VideoControlsBar'
+import { AIPlayerIcon } from '../icons/AIPlayerIcon'
 import { CASE_OUTCOME_STYLE, CaseOutcomeTag } from '../atoms/CaseOutcomeTag'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
@@ -29,6 +31,29 @@ import { PlayIcon } from '../icons/PlayIcon'
 import { ChevronIcon } from '../icons/ChevronIcon'
 import type { CaseOutcome, VerifiedCase } from '../../lib/types/testing'
 
+/**
+ * The nth "M:SS" in a string, in seconds. Both a clip range ("07:55 – 10:20")
+ * and a step's own timestamp are read with it, so the bar's scale and the step
+ * offsets can never be parsed two different ways.
+ */
+function clipSeconds(text: string, index: number): number {
+  const stamps = text.match(/\d+:\d+/g)
+  const stamp = stamps?.[index]
+  if (!stamp) return 0
+  const [m, s] = stamp.split(':').map(Number)
+  return m * 60 + s
+}
+
+/** Paired with the DS PlayIcon on the poster — there is no PauseIcon in the set. */
+function PauseGlyph() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+      <rect x="5.5" y="4" width="3.5" height="12" rx="1" fill="currentColor" />
+      <rect x="11" y="4" width="3.5" height="12" rx="1" fill="currentColor" />
+    </svg>
+  )
+}
+
 export interface TestCaseDetailModalProps {
   /** The case being read, or null when the modal is closed. */
   testCase: VerifiedCase | null
@@ -37,33 +62,85 @@ export interface TestCaseDetailModalProps {
   onSelect: (id: string) => void
   onClose: () => void
   /**
+   * The footage was played by an AI agent rather than recorded by a person.
+   * Tags the clip, because everything else in this modal reads identically
+   * either way — and whether a human or an agent produced the evidence changes
+   * how much weight a single observation carries.
+   */
+  aiGenerated?: boolean
+  /**
    * Show the list rail. Off is the plain modal — one case, walked with the
    * pager alone. Both shapes are in the reference; the rail is the default
    * because a suite is read failure by failure.
    */
   withNavigator?: boolean
+  /**
+   * 'stacked' puts the clip above a Specified | Observed comparison — the whole
+   * case read top to bottom. 'split' pins the clip and the specification in a
+   * left pane and gives Observed its own scrolling column, so a step clicked
+   * twenty rows down still has the frame it happened on beside it.
+   */
+  layout?: CaseModalLayout
 }
+
+export type CaseModalLayout = 'stacked' | 'split'
 
 type RailFilter = 'all' | CaseOutcome
 
+/* Names come from CASE_OUTCOME_STYLE so the rail, the tags and the report's own
+   filter cannot drift into three spellings of the same four outcomes. Failures
+   lead — this rail is worked top-down by someone triaging them. */
 const RAIL_FILTERS: { value: RailFilter; label: string }[] = [
   { value: 'all', label: 'All outcomes' },
-  { value: 'fail', label: 'Failed' },
-  { value: 'review', label: 'Needs review' },
-  { value: 'blocked', label: 'Not verified' },
-  { value: 'pass', label: 'Passed' },
+  ...(['fail', 'review', 'blocked', 'pass'] as CaseOutcome[]).map((value) => ({
+    value,
+    label: CASE_OUTCOME_STYLE[value].label,
+  })),
 ]
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(query).matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const onChange = () => setMatches(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [query])
+  return matches
+}
 
 export function TestCaseDetailModal({
   testCase,
   cases,
   onSelect,
   onClose,
+  aiGenerated = false,
   withNavigator = true,
+  layout: requestedLayout = 'stacked',
 }: TestCaseDetailModalProps) {
+  /* Which step the clip is parked on. Null is the start of the range — opening
+     a case should show its beginning, not whatever step was read last. */
+  const [activeStep, setActiveStep] = useState<number | null>(null)
+  /* Playhead, in seconds from the start of the clip's own range. The steps are
+     seek controls, so the position has to be a number the bar and the step list
+     can both write to — a step click sets it, dragging the bar clears the step,
+     and neither can claim the clip is somewhere the other disagrees with. */
+  const [playhead, setPlayhead] = useState(0)
+  const [playing, setPlaying] = useState(false)
+  /* Split needs three columns beside a rail. Under 1100px it would give the
+     steps a ~300px column, which is not a reading column — so the layout falls
+     back rather than degrades, and the fallback is decided here rather than in
+     CSS because the two layouts render different children. */
+  const wideEnoughToSplit = useMediaQuery('(min-width: 1100px)')
   const [railFilter, setRailFilter] = useState<RailFilter>('all')
   const [railSearch, setRailSearch] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
+
+  const layout: CaseModalLayout =
+    requestedLayout === 'split' && wideEnoughToSplit ? 'split' : 'stacked'
 
   const matches = useMemo(
     () =>
@@ -123,6 +200,14 @@ export function TestCaseDetailModal({
     if (testCase) panelRef.current?.focus()
   }, [testCase])
 
+  /* A timestamp from the previous case is a frame that does not exist in this
+     one, so walking to the next case rewinds. */
+  useEffect(() => {
+    setActiveStep(null)
+    setPlayhead(0)
+    setPlaying(false)
+  }, [testCase?.id])
+
   /* Grouped by the case's own suite, because that is how a test file is
      written and how a reader scanning for "the store cases" looks for them. */
   const railGroups = useMemo(() => {
@@ -137,6 +222,182 @@ export function TestCaseDetailModal({
 
   if (!testCase) return null
 
+  const step = activeStep === null ? null : testCase.steps[activeStep]
+
+  /* The clip is evidence you play, not evidence you read — so its height is
+     capped rather than proportional. At full width it took 453px of a 602px
+     scroller and pushed the comparison off the screen entirely. */
+  /* The clip runs from the first timestamp in its range to the second, so the
+     bar's scale is the case file's own — no invented duration. */
+  const clipStart = clipSeconds(testCase.clipRange, 0)
+  const clipEnd = clipSeconds(testCase.clipRange, 1)
+  const clipTotal = Math.max(1, clipEnd - clipStart)
+  /* A step's timestamp is absolute in the recording; the bar counts from the
+     start of this clip. */
+  const stepOffset = (at: string) =>
+    Math.max(0, Math.min(clipTotal, clipSeconds(at, 0) - clipStart))
+
+  const clipFigure = (
+    <figure className="case-figure flex flex-col gap-xs m-0">
+      {aiGenerated && (
+        /* Above the frame, at the head of the column the frame is in — this
+           labels the footage, and the footage is what the whole column is. On
+           the poster it would cover the thing being watched; in the modal
+           header it read as a property of the case rather than of the
+           recording, and the case is the same one a human could have run. */
+        <span
+          className="inline-flex items-center gap-xxs self-start px-xs py-xxxs rounded-xs font-display text-2xs font-semibold uppercase tracking-[0.1em]"
+          style={{ backgroundColor: 'var(--bg-tint)', color: 'var(--text-brand)' }}
+        >
+          <AIPlayerIcon size={12} />
+          Played by an AI player
+        </span>
+      )}
+      <div
+        className="case-clip relative w-full rounded-xl overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, #1F2C55 0%, #3A4F7A 100%)' }}
+      >
+        <button
+          type="button"
+          onClick={() => setPlaying((p) => !p)}
+          aria-label={`${playing ? 'Pause' : 'Play'} ${testCase.clip} from ${
+            step ? step.at : testCase.clipRange
+          }`}
+          className="absolute inset-0 flex items-center justify-center text-white"
+        >
+          <span
+            className="flex items-center justify-center w-12 h-12 rounded-round"
+            style={{ backgroundColor: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(4px)' }}
+          >
+            {playing ? <PauseGlyph /> : <PlayIcon size={20} />}
+          </span>
+        </button>
+
+        {/* Where the clip is parked. Only once a step has been chosen — an
+            unprompted timestamp on the poster reads as the clip's start and
+            makes the first click look like it did nothing. */}
+        {step && (
+          <span
+            className="absolute left-0 bottom-0 m-xs flex items-center gap-xs px-xs py-xxxs rounded-xs font-code text-xs text-white"
+            /* Brand, not a dark scrim: this pill is the only feedback a step
+               click gives, and a near-black chip on a navy poster is not
+               feedback. It is the same blue as the step's own rule, so the two
+               ends of the link read as one thing. */
+            style={{ backgroundColor: 'var(--brand)' }}
+          >
+            <span className="tabular-nums">{step.at}</span>
+            <span className="opacity-70">step {(activeStep ?? 0) + 1}</span>
+          </span>
+        )}
+      </div>
+      {/* The clip is the evidence, and evidence gets scrubbed: a verdict that
+          rests on "the gems were deducted before the refusal" is checked by
+          going back four seconds, not by watching the whole range again. The
+          same DS controls the session player uses, so a bar means the same
+          thing in both places. */}
+      <VideoControlsBar
+        currentTime={playhead}
+        totalDuration={clipTotal}
+        isPlaying={playing}
+        events={[]}
+        onPlayPause={() => setPlaying((p) => !p)}
+        /* Scrubbing is a claim about where the clip is, so it releases the step
+           — leaving the pill on would have the poster say step 3 while the bar
+           says somewhere else. */
+        onSeek={(percent) => {
+          setPlayhead((percent / 100) * clipTotal)
+          setActiveStep(null)
+        }}
+      />
+      {/* The range, and not the file name. "qa-0902.mp4" is a storage detail —
+          it identifies a file in a bucket nobody in this modal can open, and it
+          sat in the one caption slot the clip has, where the range (which is
+          what the steps seek against) belongs. */}
+      <figcaption className="flex flex-wrap items-center gap-s font-code text-xs text-text-tertiary leading-[1.5]">
+        <span>{testCase.clipRange}</span>
+      </figcaption>
+    </figure>
+  )
+
+  /* "Specified", not "Expected": a precondition is a state the game had to be
+     in, not something anyone expects to happen, and a heading that only covers
+     half its own column is a heading the reader has to correct for. Specified /
+     Observed names what each side is drawn from — the case file, the footage. */
+  const specified = (
+    /* Sticky only when it sits beside a column that outruns it. In split the
+       whole left pane is the thing that stays put, so the rule would fight it. */
+    <Column label="Specified" sticky={layout === 'stacked'}>
+      <Field label="Precondition">{testCase.precondition}</Field>
+      <Field label="Expected result">{testCase.expected}</Field>
+    </Column>
+  )
+
+  const observed = (
+    <Column label="Observed" trailing={<CaseOutcomeTag outcome={testCase.outcome} />}>
+      <Field label="Result">{testCase.reason}</Field>
+      <div className="flex flex-col gap-xs">
+        <FieldLabel>Steps</FieldLabel>
+        {/* Every step carries the second it starts on, so every step is a seek
+            control rather than a printed timestamp. gap-xxs, not gap-s: the
+            rows now have padding and a hover of their own, which does the
+            separating the gap used to do.
+
+            The steps are the route, not a second verdict. Each one used to
+            carry its own observation underneath — and on a one-step failure
+            that observation was the Result field above it, word for word, in
+            smaller type. The list says what was done and when; Result says what
+            happened, once. */}
+        <ol className="flex flex-col gap-xxs">
+          {testCase.steps.map((s, i) => {
+            const on = activeStep === i
+            return (
+              <li key={`${s.action}-${i}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveStep(on ? null : i)
+                    setPlayhead(on ? 0 : stepOffset(s.at))
+                  }}
+                  aria-pressed={on}
+                  className="case-step flex items-start gap-s w-full text-left rounded-m px-xs py-xs"
+                  /* A 7% tint alone is not an answer to "which step is the clip
+                     on" — the inset rule is what reads at a glance, and it is
+                     the same left-rule language the Observed column uses. */
+                  style={
+                    on
+                      ? {
+                          backgroundColor: 'var(--bg-tint-light)',
+                          boxShadow: 'inset 3px 0 0 var(--brand)',
+                        }
+                      : undefined
+                  }
+                >
+                  <span
+                    className="font-code text-xs leading-[1.6] shrink-0 w-5 text-right tabular-nums"
+                    style={{ color: on ? 'var(--text-brand)' : 'var(--text-tertiary)' }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="flex flex-col gap-xxs flex-1 min-w-0">
+                    <span className="font-body text-s font-medium text-text-primary leading-[1.5]">
+                      {s.action}
+                    </span>
+                  </span>
+                  <span
+                    className="font-code text-xs leading-[1.6] shrink-0 tabular-nums"
+                    style={{ color: on ? 'var(--text-brand)' : 'var(--text-tertiary)' }}
+                  >
+                    {s.at}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ol>
+      </div>
+    </Column>
+  )
+
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-l"
@@ -149,7 +410,10 @@ export function TestCaseDetailModal({
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="case-modal relative flex flex-col w-full max-w-[1120px] max-h-[88vh] rounded-2xl shadow-big outline-none overflow-hidden"
+        /* Width and height both come from CSS: on a 14" laptop the panel was
+           1120px inside a 1512px screen — 390px of unused gutter — while the
+           comparison it exists to show sat below the fold. */
+        className="case-modal relative flex flex-col w-full rounded-2xl shadow-big outline-none overflow-hidden"
         style={{ backgroundColor: 'var(--bg-elements)' }}
       >
         {/* Header — the verdict sits opposite the title, so the case and its
@@ -159,7 +423,7 @@ export function TestCaseDetailModal({
           style={{ borderBottom: '1px solid var(--border-subtle)' }}
         >
           <div className="flex flex-col gap-xxxs flex-1 min-w-0">
-            <span className="flex items-center gap-xs">
+            <span className="flex flex-wrap items-center gap-xs">
               <span className="font-code text-xs text-text-tertiary leading-[1.5]">{testCase.id}</span>
               <span className="font-body text-xs text-text-tertiary leading-[1.5]">
                 {testCase.category} · {testCase.path}
@@ -172,8 +436,10 @@ export function TestCaseDetailModal({
               {testCase.title}
             </h2>
           </div>
+          {/* Close only. The verdict sat here as well as on the Observed
+              column's own header — the same tag twice on one screen, and the
+              one that mattered was the one attached to the evidence. */}
           <div className="flex items-center gap-s shrink-0">
-            <CaseOutcomeTag outcome={testCase.outcome} />
             <button
               type="button"
               onClick={onClose}
@@ -185,7 +451,15 @@ export function TestCaseDetailModal({
           </div>
         </div>
 
-        <div className="case-modal-body flex-1 min-h-0">
+        <div
+          className={[
+            'case-modal-body flex-1 min-h-0',
+            withNavigator && 'case-modal-body-rail',
+            layout === 'split' && 'case-modal-body-split',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
           {withNavigator && (
             <aside
               className="case-modal-rail flex flex-col min-h-0"
@@ -267,76 +541,27 @@ export function TestCaseDetailModal({
             </aside>
           )}
 
-          <div className="flex flex-col gap-m min-h-0 overflow-y-auto px-l py-m">
-            {/* The clip the verdict was read from. */}
-            <figure className="flex flex-col gap-xs m-0">
-              <div
-                className="case-clip relative w-full rounded-xl overflow-hidden"
-                style={{ aspectRatio: '16 / 9', background: 'linear-gradient(135deg, #1F2C55 0%, #3A4F7A 100%)' }}
-              >
-                <button
-                  type="button"
-                  aria-label={`Play ${testCase.clip} from ${testCase.clipRange}`}
-                  className="absolute inset-0 flex items-center justify-center text-white"
-                >
-                  <span
-                    className="flex items-center justify-center w-12 h-12 rounded-round"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(4px)' }}
-                  >
-                    <PlayIcon size={20} />
-                  </span>
-                </button>
+          {/* The clip the verdict was read from. In split it is the left
+              pane's sticky head, so a step clicked twenty rows down still has
+              its frame beside it. */}
+          {layout === 'split' ? (
+            <>
+              <div className="case-pane case-pane-source">
+                {clipFigure}
+                {specified}
               </div>
-              <figcaption className="flex flex-wrap items-baseline gap-s font-code text-xs text-text-tertiary leading-[1.5]">
-                <span>{testCase.clip}</span>
-                <span>{testCase.clipRange}</span>
-              </figcaption>
-            </figure>
-
-            {/* The comparison the reader came for, side by side. */}
-            <div className="case-compare gap-m">
-              <Column label="Expected">
-                <Field label="Precondition">{testCase.precondition}</Field>
-                <Field label="Result">{testCase.expected}</Field>
-              </Column>
-
-              <Column
-                label="Observed"
-                accent={CASE_OUTCOME_STYLE[testCase.outcome].dot}
-                trailing={<CaseOutcomeTag outcome={testCase.outcome} />}
-              >
-                <Field label="Result">{testCase.reason}</Field>
-                <div className="flex flex-col gap-xs">
-                  <FieldLabel>Steps</FieldLabel>
-                  <ol className="flex flex-col gap-xxs">
-                    {testCase.steps.map((step, i) => (
-                      <li key={`${step.action}-${i}`} className="flex items-start gap-s">
-                        <span className="font-code text-xs text-text-tertiary leading-[1.6] shrink-0 w-4">
-                          {i + 1}
-                        </span>
-                        <span className="flex flex-col gap-xxxs flex-1 min-w-0">
-                          <span className="font-body text-s text-text-primary leading-[1.5]">
-                            {step.action}
-                          </span>
-                          {step.observed && (
-                            <span
-                              className="font-body text-xs leading-[1.5]"
-                              style={{ color: CASE_OUTCOME_STYLE[testCase.outcome].dot }}
-                            >
-                              {step.observed}
-                            </span>
-                          )}
-                        </span>
-                        <span className="font-code text-xs text-text-tertiary leading-[1.6] shrink-0">
-                          {step.at}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              </Column>
+              <div className="case-pane">{observed}</div>
+            </>
+          ) : (
+            <div className="case-pane">
+              {clipFigure}
+              {/* The comparison the reader came for, side by side. */}
+              <div className="case-compare gap-m">
+                {specified}
+                {observed}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div
@@ -374,33 +599,38 @@ export function TestCaseDetailModal({
 
 function Column({
   label,
-  accent,
   trailing,
+  sticky,
   children,
 }: {
   label: string
-  /** Rules the column in the outcome colour — only the observed side takes one. */
-  accent?: string
   trailing?: React.ReactNode
+  /** Holds the column in view while the taller one beside it scrolls past. */
+  sticky?: boolean
   children: React.ReactNode
 }) {
   return (
     <section
-      className="flex flex-col gap-m rounded-xl px-m py-m min-w-0"
-      /* Four longhands, no `border` shorthand: React expands a shorthand into
-         longhands and skips whichever side a longhand key also claims, so
-         `border` + `borderLeft` in one object left the Expected column with
-         border-left-width: 0. */
+      className={['flex flex-col gap-m rounded-xl px-m py-m min-w-0', sticky && 'case-column-sticky']
+        .filter(Boolean)
+        .join(' ')}
+      /* No outcome-coloured rule on the observed side any more. Beside a short
+         column it read as emphasis; down a scrolling pane it became a metre of
+         red saying what the Fail tag in this column's own header, the tag in
+         the modal header, and every coloured step observation already say. The
+         colour belongs where it carries a fact, not down an edge. */
       style={{
         backgroundColor: 'var(--bg-inset)',
-        borderTop: '1px solid var(--border-subtle)',
-        borderRight: '1px solid var(--border-subtle)',
-        borderBottom: '1px solid var(--border-subtle)',
-        borderLeft: accent ? `3px solid ${accent}` : '1px solid var(--border-subtle)',
+        border: '1px solid var(--border-subtle)',
       }}
     >
-      <div className="flex items-center gap-s">
-        <span className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary leading-[1.5]">
+      {/* The card's title, and the only uppercase level in it. Ruled off so
+          the eye has somewhere to stop before the fields begin. */}
+      <div
+        className="flex items-center gap-s pb-xs"
+        style={{ borderBottom: '1px solid var(--border-subtle)' }}
+      >
+        <span className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-text-primary leading-[1.5]">
           {label}
         </span>
         <span className="flex-1" />
@@ -411,9 +641,16 @@ function Column({
   )
 }
 
+/**
+ * Sentence case, not a second row of uppercase tracking. The heading and the
+ * field labels used to be the same treatment — same size, same weight, same
+ * caps, separated only by a colour token — so "Specified / Precondition /
+ * Expected result" read as three peers and the card had no top. One uppercase
+ * level, then these, then the prose.
+ */
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-text-tertiary leading-[1.5]">
+    <span className="font-display text-xs font-semibold text-text-tertiary leading-[1.5]">
       {children}
     </span>
   )
@@ -421,9 +658,9 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-xxs">
+    <div className="flex flex-col gap-xxxs">
       <FieldLabel>{label}</FieldLabel>
-      <span className="font-body text-s text-text-primary leading-[1.6]">{children}</span>
+      <p className="font-body text-s text-text-primary leading-[1.65] m-0">{children}</p>
     </div>
   )
 }

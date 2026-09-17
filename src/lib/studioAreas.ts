@@ -89,9 +89,10 @@ export type NavIconKey =
   | 'library'
 
 /**
- * Colour a group speaks in. Testing's two groups each own a tone so the active
- * row, the sidebar caption and the Overview section all agree on who a test
- * belongs to. Intelligence groups tint their caption only.
+ * Colour a group speaks in. It reaches the sidebar caption and the Overview
+ * section heading, so both agree on who a test belongs to — but never the nav
+ * rows themselves: selection is brand blue everywhere, or "selected" stops
+ * meaning one thing.
  */
 export type NavTone = 'brand' | 'purple' | 'success' | 'neutral'
 
@@ -116,11 +117,6 @@ export interface AreaNavGroup {
    * same group heading.
    */
   captionTone?: NavTone
-  /**
-   * Tone for the active row inside the group. Only Testing's Human / AI groups
-   * set it; everywhere else the active row keeps the brand tint.
-   */
-  tone?: Extract<NavTone, 'brand' | 'success'>
   items: AreaNavItem[]
 }
 
@@ -180,7 +176,6 @@ export const AREA_NAV: Record<StudioArea, AreaNavConfig> = {
         label: 'Human testing',
         collapsible: true,
         captionTone: 'brand',
-        tone: 'brand',
         items: [
           { nav: 'user-test', label: 'User test', icon: 'user-test' },
           { nav: 'functional-test', label: 'Functional test', icon: 'functional-test' },
@@ -192,7 +187,6 @@ export const AREA_NAV: Record<StudioArea, AreaNavConfig> = {
         label: 'AI player testing',
         collapsible: true,
         captionTone: 'success',
-        tone: 'success',
         items: [
           { nav: 'ai-behavioural-test', label: 'AI behavioural test', icon: 'ai-behavioural-test' },
           { nav: 'ai-functional-test', label: 'AI functional test', icon: 'ai-functional-test' },

@@ -11,19 +11,17 @@
  * timeline, read by eye — and the frame you are on is outlined. Nothing on
  * this screen judges a moment; the report does that.
  *
- * **Live sessions run the loop in front of you.** A finished session is
- * evidence and shows every field at once. A session still playing is a
- * performance: for each screen the agent captures the frame, reasons about it,
- * acts, and then watches what its action produced — and the panel fills in one
- * beat at a time, in that order, with the reasoning streaming in as it is
- * written. That is the difference between reading a log and watching an agent
- * work, and it is the whole point of the live view. Scrub away and you drop
- * back to evidence mode; "Jump to live" resumes the performance.
+ * Live and finished sessions read identically. An earlier version ran the
+ * agent's loop in front of the reader — Observe, Reason, Act, Verify, with the
+ * reasoning typing itself in — which was a good picture of an agent working and
+ * a bad picture of this product: there is no live data stream behind it. The
+ * screens arrive already analysed, so the panel shows what was analysed. A live
+ * session is simply one with fewer screens in it so far.
  *
  * Code-first prototype — from the PM artifact (screen s48), no Figma source yet.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PageTopbar } from '../molecules/PageTopbar'
 import { RunFacts } from '../molecules/RunFacts'
@@ -31,9 +29,23 @@ import Button from '../ui/Button'
 import { PlayIcon } from '../icons/PlayIcon'
 import { ChevronIcon } from '../icons/ChevronIcon'
 import { CheckIcon } from '../icons/CheckIcon'
-import { AIPlayerIcon } from '../icons/AIPlayerIcon'
+import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
+import { IssueKindTag } from '../atoms/IssueKindTag'
 import { PERSONA_TONE, formatSessionTime } from '../../lib/mocks/testing'
 import type { AgentSession, AIBehaviouralRunMeta } from '../../lib/types/testing'
+import type { IssueKind } from '../../lib/types/userTest'
+
+/**
+ * One of the run's findings, as it appears on the session that produced it —
+ * the run's own issue, plus the screen in *this* session it was flagged on.
+ */
+export interface SessionFinding {
+  id: string
+  title: string
+  kind: IssueKind
+  /** Screen index in this session's own steps. */
+  stepIndex: number
+}
 
 export interface AIAgentSessionViewProps {
   session: AgentSession
@@ -43,170 +55,24 @@ export interface AIAgentSessionViewProps {
   instructions?: string
   /** Screen to land on — a clip in the report arrives here. */
   initialStep?: number
+  /**
+   * What the run concluded from this session, for the video report under the
+   * brief. Empty is a real answer — a session that flagged nothing.
+   */
+  findings?: SessionFinding[]
   onBack: () => void
   className?: string
 }
 
-/* ── The agent's loop ─────────────────────────────────────────────────────────
-   One screen takes four beats. The durations are the pacing of the whole live
-   view, so the run that feeds it advances a screen on the same clock (see
-   AGENT_LOOP_MS, used by AIBehaviouralTestView) — otherwise the walkthrough
-   and the run's own progress drift apart and the counts stop agreeing. */
-
-type LoopPhase = 'capture' | 'reason' | 'act' | 'verify' | 'settled' | 'waiting'
-
-const PHASE_MS: Record<'capture' | 'reason' | 'act' | 'verify', number> = {
-  capture: 1300,
-  reason: 2300,
-  act: 1000,
-  verify: 1400,
-}
-
-/** How long one screen takes end to end — the run ticks at this rate too. */
-export const AGENT_LOOP_MS =
-  PHASE_MS.capture + PHASE_MS.reason + PHASE_MS.act + PHASE_MS.verify
-
-/** Replay pace when the reader presses play on a finished session. */
+/** Replay pace when the reader steps through a session. */
 const PLAY_MS = 1800
 
-const PHASES: { key: LoopPhase; label: string }[] = [
-  { key: 'capture', label: 'Observe' },
-  { key: 'reason', label: 'Reason' },
-  { key: 'act', label: 'Act' },
-  { key: 'verify', label: 'Verify' },
-]
-
-const PHASE_ORDER: LoopPhase[] = ['capture', 'reason', 'act', 'verify', 'settled']
-
 /**
- * Walks one screen through the loop while `enabled`, then asks to advance.
- * Restarts whenever the screen changes. When there is no next screen yet it
- * parks in `waiting` — the run has not produced the frame, and saying so is
- * better than looping the same screen as though something were happening.
+ * How long one screen takes the run to produce. The behavioural run advances on
+ * this clock (see AIBehaviouralTestView), so the session a reader opens has as
+ * many screens as the run's own progress claims.
  */
-function useAgentLoop({
-  enabled,
-  screenKey,
-  hasNext,
-  onAdvance,
-}: {
-  enabled: boolean
-  screenKey: string
-  hasNext: boolean
-  onAdvance: () => void
-}): LoopPhase {
-  const [phase, setPhase] = useState<LoopPhase>('capture')
-  const advance = useRef(onAdvance)
-  advance.current = onAdvance
-
-  useEffect(() => {
-    if (!enabled) return
-    setPhase('capture')
-    /* One cumulative schedule, read top to bottom in the order the agent works. */
-    const schedule: [LoopPhase, number][] = [
-      ['reason', PHASE_MS.capture],
-      ['act', PHASE_MS.capture + PHASE_MS.reason],
-      ['verify', PHASE_MS.capture + PHASE_MS.reason + PHASE_MS.act],
-      ['settled', AGENT_LOOP_MS],
-    ]
-    const timers = schedule.map(([key, ms]) => window.setTimeout(() => setPhase(key), ms))
-    return () => timers.forEach((t) => window.clearTimeout(t))
-  }, [enabled, screenKey])
-
-  /* Settled and a next frame exists → move on. Settled with nothing next →
-     hold, and pick the walk back up the moment the run produces one. */
-  useEffect(() => {
-    if (!enabled || (phase !== 'settled' && phase !== 'waiting')) return
-    if (!hasNext) {
-      setPhase('waiting')
-      return
-    }
-    const t = window.setTimeout(() => advance.current(), 240)
-    return () => window.clearTimeout(t)
-  }, [enabled, phase, hasNext])
-
-  return phase
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setReduced(mq.matches)
-    const onChange = () => setReduced(mq.matches)
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
-  return reduced
-}
-
-type StreamState = 'pending' | 'streaming' | 'complete'
-
-/**
- * Reveals text a word at a time — the cadence of something being written
- * rather than something being loaded. `pending` shows nothing at all, so a
- * block the agent has not reached yet is absent instead of empty.
- */
-function useWordStream(text: string, state: StreamState, durationMs: number) {
-  const words = useMemo(() => text.split(' '), [text])
-  const reduced = usePrefersReducedMotion()
-  const [shownWords, setShownWords] = useState(state === 'complete' ? words.length : 0)
-
-  useEffect(() => {
-    if (state === 'complete' || reduced) {
-      setShownWords(words.length)
-      return
-    }
-    if (state === 'pending') {
-      setShownWords(0)
-      return
-    }
-    setShownWords(0)
-    const per = Math.max(28, durationMs / words.length)
-    let i = 0
-    const t = window.setInterval(() => {
-      i += 1
-      setShownWords(i)
-      if (i >= words.length) window.clearInterval(t)
-    }, per)
-    return () => window.clearInterval(t)
-  }, [state, words, durationMs, reduced])
-
-  const n = Math.min(shownWords, words.length)
-  return {
-    text: words.slice(0, n).join(' '),
-    /* A caret only while there is more to come. */
-    typing: state === 'streaming' && n < words.length && !reduced,
-    started: state !== 'pending',
-  }
-}
-
-/** "Tap Upgrade Furnace" → "Tapping Upgrade Furnace" — the action, mid-flight. */
-const DOING_VERB: Record<string, string> = {
-  Tap: 'Tapping',
-  Enter: 'Entering',
-  Scroll: 'Scrolling',
-  Open: 'Opening',
-  Swipe: 'Swiping',
-  Close: 'Closing',
-  Select: 'Selecting',
-  Type: 'Typing',
-  Press: 'Pressing',
-  Wait: 'Waiting',
-}
-
-function doingLabel(action: string): string {
-  const [first, ...rest] = action.split(' ')
-  const verb = DOING_VERB[first]
-  if (verb) return [verb, ...rest].join(' ')
-  return `Performing ${action.charAt(0).toLowerCase()}${action.slice(1)}`
-}
-
-/** "Observed 5000 ms · dialog appeared" → "5000 ms" for the in-flight label. */
-function observeWindow(observed?: string): string {
-  const m = observed?.match(/(\d+)\s*ms/)
-  return m ? `${m[1]} ms` : 'the result'
-}
+export const AGENT_LOOP_MS = 6000
 
 export function AIAgentSessionView({
   session,
@@ -214,6 +80,7 @@ export function AIAgentSessionView({
   meta,
   instructions,
   initialStep,
+  findings = [],
   onBack,
   className,
 }: AIAgentSessionViewProps) {
@@ -223,59 +90,30 @@ export function AIAgentSessionView({
   const last = reached - 1
   const [idx, setIdx] = useState(() => Math.min(initialStep ?? (live ? last : 0), last))
   const [playing, setPlaying] = useState(initialStep === undefined)
-  const [following, setFollowing] = useState(live && initialStep === undefined)
   const stripRef = useRef<HTMLDivElement>(null)
   const step = session.steps[idx]
   const tone = PERSONA_TONE[session.persona] ?? 'var(--text-secondary)'
   const durationSec = session.steps[total - 1].atSec + 20
 
-  /* The performance runs only while the reader is on the live edge and has not
-     paused. Scrubbing back, or pausing, drops to evidence: every field at once. */
-  const loopOn = live && following && playing
-  const phase = useAgentLoop({
-    enabled: loopOn,
-    screenKey: `${session.id}:${idx}`,
-    hasNext: idx < last,
-    onAdvance: () => setIdx((i) => Math.min(last, i + 1)),
-  })
-
-  /* `waiting` is `settled` that has run out of next screen — everything the
-     agent produced for this one is final, so it reads the same. */
-  const reachedPhase = phase === 'waiting' ? 'settled' : phase
-  const at = (key: LoopPhase) => PHASE_ORDER.indexOf(reachedPhase) >= PHASE_ORDER.indexOf(key)
-  const stateFor = (key: 'capture' | 'reason'): StreamState =>
-    !loopOn ? 'complete' : reachedPhase === key ? 'streaming' : at(key) ? 'complete' : 'pending'
-
-  const saw = useWordStream(step.saw, stateFor('capture'), PHASE_MS.capture)
-  const reasoning = useWordStream(step.reasoning, stateFor('reason'), PHASE_MS.reason)
-  /* The action is a commitment, not prose: it arrives whole, first in the
-     present tense while the agent is doing it, then in the past once done. */
-  const doing = loopOn && phase === 'act'
-  const actionShown = !loopOn || at('act')
-  const observedShown = !loopOn || at('settled')
-  const verifying = loopOn && phase === 'verify'
-
-  /* Following live: when a session is opened mid-run the newest screen is the
-     one to land on. After that the loop owns the walk. */
+  /* Opened mid-run, a live session lands on the newest screen 6labs has
+     captured — the rest of the walk is the reader's. */
   const landed = useRef(false)
   useEffect(() => {
-    if (!live || !following || landed.current) return
+    if (!live || initialStep !== undefined || landed.current) return
     landed.current = true
     setIdx(last)
-  }, [live, following, last])
+  }, [live, initialStep, last])
 
-  /* Replay for a finished session — or for a live one the reader has scrubbed
-     into. Never both: while the loop runs it owns the advance. */
+  /* Replay — the same walk for a live session and a finished one. */
   useEffect(() => {
-    if (!playing || loopOn || idx >= last) return
+    if (!playing || idx >= last) return
     const t = window.setTimeout(() => setIdx((i) => Math.min(last, i + 1)), PLAY_MS)
     return () => window.clearTimeout(t)
-  }, [playing, loopOn, idx, last])
+  }, [playing, idx, last])
 
   const select = (i: number) => {
     if (i < 0 || i > last) return
     setIdx(i)
-    setFollowing(false)
     setPlaying(false)
   }
 
@@ -315,30 +153,20 @@ export function AIAgentSessionView({
            sidebar, so naming it here says nothing the screen does not. */
         trail={[{ label: runName }]}
         onBack={onBack}
+        /* Status, and only status. The pill used to carry a second fact — the
+           screen count while live, the length once finished — both of which are
+           already on the screen: the transport counts screens under the video,
+           and the session facts carry the length. A pill that says two things
+           is read as one, and the one it is read as is the status. */
         actions={
-          <>
-            {live ? (
-              <StatusPill bg="var(--bg-tint)" ink="var(--text-brand)">
-                <i className="agent-live-dot" aria-hidden />
-                Live · screen {reached} of {total}
-              </StatusPill>
-            ) : (
-              <StatusPill bg="var(--bg-subtle)" ink="var(--text-secondary)">Finished · {session.durationLabel}</StatusPill>
-            )}
-            {live && !following && (
-              <Button
-                variant="secondary"
-                size="md"
-                onClick={() => {
-                  setFollowing(true)
-                  setPlaying(true)
-                  setIdx(last)
-                }}
-              >
-                Jump to live
-              </Button>
-            )}
-          </>
+          live ? (
+            <StatusPill bg="var(--bg-tint)" ink="var(--text-brand)">
+              <i className="agent-live-dot" aria-hidden />
+              Live
+            </StatusPill>
+          ) : (
+            <StatusPill bg="var(--bg-subtle)" ink="var(--text-secondary)">Finished</StatusPill>
+          )
         }
       />
 
@@ -360,38 +188,40 @@ export function AIAgentSessionView({
             >
               <div className="flex items-center gap-m shrink-0 min-w-0">
                 {/* The tile does two jobs: its fill is the persona (the same
-                    colour that persona carries everywhere), and its glyph says
-                    the player is an agent, not a person. A human silhouette
-                    here read as a tester. */}
+                    colour that persona carries everywhere), and its glyph is
+                    the test's own — the same AI behavioural mark the sidebar
+                    and the run header use, so a session is visibly part of that
+                    test rather than of a generic "AI player" family. */}
                 <span
                   className="flex items-center justify-center shrink-0 w-[44px] h-[44px] rounded-xl text-white"
                   style={{ backgroundColor: tone }}
                   aria-hidden
                 >
-                  <AIPlayerIcon size={24} />
+                  <AIBehaviouralIcon size={24} />
                 </span>
                 <div className="flex flex-col gap-xxxs min-w-0">
-                  <span className="flex items-center gap-s font-display text-m font-semibold text-text-primary leading-[1.35]">
+                  {/* No "AI playing now" tag. The status pill in the bar says
+                      Live, the video carries its own LIVE badge, and a third
+                      copy beside the name was the one that had to compete with
+                      the name itself. */}
+                  <span className="font-display text-m font-semibold text-text-primary leading-[1.35]">
                     {session.persona} · agent {session.index + 1} of {meta.agents}
-                    {live && (
-                      <span
-                        className="inline-flex items-center gap-xxs px-xs py-xxxs rounded-round font-body text-xs font-semibold"
-                        style={{ backgroundColor: 'var(--bg-tint)', color: 'var(--text-brand)' }}
-                      >
-                        <i className="agent-live-dot" aria-hidden />
-                        AI playing now
-                      </span>
-                    )}
                   </span>
                   <span className="font-body text-s text-text-tertiary leading-[1.5]">{session.personaDetail}</span>
                 </div>
               </div>
               <span className="flex-1" />
+              {/* A session still playing has not got a length yet — printing
+                  the run's planned 30 min against a video eight minutes in
+                  states a finished fact about an unfinished session. While it
+                  plays this counts up with it and says so. */}
               <RunFacts
                 className="w-auto shrink-0 gap-x-xxl"
                 facts={[
                   { label: 'Build', value: meta.build },
-                  { label: 'Session length', value: meta.lengthLabel },
+                  live
+                    ? { label: 'Playing for', value: session.durationLabel }
+                    : { label: 'Session length', value: session.durationLabel },
                 ]}
               />
             </header>
@@ -403,17 +233,6 @@ export function AIAgentSessionView({
                   className="agent-frame relative w-full overflow-hidden"
                   style={{ aspectRatio: '16 / 9', background: step.scene, transition: 'background 300ms ease' }}
                 >
-                  {/* The frame reacts to the beat it is in: a sweep while the
-                      agent reads the screen, a tap ripple where it touches. */}
-                  {loopOn && phase === 'capture' && <span className="agent-scan" aria-hidden />}
-                  {loopOn && (phase === 'act' || phase === 'verify') && (
-                    <span
-                      className="agent-tap"
-                      style={{ left: `${32 + ((idx * 17) % 40)}%`, top: `${38 + ((idx * 29) % 34)}%` }}
-                      aria-hidden
-                    />
-                  )}
-
                   {live ? (
                     /* The one place a reader must not mistake a recording for a
                        replay: the frame itself says an AI is playing it now. */
@@ -438,25 +257,12 @@ export function AIAgentSessionView({
                     {formatSessionTime(step.atSec)}
                   </span>
 
-                  {/* The caption is the action, and it fills in when the agent
-                      commits to one — so the reader is never shown the move
-                      before the agent has made it. */}
+                  {/* The caption is what the agent did on this screen. */}
                   <span
                     className="absolute left-0 right-0 bottom-0 flex items-center gap-xs px-l py-m font-display text-s font-semibold text-white leading-[1.5]"
                     style={{ background: 'linear-gradient(180deg, transparent, rgba(15,27,51,0.8))' }}
                   >
-                    {actionShown ? (
-                      doing ? (
-                        <>
-                          <span className="agent-spinner-on-dark shrink-0" aria-hidden />
-                          {doingLabel(step.action)}…
-                        </>
-                      ) : (
-                        step.action
-                      )
-                    ) : (
-                      <span style={{ opacity: 0.75 }}>{step.screen}</span>
-                    )}
+                    {step.action}
                   </span>
 
                   <span className="agent-frame-nav absolute inset-0 flex items-center justify-between px-s pointer-events-none">
@@ -478,7 +284,7 @@ export function AIAgentSessionView({
                   <button
                     type="button"
                     onClick={() => setPlaying((p) => !p)}
-                    aria-label={playing ? (loopOn ? 'Pause the live walkthrough' : 'Pause') : 'Play'}
+                    aria-label={playing ? 'Pause' : 'Play'}
                     className="flex items-center justify-center shrink-0 w-[32px] h-[32px] rounded-round text-white"
                     style={{ backgroundColor: 'var(--brand)' }}
                   >
@@ -563,89 +369,47 @@ export function AIAgentSessionView({
                     <h2 className="font-display text-l font-semibold text-text-primary leading-[1.25] tracking-[-0.01em] m-0">
                       {step.screen}
                     </h2>
-                    {/* The loop, named: four beats, the live one lit. It is what
-                        turns a filling panel into something legible. */}
-                    {loopOn && <LoopStepper phase={phase} />}
                   </div>
 
-                  {saw.started && (
-                    <Reading label="Saw">
-                      {saw.text}
-                      {saw.typing && <Caret />}
-                    </Reading>
-                  )}
+                  <Reading label="Saw">{step.saw}</Reading>
 
-                  {reasoning.started && (
-                    <div
-                      className="flex flex-col gap-xxxs rounded-xl px-m py-s"
-                      style={{ backgroundColor: 'var(--bg-page-pale)', borderLeft: '3px solid var(--border-default)' }}
-                    >
-                      <span className="flex items-center gap-xs font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
-                        Reasoning
-                        {reasoning.typing && (
-                          <span className="font-body text-2xs font-normal normal-case tracking-normal text-text-brand">
-                            thinking…
-                          </span>
-                        )}
-                      </span>
-                      <span className="font-body text-s text-text-primary leading-[1.6]">
-                        “{reasoning.text}
-                        {reasoning.typing && <Caret />}
-                        {!reasoning.typing && '”'}
-                      </span>
-                    </div>
-                  )}
+                  <div
+                    className="flex flex-col gap-xxxs rounded-xl px-m py-s"
+                    style={{ backgroundColor: 'var(--bg-page-pale)', borderLeft: '3px solid var(--border-default)' }}
+                  >
+                    <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
+                      Reasoning
+                    </span>
+                    <span className="font-body text-s text-text-primary leading-[1.6]">
+                      “{step.reasoning}”
+                    </span>
+                  </div>
 
-                  {actionShown && (
-                    <div className="flex flex-col gap-xxs">
-                      <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
-                        {doing ? 'Doing' : 'Did'}
-                      </span>
+                  <div className="flex flex-col gap-xxs">
+                    <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
+                      Did
+                    </span>
+                    <span className="inline-flex items-start gap-xs font-display text-m font-semibold text-text-primary leading-[1.4]">
+                      <span className="text-text-tertiary shrink-0" aria-hidden>→</span>
+                      {step.action}
+                    </span>
+                    {step.observed && (
                       <span
-                        className="inline-flex items-start gap-xs font-display text-m font-semibold leading-[1.4]"
-                        style={{ color: doing ? 'var(--text-brand)' : 'var(--text-primary)' }}
+                        className="inline-flex items-center gap-xxs font-body text-xs font-medium leading-[1.5]"
+                        style={{ color: 'var(--success)' }}
                       >
-                        {doing ? (
-                          <span className="testing-spinner-sm shrink-0 mt-[3px]" aria-hidden />
-                        ) : (
-                          <span className="text-text-tertiary shrink-0" aria-hidden>→</span>
-                        )}
-                        {doing ? `${doingLabel(step.action)}…` : step.action}
+                        <CheckIcon size={12} />
+                        {step.observed}
                       </span>
+                    )}
+                  </div>
 
-                      {/* The beat that makes it an agent and not a macro: it
-                          waits, and then says what its action produced. */}
-                      {verifying && (
-                        <span className="inline-flex items-center gap-xxs font-body text-xs text-text-secondary leading-[1.5]">
-                          <span className="testing-spinner-sm shrink-0" aria-hidden />
-                          Observing {observeWindow(step.observed)} for the result…
-                        </span>
-                      )}
-                      {observedShown && step.observed && (
-                        <span
-                          className="agent-observed inline-flex items-center gap-xxs font-body text-xs font-medium leading-[1.5]"
-                          style={{ color: 'var(--success)' }}
-                        >
-                          <CheckIcon size={12} />
-                          {step.observed}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {phase === 'waiting' && loopOn && (
-                    /* Two different waits, and conflating them would mislead: the
-                       run has not captured the next screen yet, or this agent has
-                       no next screen to capture. */
-                    <span className="inline-flex items-center gap-xs font-body text-xs text-text-tertiary leading-[1.5]">
-                      {idx < total - 1 ? (
-                        <>
-                          <span className="testing-spinner-sm shrink-0" aria-hidden />
-                          Agent is playing — the next screen lands here as it happens.
-                        </>
-                      ) : (
-                        'Caught up: this is the last screen 6labs has captured for this agent.'
-                      )}
+                  {/* A live session simply has fewer screens so far — said once,
+                      at the end of what has been captured, rather than as a
+                      running commentary. */}
+                  {live && idx === last && (
+                    <span className="font-body text-xs text-text-tertiary leading-[1.5]">
+                      This is the last screen 6labs has captured for this agent.
                     </span>
                   )}
                 </div>
@@ -694,6 +458,76 @@ export function AIAgentSessionView({
                 <p className="font-body text-s text-text-secondary leading-[1.6] m-0 max-w-[110ch]">“{instructions}”</p>
               </blockquote>
             )}
+
+            {/* ── Video report ──
+                What this one session produced, under the brief it was given —
+                the brief says what was asked of the agent, and this says what
+                came back. It belongs on the session and not only in the run
+                report: a reader who opened one recording to check a finding
+                should not have to go back up a level to see what else that same
+                recording turned up.
+
+                Only once the session is finished. A run still playing has
+                nothing to report about a session that has not ended, and a
+                half-written report is worse than a stated wait. */}
+            {!live && (
+              <section
+                className="flex flex-col gap-s w-full min-w-0 px-xl py-l"
+                style={{ borderTop: '1px solid var(--border-subtle)' }}
+                aria-label="Video report"
+              >
+                <div className="flex flex-wrap items-baseline gap-s">
+                  <h3 className="font-display text-m font-semibold text-text-primary leading-[1.4] m-0">
+                    Video report
+                  </h3>
+                  <span className="font-body text-xs text-text-tertiary leading-[1.5]">
+                    {total} screens analysed · {session.durationLabel}
+                    {findings.length > 0
+                      ? ` · ${findings.length} finding${findings.length === 1 ? '' : 's'} from this session`
+                      : ''}
+                  </span>
+                </div>
+
+                {findings.length === 0 ? (
+                  /* A clean session is a result, not an absence — it is the
+                     outcome this run most wants to be able to report. */
+                  <p className="font-body text-s text-text-secondary leading-[1.7] m-0 max-w-[92ch]">
+                    Nothing was flagged in this session. The agent played all {total} screens without
+                    hitting anything the run reported.
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-xxs w-full m-0 p-0" style={{ listStyle: 'none' }}>
+                    {findings.map((f) => (
+                      <li key={f.id}>
+                        {/* Each row jumps to the screen it was flagged on — the
+                            frame is already on this page, so the finding should
+                            not need the run report to be checked. */}
+                        <button
+                          type="button"
+                          onClick={() => select(f.stepIndex)}
+                          className="session-finding-row flex items-start gap-s w-full text-left rounded-m px-s py-xs"
+                        >
+                          <span
+                            className="shrink-0 w-[3px] self-stretch rounded-round"
+                            style={{ backgroundColor: f.kind === 'bug' ? 'var(--error)' : 'var(--warning)' }}
+                            aria-hidden
+                          />
+                          <span className="flex flex-col gap-xxxs min-w-0 flex-1">
+                            <span className="font-body text-s font-medium text-text-primary leading-[1.5]">
+                              {f.title}
+                            </span>
+                            <span className="font-body text-xs text-text-tertiary leading-[1.5]">
+                              Screen {f.stepIndex + 1} · {session.steps[f.stepIndex]?.screen ?? '—'}
+                            </span>
+                          </span>
+                          <IssueKindTag kind={f.kind} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
           </section>
         </div>
       </div>
@@ -702,44 +536,6 @@ export function AIAgentSessionView({
 }
 
 /* ── Bits ───────────────────────────────────────────────────────────────── */
-
-/** Observe → Reason → Act → Verify, with the beat in flight lit. */
-function LoopStepper({ phase }: { phase: LoopPhase }) {
-  const current = PHASE_ORDER.indexOf(phase === 'waiting' ? 'settled' : phase)
-  return (
-    <div className="flex items-center gap-xxs pt-xxs" role="list" aria-label="Agent loop">
-      {PHASES.map((p, i) => {
-        const done = current > i
-        const active = current === i
-        return (
-          <span
-            key={p.key}
-            role="listitem"
-            aria-current={active || undefined}
-            className={[
-              'inline-flex items-center gap-xxxs px-xs py-xxxs rounded-round font-display text-2xs font-semibold whitespace-nowrap',
-              active ? 'agent-phase-live' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            style={{
-              backgroundColor: active ? 'var(--bg-tint)' : done ? 'var(--success-bg)' : 'var(--bg-subtle)',
-              color: active ? 'var(--text-brand)' : done ? 'var(--success)' : 'var(--text-placeholder)',
-            }}
-          >
-            {done ? <CheckIcon size={12} /> : <i className="w-[5px] h-[5px] rounded-round" style={{ backgroundColor: 'currentColor' }} aria-hidden />}
-            {p.label}
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
-/** Blinking block at the end of text still being written. */
-function Caret() {
-  return <i className="agent-caret" aria-hidden />
-}
 
 function Reading({ label, children }: { label: string; children: ReactNode }) {
   return (

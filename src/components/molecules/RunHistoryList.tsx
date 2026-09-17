@@ -28,6 +28,9 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { SegmentedControl } from '../atoms/SegmentedControl'
 import { IssueCountPill } from '../atoms/IssueCountPill'
+import { EventTag } from '../atoms/EventTag'
+import { CASE_OUTCOME_STYLE } from '../atoms/CaseOutcomeTag'
+import { ClampTags } from './ClampTags'
 import { RunHistoryEmptyState, type RunHistoryEmptyAction } from './RunHistoryEmptyState'
 import { FailedGlyph } from './RunFailedNotice'
 import Button from '../ui/Button'
@@ -66,8 +69,9 @@ export interface RunHistoryListProps {
 /* Every row is its own grid, so every column that isn't the flexible name must
    be a fixed width — an `auto` result column would resize per row and walk
    the tag column left and right. 184px fits a two-persona split ("New player
-   ×12, Whale ×8"), 200px fits the widest result (three counts, or the Failed
-   pill with its reason under it), and 136px fits the longest row action. */
+   ×12, Whale ×8"), 200px fits the widest result (the four outcome counts, or
+   the Failed pill with its reason under it), and 136px fits
+   the longest row action. */
 const GRID = '40px minmax(0, 1fr) 184px 200px 72px 124px'
 
 type KindFilter = 'all' | TestRunKind
@@ -186,23 +190,43 @@ export function RunHistoryList({
 
       {visible.map((run, i) => {
         const inProgress = run.state === 'progress'
+        /* The evidence exists and the report does not. Unlike 'progress' this
+           row always opens: every session is finished and watchable, so the
+           detail screen has a full Videos tab to show while the report is
+           being written — which is exactly where someone waiting on it wants
+           to be. */
+        const analysing = run.state === 'analysing'
+        const pending = inProgress || analysing
         const failed = run.state === 'failed'
         const kind: TestRunKind = run.kind ?? 'report'
         const isQuestion = kind === 'question'
         const last = i === visible.length - 1 && !paged
+        /* A run still recording has no page worth opening — the detail screen
+           would be a progress bar, which this row already is. The tests whose
+           agents can be watched play live pass `onWatchLive` and keep their way
+           in; everything else is inert until the run has something to show. */
+        const openable = !inProgress || Boolean(onWatchLive)
         return (
           <div
             key={run.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => onOpen?.(run)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onOpen?.(run)
-              }
-            }}
-            className="run-history-row grid items-center gap-m px-l py-m cursor-pointer"
+            role={openable ? 'button' : undefined}
+            tabIndex={openable ? 0 : undefined}
+            aria-disabled={openable ? undefined : true}
+            onClick={openable ? () => onOpen?.(run) : undefined}
+            onKeyDown={
+              openable
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onOpen?.(run)
+                    }
+                  }
+                : undefined
+            }
+            className={[
+              'run-history-row grid items-center gap-m px-l py-m',
+              openable ? 'cursor-pointer' : 'run-history-row-inert cursor-default',
+            ].join(' ')}
             style={{
               gridTemplateColumns: GRID,
               borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)',
@@ -211,7 +235,7 @@ export function RunHistoryList({
               borderBottomLeftRadius: last ? 15 : undefined,
               borderBottomRightRadius: last ? 15 : undefined,
               backgroundColor:
-                run.id === highlightId ? 'var(--bg-tint-light)' : inProgress ? 'var(--bg-page-pale)' : undefined,
+                run.id === highlightId ? 'var(--bg-tint-light)' : pending ? 'var(--bg-page-pale)' : undefined,
             }}
           >
             <span
@@ -227,9 +251,11 @@ export function RunHistoryList({
                     : { backgroundColor: 'var(--bg-tint-light)', color: 'var(--text-brand)' }
               }
               role="img"
-              aria-label={inProgress ? 'In progress' : failed ? 'Failed' : isQuestion ? 'Question' : 'Report'}
+              aria-label={
+                inProgress ? 'In progress' : analysing ? 'Analysing' : failed ? 'Failed' : isQuestion ? 'Question' : 'Report'
+              }
             >
-              {inProgress ? <span className="testing-spinner" /> : failed ? <FailedGlyph size={18} /> : isQuestion ? <QuestionGlyph /> : <ReportGlyph />}
+              {pending ? <span className="testing-spinner" /> : failed ? <FailedGlyph size={18} /> : isQuestion ? <QuestionGlyph /> : <ReportGlyph />}
             </span>
 
             <span className="flex flex-col gap-xxxs min-w-0">
@@ -250,7 +276,7 @@ export function RunHistoryList({
               </span>
             </span>
 
-            <span className="font-body text-s text-text-secondary leading-[1.5] truncate">{run.meta}</span>
+            <MetaCell run={run} />
 
             <ResultCell kind={kind} run={run} />
 
@@ -272,6 +298,29 @@ export function RunHistoryList({
                 >
                   Watch live
                 </Button>
+              ) : analysing ? (
+                /* Live, not disabled. The same word the human tests use while
+                   their agent reads the footage — but here the footage is
+                   already recorded, so the button goes somewhere: the run's
+                   Videos tab, full of finished sessions. */
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onOpen?.(run)
+                  }}
+                  leftIcon={<span className="testing-spinner" aria-hidden />}
+                >
+                  Analysing…
+                </Button>
+              ) : inProgress ? (
+                /* Disabled rather than absent: the column keeps its width, and
+                   a greyed control says "not yet" where an empty cell would
+                   read as "nothing here". */
+                <Button variant="secondary" size="md" disabled>
+                  Analysing…
+                </Button>
               ) : run.state === 'never' ? null : (
                 <Button
                   variant="secondary"
@@ -281,7 +330,7 @@ export function RunHistoryList({
                     onOpen?.(run)
                   }}
                 >
-                  {failed ? 'View details' : isQuestion ? 'View answer' : inProgress ? 'View progress' : 'View report'}
+                  {failed ? 'View details' : isQuestion ? 'View answer' : 'View report'}
                 </Button>
               )}
             </span>
@@ -350,21 +399,78 @@ function HeaderCell({ children, align }: { children: ReactNode; align?: 'right' 
   )
 }
 
+/**
+ * The third column — a rail of tag pills when the run carries `tags`, the plain
+ * string otherwise (a build, a persona split).
+ *
+ * Tags used to be joined with commas into that same string, which failed in the
+ * one place it mattered: a run built from three tags rendered
+ * "Build V2.1, Build V2.2, Tut…" and the ellipsis ate the fact that there were
+ * three. Pills fail better — the rail shows whole tags and says how many it
+ * could not fit, so the count is never the thing that gets truncated.
+ *
+ * One row, not two: this is a table, and a cell that grows to two rows drags
+ * every other column's baseline down with it. What the row cannot fit goes on
+ * the "+N" chip's hover label — the same instant CSS tooltip the outcome counts
+ * use, because a native `title` waits about a second, which reads as nothing
+ * happening on a chip you are pointing at to ask one question.
+ */
+function MetaCell({ run }: { run: TestRunHistoryItem }) {
+  if (!run.tags?.length) {
+    return <span className="font-body text-s text-text-secondary leading-[1.5] truncate">{run.meta}</span>
+  }
+  return (
+    <span className="flex items-center min-w-0">
+      <ClampTags
+        items={run.tags}
+        maxRows={1}
+        renderItem={(t) => <EventTag key={t} label={t} className="!rounded-[6px]" />}
+        renderOverflow={(hidden) => (
+          <span
+            key="more"
+            className="count-tip inline-flex items-center px-s py-[4px] rounded-[6px] bg-base-50 font-body text-2xs font-medium text-base-900 leading-[16px] whitespace-nowrap cursor-default"
+            data-tip={hidden.join(' · ')}
+            data-tip-wrap=""
+          >
+            +{hidden.length}
+            {/* The chip says how many; this says which, for a reader who cannot
+                hover to find out. */}
+            <span className="sr-only">{` more tags: ${hidden.join(', ')}`}</span>
+          </span>
+        )}
+      />
+    </span>
+  )
+}
+
 function ResultCell({ kind, run }: { kind: TestRunKind; run: TestRunHistoryItem }) {
   const { state, result } = run
   if (state === 'progress') {
     return <Pill bg="var(--bg-tint)" ink="var(--text-brand)">In progress</Pill>
   }
+  /* A different wait, so a different word: "In progress" on a run whose agents
+     have all stopped tells a reader the recording is still going. */
+  if (state === 'analysing') {
+    return <Pill bg="var(--bg-tint)" ink="var(--text-brand)">Analysing</Pill>
+  }
   /* Failed is a status, not a score, but it is the one status that must be
      seen from across the room — so it takes a pill, in the error pair, with
-     the reason directly under it: the status says stop, the line says why. */
+     the reason directly under it: the status says stop, the line says why.
+
+     One line, not two. Which failure it was decides what you do next — a build
+     that crashed on launch is re-run, recordings that would not decode are
+     re-uploaded — and the opening clause carries that. Two clamped lines in a
+     200px column did not: they broke mid-word ("could not get past the…"),
+     read as a paragraph nobody could finish, and made the failed row taller
+     than every other row in the table. The whole sentence is on the hover, and
+     in full on the run's own screen. */
   if (state === 'failed') {
     return (
-      <span className="flex flex-col items-start gap-xxs min-w-0">
+      <span className="flex flex-col items-start gap-xxs w-full min-w-0">
         <Pill bg="var(--error-bg)" ink="var(--error)">Failed</Pill>
         {run.failure && (
           <span
-            className="font-body text-xs leading-[1.45] line-clamp-2 min-w-0"
+            className="font-body text-xs leading-[1.45] w-full truncate"
             style={{ color: 'var(--error)' }}
             title={run.failure}
           >
@@ -386,17 +492,34 @@ function ResultCell({ kind, run }: { kind: TestRunKind; run: TestRunHistoryItem 
     /* Shared with the thread header, so the count reads the same colour there. */
     return <IssueCountPill count={result.count} />
   }
-  /* Three bare numbers only read once you already know the convention, so each
-     names itself on hover. The aria-label says the same thing in one pass for
-     anyone who can't hover. */
+  /* All four outcomes a case can carry, in the order the report lists them and
+     under the names the report gives them — the amber chip used to be labelled
+     "Not verified" while holding the need-review count, and there was no chip
+     for the cases nobody could verify at all. Bare numbers only read once you
+     know the convention, so each names itself on hover; the aria-label says the
+     same thing in one pass for anyone who can't hover. */
+  /* Colours come from CASE_OUTCOME_STYLE, so a count and the tag it counts are
+     the same chip — they were written out here as well and the neutral one had
+     already drifted into an outlined white chip the tag no longer uses. */
+  const counts = [
+    { outcome: 'pass' as const, n: result.passed },
+    { outcome: 'fail' as const, n: result.failed },
+    { outcome: 'review' as const, n: result.review },
+    { outcome: 'blocked' as const, n: result.blocked },
+  ]
   return (
     <span
       className="inline-flex items-center gap-xxs"
-      aria-label={`${result.passed} passed, ${result.failed} failed, ${result.review} not verified`}
+      aria-label={counts.map((c) => `${c.n} ${CASE_OUTCOME_STYLE[c.outcome].label.toLowerCase()}`).join(', ')}
     >
-      <Count bg="var(--success-bg)" ink="var(--success)" tip="Passed">{result.passed}</Count>
-      <Count bg="var(--error-bg)" ink="var(--error)" tip="Failed">{result.failed}</Count>
-      <Count bg="var(--warning-bg)" inkClass="issue-amber-ink" tip="Not verified">{result.review}</Count>
+      {counts.map((c) => {
+        const chip = CASE_OUTCOME_STYLE[c.outcome]
+        return (
+          <Count key={c.outcome} bg={chip.bg} ink={chip.ink} inkClass={chip.inkClass} tip={chip.label}>
+            {c.n}
+          </Count>
+        )
+      })}
     </span>
   )
 }

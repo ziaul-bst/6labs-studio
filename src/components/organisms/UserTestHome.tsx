@@ -249,7 +249,15 @@ export function UserTestHome({
                   variant="primary"
                   size="lg"
                   disabled={!hasVideos}
-                  onClick={() => onGenerate?.(selectedIds, gameContext, runName)}
+                  /* Straight to the history, where the run now sits as a row
+                     in progress. The analysis runs in the background — which is
+                     what the note under this button has always said — so the
+                     honest destination is the list it lands in, not a detail
+                     page with nothing in it yet. */
+                  onClick={() => {
+                    onGenerate?.(selectedIds, gameContext, runName)
+                    setTab('history')
+                  }}
                 >
                   Generate report
                 </Button>
@@ -328,7 +336,7 @@ export function UserTestHome({
           runs={history}
           highlightId={highlightId}
           onOpen={onOpenRun}
-          metaLabel="Tag"
+          metaLabel="Tags"
           emptyTitle="Nothing has run yet"
           emptyLabel="Run a report on your footage or ask it a question — both land here."
           emptyAction={{ label: 'New run', onClick: () => setTab('new') }}

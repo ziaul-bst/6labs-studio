@@ -2,10 +2,15 @@
  * IssueKindTag — says whether a User Test finding was *seen* or *inferred*.
  *
  * This is the load-bearing distinction in a User Test report, so it gets a tag
- * rather than a colour or an icon: a BUG is observable in the clip and can be
- * filed as-is, FRICTION is read off behaviour and has to be checked before
+ * rather than a colour or an icon: a Bug is observable in the clip and can be
+ * filed as-is, Friction is read off behaviour and has to be checked before
  * anyone acts on it. The optional qualifier carries the confidence in the same
- * pill ("BUG · verified") wherever the two are read as one claim.
+ * pill ("Bug · verified") wherever the two are read as one claim.
+ *
+ * It shares its geometry and type with FindingSeverityTag — same padding,
+ * radius, size, weight and case. The two sit side by side on every finding, and
+ * an uppercase letterspaced chip next to a Title-Case one read as two
+ * unrelated systems rather than as two facts about one finding.
  *
  * Code-first prototype — no Figma source yet.
  */
@@ -31,8 +36,8 @@ export const ISSUE_KIND_FILL: Record<IssueKind, { bg: string; ink: string }> = {
 }
 
 const KIND_META: Record<IssueKind, { label: string; color?: string; bg: string; inkClass?: string }> = {
-  bug: { label: 'BUG', color: 'var(--error)', bg: 'var(--error-bg)' },
-  friction: { label: 'FRICTION', bg: 'var(--warning-bg)', inkClass: 'issue-amber-ink' },
+  bug: { label: 'Bug', color: 'var(--error)', bg: 'var(--error-bg)' },
+  friction: { label: 'Friction', bg: 'var(--warning-bg)', inkClass: 'issue-amber-ink' },
 }
 
 export function IssueKindTag({ kind, qualifier, className }: IssueKindTagProps) {
@@ -42,7 +47,7 @@ export function IssueKindTag({ kind, qualifier, className }: IssueKindTagProps) 
       className={[
         'inline-flex items-center gap-xxs shrink-0',
         'px-xs py-xxxs rounded-xs',
-        'font-display text-2xs font-semibold uppercase tracking-[0.08em] leading-[1.5] whitespace-nowrap',
+        'font-body text-xs font-medium leading-[1.5] whitespace-nowrap',
         meta.inkClass,
         className,
       ]
@@ -52,9 +57,7 @@ export function IssueKindTag({ kind, qualifier, className }: IssueKindTagProps) 
     >
       {meta.label}
       {qualifier && (
-        <span className="font-body font-normal normal-case tracking-normal opacity-80">
-          · {qualifier}
-        </span>
+        <span className="font-normal opacity-80">· {qualifier}</span>
       )}
     </span>
   )

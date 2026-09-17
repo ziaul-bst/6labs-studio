@@ -3,14 +3,14 @@
  *
  * A functional report answers one question per row — did this case happen —
  * so the page is a table, not a narrative. What it has to get right is the
- * three ways a reader arrives: counting the damage (the tiles), hunting a
+ * three ways a reader arrives: taking the result (the summary), hunting a
  * specific case (search and the category select), or working a queue of
  * failures (the pills, then the detail modal's Previous/Next).
  *
- * The header counts cases *run* against cases *in the file*, and says out loud
- * how many were never reached. A report that only counted what it managed to
- * check would read as complete coverage, which is the single most expensive
- * thing this screen could imply.
+ * The page has one claim and a body of evidence for it. The claim is the
+ * VerificationSummary at the top — result beside coverage; the evidence is
+ * everything under it. Nothing in the summary is a control, so the reader is
+ * never filtering in two places at two different scales.
  *
  * Code-first prototype — from the reference flow (user-test-agent-flow v128).
  */
@@ -21,28 +21,39 @@ import { AnalysisProgressCard } from '../molecules/AnalysisProgressCard'
 import { RunFailedNotice } from '../molecules/RunFailedNotice'
 import { TestingMenuSelect } from '../molecules/TestingMenuSelect'
 import { TestCaseDetailModal } from './TestCaseDetailModal'
-import { CASE_OUTCOME_STYLE, CaseOutcomeTag } from '../atoms/CaseOutcomeTag'
+import { CASE_OUTCOME_ORDER, CASE_OUTCOME_STYLE, CaseOutcomeTag } from '../atoms/CaseOutcomeTag'
 import { SegmentedControl } from '../atoms/SegmentedControl'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import { SearchIcon } from '../icons/SearchIcon'
 import { ChevronIcon } from '../icons/ChevronIcon'
-import { UserTestIssueCard } from '../molecules/UserTestIssueCard'
-import { VERIFICATION_TOTALS, VERIFIED_CASES } from '../../lib/mocks/verified-cases'
-import { USER_TEST_ISSUES } from '../../lib/mocks/user-test'
-import type { CaseOutcome, VerifiedCase, VerificationTotals } from '../../lib/types/testing'
+import { DownloadIcon } from '../icons/DownloadIcon'
+import { VerificationSummary } from '../molecules/VerificationSummary'
+import { casesToCsv, csvFileName, downloadCsv } from '../../lib/testCaseCsv'
+import { CASE_DEPTH_FIXTURES, useCaseDepthDemoState } from '../../lib/caseDepthDemoState'
+import { useCaseLayoutDemoState } from '../../lib/caseLayoutDemoState'
+import type { CaseModalLayout } from './TestCaseDetailModal'
+import type { CaseOutcome, TestCaseFile, VerifiedCase, VerificationTotals } from '../../lib/types/testing'
 
 export type FunctionalReportMode = 'human' | 'ai'
 
 export interface FunctionalTestReportProps {
   title: string
-  /** "10 videos · regression-suite.xlsx · verified by 6labs agent" */
+  /**
+   * "10 videos · regression-suite.xlsx · verified by 6labs agent". Kept on the
+   * API — every caller has it and the history row it came from still needs it —
+   * but no longer drawn: the run's provenance is one click away in history, and
+   * on the report it was a line of grey metadata between the title and the
+   * result, read by nobody and pushing the summary down.
+   */
   subtitle: string
   mode: FunctionalReportMode
   /**
-   * Append the behavioural findings from the same sessions. An agency batch was
-   * paid for functional coverage, so the UX pass comes free — and holding an
-   * agency to more than "did it pass" is the reason to read both together.
+   * The run also carried a behavioural pass. Kept on the API — the history row
+   * it came from still says "functional + UX" — but no longer drawn here: this
+   * report answers "did each case happen", and two friction findings bolted to
+   * the end of it were a different report's opening, with no way to reach the
+   * other five or their clips. The behavioural pass has its own screen.
    */
   withUx?: boolean
   /** Start on the progress card and reveal the report when the ticks finish. */
@@ -53,12 +64,22 @@ export interface FunctionalTestReportProps {
   onDone?: () => void
   onBack: () => void
   onRunAgain?: () => void
+  /** Defaults to the review dock's case-depth fixture. */
   cases?: VerifiedCase[]
   totals?: VerificationTotals
+  /**
+   * The sheet(s) this run was verified against, handed back as a download.
+   * A reader disputing a verdict is disputing the case, and the case lives in
+   * the file someone uploaded weeks ago — the report is the only place that
+   * still knows which one it was.
+   */
+  caseFiles?: TestCaseFile[]
   /** Rows per page. The list is the page's whole body, so it pages rather than scrolls forever. */
   pageSize?: number
   /** Show the list rail inside the detail modal. */
   modalNavigator?: boolean
+  /** Shape of the case-detail modal. Defaults to the review dock's choice. */
+  modalLayout?: CaseModalLayout
   className?: string
 }
 
@@ -69,20 +90,28 @@ const TICK_MS = 1300
 
 export function FunctionalTestReport({
   title,
-  subtitle,
   mode,
-  withUx = false,
   inProgress = false,
   failure,
   onDone,
   onBack,
   onRunAgain,
-  cases = VERIFIED_CASES,
-  totals = VERIFICATION_TOTALS,
+  cases: casesProp,
+  totals: totalsProp,
+  caseFiles,
   pageSize = 12,
   modalNavigator = true,
+  modalLayout,
   className,
 }: FunctionalTestReportProps) {
+  /* Stories pass their own fixture; inside the app the review dock chooses
+     between the tidy suite and the text-heavy one. */
+  const depth = useCaseDepthDemoState()
+  const dockLayout = useCaseLayoutDemoState()
+  const fixture = CASE_DEPTH_FIXTURES[depth]
+  const cases = casesProp ?? fixture.cases
+  const totals = totalsProp ?? fixture.totals
+
   const progressItems = useMemo(
     () =>
       mode === 'ai'
@@ -115,13 +144,18 @@ export function FunctionalTestReport({
 
   const categories = useMemo(() => [...new Set(cases.map((c) => c.category))].sort(), [cases])
 
+  /* Four outcomes, named and ordered where the tags are. The labels used to be
+     written out here as well, and had drifted — "Fail" and "Block" on the
+     filter against "Failed" and "Not verified" everywhere else — so a segment
+     and the tag it filtered to did not read as the same word. */
   const count = (f: (c: VerifiedCase) => boolean) => cases.filter(f).length
   const filterOptions: { value: Filter; label: string; n: number }[] = [
     { value: 'all', label: 'All', n: cases.length },
-    { value: 'pass', label: 'Pass', n: count((c) => c.outcome === 'pass') },
-    { value: 'fail', label: 'Fail', n: count((c) => c.outcome === 'fail') },
-    { value: 'blocked', label: 'Block', n: count((c) => c.outcome === 'blocked') },
-    { value: 'review', label: 'Need review', n: count((c) => c.outcome === 'review') },
+    ...CASE_OUTCOME_ORDER.map((outcome) => ({
+      value: outcome as Filter,
+      label: CASE_OUTCOME_STYLE[outcome].label,
+      n: count((c) => c.outcome === outcome),
+    })),
   ]
 
   const visible = useMemo(
@@ -146,7 +180,7 @@ export function FunctionalTestReport({
   const clampedPage = Math.min(page, pageCount - 1)
   const rows = visible.slice(clampedPage * pageSize, clampedPage * pageSize + pageSize)
   const openCase = openId ? (visible.find((c) => c.id === openId) ?? null) : null
-  const unreached = totals.total - totals.run
+  const paged = pageCount > 1
 
   return (
     <div className={['flex flex-col w-full min-h-full', className].filter(Boolean).join(' ')}>
@@ -154,17 +188,29 @@ export function FunctionalTestReport({
         title={title}
         trail={[{ label: mode === 'ai' ? 'AI functional test' : 'Functional test' }]}
         onBack={onBack}
+        /* Export only. A report is a record of one run — "Run again" from
+           inside it starts a *different* run, and the reader is here to read
+           this one. It survives on the failed-run notice, where re-running is
+           the only thing left to do.
+
+           It exports every case in the run, not the filtered view: the button
+           is in the page chrome, above and outside the toolbar, and a control
+           up there that silently obeys a filter three sections down is how
+           someone mails a partial report believing it is the whole one. */
         actions={
-          <>
-            <Button variant="secondary" size="md">Export</Button>
-            <Button variant="primary" size="md" onClick={onRunAgain}>Run again</Button>
-          </>
+          <Button
+            variant="secondary"
+            size="md"
+            leftIcon={<DownloadIcon size={16} />}
+            disabled={running || !!failure}
+            onClick={() => downloadCsv(csvFileName(title), casesToCsv(cases))}
+          >
+            Export CSV
+          </Button>
         }
       />
 
       <div className="flex flex-col gap-m page-measure pt-l pb-xxl3">
-        <p className="font-body text-s text-text-secondary leading-[1.5]">{subtitle}</p>
-
         {failure ? (
           <RunFailedNotice
             reason={failure}
@@ -186,42 +232,27 @@ export function FunctionalTestReport({
           />
         ) : (
           <>
-            {/* Coverage, then outcomes. Six equal cards gave six equal
-                headlines; this is one headline — how much of the file the run
-                actually reached — with the outcome split reading as its
-                breakdown, which is what it is. */}
-            <section
-              className="flex flex-col gap-m w-full rounded-2xl px-l py-m"
-              style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
-            >
-              <div className="flex flex-wrap items-end justify-between gap-m">
-                <div className="flex flex-col gap-xxxs">
-                  <span className="flex items-baseline gap-xs">
-                    <span className="font-display text-2xl font-semibold text-text-primary leading-[1.15]">
-                      {totals.run.toLocaleString()}
-                    </span>
-                    <span className="font-body text-m text-text-tertiary leading-[1.4]">
-                      of {totals.total.toLocaleString()} cases verified
-                    </span>
+            {/* The claim the rest of the page is evidence for: verdict, then
+                the two questions that have different denominators — how what
+                ran did, and how much of the file ran at all. The run names
+                itself in the card's own masthead rather than on the page above
+                it — this card is what gets screenshotted and exported, and a
+                title outside it does not travel. */}
+            <VerificationSummary
+              totals={totals}
+              masthead={
+                <>
+                  <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
+                    {mode === 'ai' ? 'AI functional test report' : 'Functional test report'}
                   </span>
-                  <span className="font-body text-xs text-text-tertiary leading-[1.5]">
-                    across {totals.videos} recordings
-                  </span>
-                </div>
-                <OutcomeLegend totals={totals} />
-              </div>
+                  <h1 className="font-display text-xl font-semibold text-text-primary leading-[1.25] tracking-[-0.01em] m-0">
+                    {title}
+                  </h1>
+                </>
+              }
+            />
 
-              {/* One bar, in outcome order, so coverage and result are the same
-                  picture. The unreached remainder is the unfilled track. */}
-              <CoverageBar totals={totals} />
-
-              {unreached > 0 && (
-                <p className="font-body text-xs text-text-tertiary leading-[1.6] max-w-[92ch]">
-                  {unreached.toLocaleString()} cases in the file were never reached in this footage —
-                  neither passed nor failed, and nothing below reports on them.
-                </p>
-              )}
-            </section>
+            {caseFiles && caseFiles.length > 0 && <CaseFileBar files={caseFiles} />}
 
             {/* Two rows, not one wrap: finding a case and narrowing the set are
                 different jobs, and eight controls on one line read as none. */}
@@ -271,7 +302,10 @@ export function FunctionalTestReport({
             </div>
 
             <div
-              className="verification-table flex flex-col w-full rounded-2xl overflow-hidden"
+              /* No overflow-hidden: it makes the card a scroll container and a
+                 sticky footer inside one never sticks. The rows' own bottom
+                 radius is on the pager instead. */
+              className="verification-table flex flex-col w-full rounded-2xl"
               style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
             >
               <div
@@ -297,7 +331,14 @@ export function FunctionalTestReport({
                     type="button"
                     onClick={() => setOpenId(c.id)}
                     className="verification-row case-row px-l py-m text-left"
-                    style={i > 0 ? { borderTop: '1px solid var(--border-subtle)' } : undefined}
+                    /* Rounding lives on the last row now that the card no
+                       longer clips, so a hovered last row can't square its
+                       corner. Same pattern as the history table. */
+                    style={{
+                      borderTop: i > 0 ? '1px solid var(--border-subtle)' : undefined,
+                      borderBottomLeftRadius: i === rows.length - 1 && !paged ? 15 : undefined,
+                      borderBottomRightRadius: i === rows.length - 1 && !paged ? 15 : undefined,
+                    }}
                   >
                     <span className="font-code text-xs text-text-tertiary leading-[1.6]">{c.id}</span>
                     <span className="font-body text-s text-text-primary leading-[1.5]">{c.title}</span>
@@ -309,7 +350,7 @@ export function FunctionalTestReport({
                         {c.path}
                       </span>
                     </span>
-                    <span className="font-body text-s text-text-secondary leading-[1.5]">
+                    <span className="case-reason font-body text-s text-text-secondary leading-[1.5]">
                       {c.reason}
                     </span>
                     <span>
@@ -321,66 +362,52 @@ export function FunctionalTestReport({
                   </button>
                 ))
               )}
-            </div>
 
-            {/* A pager on a single page is a control that can only disappoint. */}
-            <div className="flex items-center gap-s">
-              {pageCount > 1 && (
-                <>
+              {paged && (
+                /* The same pager the history tables carry: sticky on the card's
+                   bottom edge, controls left with the range after them. Twelve
+                   rows plus a header run past the fold on a 13" laptop, and a
+                   pager you have to scroll to find reads as a list that simply
+                   stops. The opaque fill and bottom radius are what let rows
+                   pass behind it without showing through the rounded corner. */
+                <div
+                  className="sticky bottom-0 z-[1] flex items-center gap-s px-l py-s rounded-b-2xl"
+                  style={{
+                    borderTop: '1px solid var(--border-subtle)',
+                    backgroundColor: 'var(--bg-elements)',
+                  }}
+                >
                   <Button
                     variant="secondary"
                     size="md"
-                    disabled={clampedPage === 0}
                     leftIcon={<ChevronIcon size={16} direction="left" />}
+                    disabled={clampedPage === 0}
                     onClick={() => setPage((p) => Math.max(0, p - 1))}
                   >
                     Previous
                   </Button>
-                  <span className="font-body text-xs text-text-tertiary leading-[1.5]">
+                  <span className="font-body text-s text-text-secondary whitespace-nowrap px-xs">
                     Page {clampedPage + 1} of {pageCount}
                   </span>
                   <Button
                     variant="secondary"
                     size="md"
+                    rightIcon={<ChevronIcon size={16} direction="right" />}
                     disabled={clampedPage >= pageCount - 1}
-                    rightIcon={<ChevronIcon size={16} />}
                     onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
                   >
                     Next
                   </Button>
-                </>
+                  <span className="font-body text-s text-text-tertiary leading-[1.5] pl-xs">
+                    {clampedPage * pageSize + 1}–{clampedPage * pageSize + rows.length} of{' '}
+                    {visible.length}
+                  </span>
+                  <span className="flex-1" />
+                </div>
               )}
-              <span className="flex-1" />
-              <span className="font-body text-xs text-text-tertiary leading-[1.5]">
-                {visible.length === 0
-                  ? '0 cases'
-                  : `${clampedPage * pageSize + 1}–${clampedPage * pageSize + rows.length} of ${visible.length}`}
-              </span>
             </div>
 
-            {withUx && (
-              <div
-                className="flex flex-col gap-s w-full rounded-2xl px-l py-l mt-m"
-                style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
-              >
-                <h3 className="flex items-center gap-xs font-display text-m font-semibold text-text-primary leading-[1.4]">
-                  <span
-                    className="inline-flex items-center px-xs py-xxxs rounded-xs font-display text-2xs font-semibold uppercase tracking-[0.12em]"
-                    style={{ backgroundColor: 'var(--warning-bg)' }}
-                  >
-                    <span className="issue-amber-ink">UX</span>
-                  </span>
-                  Behavioural findings from the same sessions
-                </h3>
-                <div className="flex flex-col gap-xxs">
-                  {USER_TEST_ISSUES.filter((i) => i.kind === 'friction')
-                    .slice(0, 2)
-                    .map((issue) => (
-                      <UserTestIssueCard key={issue.id} issue={issue} />
-                    ))}
-                </div>
-              </div>
-            )}
+
           </>
         )}
       </div>
@@ -388,7 +415,11 @@ export function FunctionalTestReport({
       <TestCaseDetailModal
         testCase={openCase}
         cases={visible}
+        /* An AI functional run's footage was played by an agent, not recorded
+           by a person — the clip says so. */
+        aiGenerated={mode === 'ai'}
         withNavigator={modalNavigator}
+        layout={modalLayout ?? dockLayout}
         onSelect={setOpenId}
         onClose={() => setOpenId(null)}
       />
@@ -396,50 +427,40 @@ export function FunctionalTestReport({
   )
 }
 
-const OUTCOME_ORDER: { key: 'pass' | 'fail' | 'blocked' | 'review'; label: string; colour: string }[] = [
-  { key: 'pass', label: 'pass', colour: 'var(--success)' },
-  { key: 'fail', label: 'fail', colour: 'var(--error)' },
-  { key: 'review', label: 'need review', colour: 'var(--warning)' },
-  /* Block is neutral, the same as its tag: a case nobody could verify is not a
-     result, and colouring it like one invites it to be counted as a pass. */
-  { key: 'blocked', label: 'block', colour: 'var(--text-tertiary)' },
-]
-
-function OutcomeLegend({ totals }: { totals: VerificationTotals }) {
-  return (
-    <div className="flex flex-wrap items-baseline gap-l">
-      {OUTCOME_ORDER.map((o) => (
-        <span key={o.key} className="flex flex-col gap-xxxs">
-          <span className="flex items-center gap-xs">
-            <span
-              className="w-[8px] h-[8px] rounded-round shrink-0"
-              style={{ backgroundColor: o.colour }}
-              aria-hidden
-            />
-            <span className="font-display text-l font-semibold text-text-primary leading-[1.25]">
-              {totals[o.key].toLocaleString()}
-            </span>
-          </span>
-          <span className="font-body text-xs text-text-tertiary leading-[1.5] pl-[16px]">
-            {o.label}
-          </span>
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function CoverageBar({ totals }: { totals: VerificationTotals }) {
-  const width = (n: number) => `${(n / totals.total) * 100}%`
+/**
+ * What the run was verified against, offered back as a file.
+ *
+ * It sits between the summary and the toolbar because it belongs to the claim,
+ * not to the evidence: the summary says how the cases scored, and this says
+ * which cases. Below the table it would be a footnote to the rows; inside the
+ * summary card it would be a link in the one block on the page that is
+ * deliberately not interactive.
+ *
+ * A row, not a line of metadata — the whole point is that it is fetchable.
+ */
+function CaseFileBar({ files }: { files: TestCaseFile[] }) {
   return (
     <div
-      className="flex w-full h-[8px] rounded-round overflow-hidden"
-      style={{ backgroundColor: 'var(--bg-subtle)' }}
-      role="img"
-      aria-label={`${totals.run} of ${totals.total} cases verified: ${totals.pass} pass, ${totals.fail} fail, ${totals.review} need review, ${totals.blocked} blocked`}
+      className="flex flex-wrap items-center gap-s rounded-xl px-m py-s"
+      style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
     >
-      {OUTCOME_ORDER.map((o) => (
-        <span key={o.key} style={{ width: width(totals[o.key]), backgroundColor: o.colour }} />
+      <span className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-text-tertiary leading-[1.5]">
+        Verified against
+      </span>
+      {files.map((f) => (
+        <a
+          key={f.name}
+          href={f.href ?? '#'}
+          download={f.name}
+          className="inline-flex items-center gap-xs font-body text-s font-semibold text-text-brand leading-[1.5] hover:underline"
+        >
+          <DownloadIcon size={16} />
+          {f.name}
+          {/* The name alone. The count used to trail it, three inches under a
+              Coverage meter that already reads "of the 1,956 cases in the
+              file" — the same number, in the place that explains what it is
+              the denominator of. */}
+        </a>
       ))}
     </div>
   )

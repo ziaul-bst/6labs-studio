@@ -1,9 +1,9 @@
 /**
- * IssueCountPill — how many issues a run found, coloured by what that means.
+ * IssueCountPill — how many findings a run found, coloured by what that means.
  *
  * One atom for every surface that shows the count (history rows, thread and
  * report headers), so the same number can never be green in one place and
- * amber in another. Issues are not good news: amber while there are any,
+ * amber in another. Findings are not good news: amber while there are any,
  * green only at zero. Run *status* (complete, in progress) is a different
  * fact and is never folded into this pill.
  *
@@ -32,7 +32,7 @@ export function IssueCountPill({ count, className }: IssueCountPillProps) {
           : { backgroundColor: 'var(--warning-bg)' }
       }
     >
-      {clean ? 'No issues' : `${count} ${count === 1 ? 'issue' : 'issues'}`}
+      {clean ? 'No findings' : `${count} ${count === 1 ? 'finding' : 'findings'}`}
     </span>
   )
 }

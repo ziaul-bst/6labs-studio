@@ -16,18 +16,40 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { runDateLabel } from './runDate'
 import type { TestRunHistoryItem } from './types/testing'
 
-export type HistoryDemoState = 'seeded' | 'empty' | 'progress' | 'failed' | 'many' | 'reports'
+export type HistoryDemoState =
+  | 'seeded'
+  | 'empty'
+  | 'progress'
+  | 'analysing'
+  | 'failed'
+  | 'many'
+  | 'reports'
 
 export const HISTORY_DEMO_STATES: HistoryDemoState[] = ['seeded', 'empty', 'progress', 'failed', 'many', 'reports']
 
 /** Only User Test lists questions, so only it has a "reports only" state. */
 export const HISTORY_DEMO_STATES_REPORTS_ONLY: HistoryDemoState[] = ['seeded', 'empty', 'progress', 'failed', 'many']
 
+/**
+ * Only the AI behavioural test has an analysing row. Its runs *record* first and
+ * *read* second, so the two waits are separate states; everywhere else a run in
+ * flight is one undivided "in progress".
+ */
+export const HISTORY_DEMO_STATES_AI_BEHAVIOURAL: HistoryDemoState[] = [
+  'seeded',
+  'empty',
+  'progress',
+  'analysing',
+  'failed',
+  'many',
+]
+
 /** Switcher button copy — short, the row is one line in a small dock. */
 export const HISTORY_DEMO_LABELS: Record<HistoryDemoState, string> = {
   seeded: 'Seeded',
   empty: 'No history',
   progress: 'In progress',
+  analysing: 'Analysing',
   failed: 'Failed run',
   many: 'Long history',
   reports: 'Reports only',
@@ -38,6 +60,8 @@ export const HISTORY_DEMO_NOTES: Record<HistoryDemoState, string> = {
   seeded: 'The seeded history — a few finished runs.',
   empty: 'Nothing has run yet: the tab shows its empty copy.',
   progress: 'A run just started sits on top, tinted and spinning, with In progress as its result.',
+  analysing:
+    'Every agent has finished and the report is being written. The row still spins, but it opens — the sessions are all watchable.',
   failed: 'A run that stopped sits on top — red tile, Failed pill, the reason in its line. Open it for the notice.',
   many: 'Forty-two runs: the list pages, ten a screen, with the range and page count in its footer.',
   reports: 'Questions removed, so the kind filter above the list disappears.',
@@ -90,6 +114,16 @@ export function seedHistory(
         return { ...b, id: `demo-many-${i}`, state: 'done', result, when: `${MONTHS[d.getMonth()]} ${d.getDate()}` }
       })
       return { runs, highlightId: null }
+    }
+    case 'analysing': {
+      /* Same synthesised row as `progress`, one beat later: the agents have
+         stopped, so there is no live session to watch and the row is openable.
+         It has no result yet — that is the whole point of the state. */
+      const first = base.find((r) => (r.kind ?? 'report') === 'report') ?? base[0]
+      const reading: TestRunHistoryItem = first
+        ? { ...first, id: 'demo-analysing', kind: 'report', state: 'analysing', result: undefined, when: runDateLabel() }
+        : { id: 'demo-analysing', name: 'Run', detail: '—', meta: '—', state: 'analysing', when: runDateLabel() }
+      return { runs: [reading, ...base], highlightId: reading.id }
     }
     case 'progress': {
       const first = base.find((r) => (r.kind ?? 'report') === 'report') ?? base[0]

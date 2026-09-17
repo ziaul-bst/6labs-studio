@@ -226,7 +226,9 @@ const SEARCH_FROM = 6
 
 /* ── Row ────────────────────────────────────────────────────────────────── */
 
-const ROW_GRID = '24px 44px minmax(0, 1fr) 200px 24px'
+/* The trailing column carries the tick on a chosen build and the two recovery
+   actions on a failed one, so it is sized for the wider of the two. */
+const ROW_GRID = '24px 44px minmax(0, 1fr) 200px 132px'
 
 function BuildRow({ build, selected, first, onSelect }: { build: BuildFile; selected: boolean; first: boolean; onSelect: () => void }) {
   const selectable = build.status === 'ready'
@@ -252,15 +254,22 @@ function BuildRow({ build, selected, first, onSelect }: { build: BuildFile; sele
       }}
     >
       {/* Radio */}
-      <span
-        className="flex items-center justify-center w-[18px] h-[18px] rounded-round"
-        style={{
-          border: `${selected ? 5 : 1.5}px solid ${selected ? 'var(--brand)' : selectable ? 'var(--border-default)' : 'var(--border-subtle)'}`,
-          backgroundColor: 'var(--bg-elements)',
-          opacity: selectable ? 1 : 0.5,
-        }}
-        aria-hidden
-      />
+      {/* A failed upload is not a choice, so it gets no radio. An empty circle
+          on a row that can never be picked is a control that does nothing, and
+          the error-tinted tile beside it already says what the row is. */}
+      {build.status === 'failed' ? (
+        <span aria-hidden />
+      ) : (
+        <span
+          className="flex items-center justify-center w-[18px] h-[18px] rounded-round"
+          style={{
+            border: `${selected ? 5 : 1.5}px solid ${selected ? 'var(--brand)' : selectable ? 'var(--border-default)' : 'var(--border-subtle)'}`,
+            backgroundColor: 'var(--bg-elements)',
+            opacity: selectable ? 1 : 0.5,
+          }}
+          aria-hidden
+        />
+      )}
 
       {/* Platform tile */}
       <span
@@ -295,9 +304,37 @@ function BuildRow({ build, selected, first, onSelect }: { build: BuildFile; sele
 
       <StatusCell build={build} />
 
-      <span className="flex items-center justify-end text-text-tertiary" aria-hidden>
-        {selected && <CheckIcon size={16} />}
-      </span>
+      {build.status === 'failed' ? (
+        /* Both plain text at the same size — one secondary button beside one
+           bare link read as two different kinds of thing. The hierarchy is
+           colour: recovery in brand, the destructive one quiet. */
+        <span className="flex items-center justify-end gap-m">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              retryUpload(build.id)
+            }}
+            className="build-row-action font-body text-xs font-semibold text-text-brand leading-[1.5] whitespace-nowrap"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              removeBuild(build.id)
+            }}
+            className="build-row-action font-body text-xs text-text-tertiary leading-[1.5] whitespace-nowrap"
+          >
+            Remove
+          </button>
+        </span>
+      ) : (
+        <span className="flex items-center justify-end text-text-tertiary" aria-hidden>
+          {selected && <CheckIcon size={16} />}
+        </span>
+      )}
     </div>
   )
 }
@@ -312,19 +349,12 @@ function StatusCell({ build }: { build: BuildFile }) {
         </span>
       )
     case 'failed':
+      /* One line, in the slot every other row says "Ready to run" in — the
+         actions moved to the trailing column so a failed row is exactly as tall
+         as the rest and the list keeps its rhythm. */
       return (
-        <span className="flex flex-col items-start gap-xxs min-w-0">
-          <span className="font-body text-xs leading-[1.5]" style={{ color: 'var(--error)' }}>
-            {build.error ?? 'Upload did not finish.'}
-          </span>
-          <span className="flex items-center gap-xs">
-            <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); retryUpload(build.id) }}>
-              Retry
-            </Button>
-            <Button variant="transparent" size="sm" onClick={(e) => { e.stopPropagation(); removeBuild(build.id) }}>
-              Remove
-            </Button>
-          </span>
+        <span className="font-body text-xs whitespace-nowrap" style={{ color: 'var(--error)' }}>
+          {build.error ?? 'Upload failed'}
         </span>
       )
     default:
@@ -365,7 +395,7 @@ export function BuildField({ value, onChange, placeholder = 'Choose a build…',
       >
         {value ? (
           <>
-            <Badge>{chosen?.platform ?? 'APK'}</Badge>
+            <BuildPlatformBadge>{chosen?.platform ?? 'APK'}</BuildPlatformBadge>
             <span className="font-display text-s font-semibold text-text-primary leading-[1.5] whitespace-nowrap">{value}</span>
             {chosen && (
               <span className="font-body text-s text-text-tertiary leading-[1.5] truncate min-w-0">
@@ -392,11 +422,24 @@ export function BuildField({ value, onChange, placeholder = 'Choose a build…',
   )
 }
 
-function Badge({ children }: { children: ReactNode }) {
+/**
+ * The build's package type — "APK". Exported because the composer's filled
+ * build zone wears the same mark: what is attached there is a package, and the
+ * tick it used to carry said only "attached", which is what a filled zone is.
+ *
+ * `plain` drops the chip's own fill and box for use inside a tile that already
+ * has both. The fill is rgba(22,163,74,0.07), so a chip on a tile of the same
+ * token is not the same colour — the two alphas compound to ~0.135 and the
+ * badge reads as a second, darker square floating inside the first.
+ */
+export function BuildPlatformBadge({ children, plain }: { children: ReactNode; plain?: boolean }) {
   return (
     <span
-      className="inline-flex items-center justify-center shrink-0 px-xs h-[22px] rounded-xs font-code text-2xs font-semibold"
-      style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success)' }}
+      className={[
+        'inline-flex items-center justify-center shrink-0 font-code text-2xs font-semibold',
+        plain ? 'leading-none' : 'px-xs h-[22px] rounded-xs',
+      ].join(' ')}
+      style={plain ? undefined : { backgroundColor: 'var(--success-bg)', color: 'var(--success)' }}
       aria-hidden
     >
       {children}

@@ -25,16 +25,18 @@ import { PageTopbar } from '../molecules/PageTopbar'
 import { AnalysisProgressCard } from '../molecules/AnalysisProgressCard'
 import { RunFailedNotice } from '../molecules/RunFailedNotice'
 import { UserTestIssueCard } from '../molecules/UserTestIssueCard'
+import { SourcesGrid, type SourceItem } from '../molecules/SourcesGrid'
+import { ReportCtaBand } from '../molecules/ReportCtaBand'
+import { ClipLightbox } from '../molecules/ClipLightbox'
 import { ANSWER_DELAY_MS, UserTestAskPanel, answerFor } from './UserTestAskPanel'
 import Button from '../ui/Button'
 import InputFieldConsole from '../ui/InputFieldConsole'
 import { IssueCountPill } from '../atoms/IssueCountPill'
 import { DownloadIcon } from '../icons/DownloadIcon'
 import { MembersIcon } from '../icons/MembersIcon'
-import { ChevronRightIcon } from '../icons/ChevronRightIcon'
 import { THREAD_SO_FAR } from '../../lib/mocks/testing'
-import { USER_TEST_ASK_ANSWERS, USER_TEST_ISSUES } from '../../lib/mocks/user-test'
-import type { UserTestAskTurn, UserTestEvidenceRef } from '../../lib/types/userTest'
+import { PICKER_VIDEOS, USER_TEST_ASK_ANSWERS, USER_TEST_ISSUES } from '../../lib/mocks/user-test'
+import type { UserTestAskTurn, UserTestEvidenceRef, UserTestIssue } from '../../lib/types/userTest'
 
 export interface TestRunThreadProps {
   title: string
@@ -50,6 +52,11 @@ export interface TestRunThreadProps {
   /** Verb phrase for the progress label — "analysed" (default) or a running caption. */
   progressNoun?: string
   gameContext?: string | null
+  /**
+   * The recordings behind the run, for the Sources block — the same shape the
+   * run page passes, so the two screens expand onto the same footage.
+   */
+  sources?: SourceItem[]
   /** Run was compared with a previous one — shows the comparison strip. */
   compared?: boolean
   /** Sample report — shown finished, labelled as a sample. */
@@ -74,6 +81,14 @@ export interface TestRunThreadProps {
 
 const TICK_MS = 1400
 
+/* Same fallback the run page uses, so a thread opened without sources shows the
+   footage that page would have shown rather than an empty block. */
+const DEFAULT_SOURCES: SourceItem[] = PICKER_VIDEOS.slice(0, 10).map((v) => ({
+  id: v.id,
+  duration: v.duration,
+  title: v.title,
+}))
+
 export function TestRunThread({
   title,
   request,
@@ -82,6 +97,7 @@ export function TestRunThread({
   sessions,
   totalSessions,
   progressNoun = 'analysed',
+  sources = DEFAULT_SOURCES,
   gameContext,
   compared = false,
   sample = false,
@@ -148,6 +164,9 @@ export function TestRunThread({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question])
   const [draft, setDraft] = useState('')
+  /* The clip a reader opened from a finding's popover, played in place. */
+  const [openClip, setOpenClip] = useState<{ issue: UserTestIssue; index: number } | null>(null)
+  const activeClip = openClip ? openClip.issue.clips[openClip.index] ?? null : null
   const ask = (q: string) => {
     const trimmed = q.trim()
     if (!trimmed) return
@@ -162,6 +181,54 @@ export function TestRunThread({
   const issues = USER_TEST_ISSUES
   const bugs = issues.filter((i) => i.kind === 'bug').length
   const friction = issues.filter((i) => i.kind === 'friction').length
+
+  /* Who answered and what they read. It opens the run report card, and — since
+     an opened question renders its answer as the same kind of sheet — it opens
+     that too. Without it the answer sheet was an unsigned document: the reader
+     could see a Summary and a Details table, but not which agent produced them
+     or off which recordings, which is the first thing a claim about ten
+     sessions has to say. One block, so the two can never drift apart. */
+  const agentHeader = (
+    <>
+      <div className="flex items-center gap-s px-l pt-l pb-m">
+        <span
+          className="flex items-center justify-center shrink-0 w-[44px] h-[44px] rounded-xl text-white"
+          style={{ background: 'linear-gradient(135deg, #4D8FF5 0%, #1770EF 100%)' }}
+          aria-hidden
+        >
+          {agentIcon}
+        </span>
+        <span className="flex flex-col gap-xxxs min-w-0">
+          <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">{agentName}</span>
+          <span className="font-body text-s text-text-secondary leading-[1.5]">
+            {question ? 'Read' : 'Analysed'} {n} sessions
+            {gameContext ? ` · ${gameContext}` : ' · no game context'}
+          </span>
+        </span>
+      </div>
+
+      {/* The same Sources block the run page carries, not a bespoke row. It
+          was a one-line "Sources · 10 videos" link here and an expandable
+          thumbnail grid there, so the footage behind a claim opened two
+          different ways depending on which screen the claim was read on. One
+          block: collapsed it is the count, expanded it is the recordings. */}
+      <div
+        className="flex flex-col px-l py-s"
+        style={{
+          borderTop: '1px solid var(--border-subtle)',
+          borderBottom: '1px solid var(--border-subtle)',
+          backgroundColor: 'var(--bg-inset)',
+        }}
+      >
+        <SourcesGrid
+          sources={sources}
+          totalVideos={n}
+          onExpandSources={() => onOpenLibrary?.()}
+          onSourceClick={() => onOpenLibrary?.()}
+        />
+      </div>
+    </>
+  )
 
   return (
     <div className={['flex flex-col w-full min-h-full', className].filter(Boolean).join(' ')}>
@@ -254,43 +321,12 @@ export function TestRunThread({
                   className="flex flex-col w-full rounded-2xl overflow-hidden"
                   style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
                 >
-                  <div className="flex items-center gap-s px-l pt-l pb-m">
-                    <span
-                      className="flex items-center justify-center shrink-0 w-[44px] h-[44px] rounded-xl text-white"
-                      style={{ background: 'linear-gradient(135deg, #4D8FF5 0%, #1770EF 100%)' }}
-                      aria-hidden
-                    >
-                      {agentIcon}
-                    </span>
-                    <span className="flex flex-col gap-xxxs min-w-0">
-                      <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">{agentName}</span>
-                      <span className="font-body text-s text-text-secondary leading-[1.5]">
-                        Analysed {n} sessions{gameContext ? ` · ${gameContext}` : ' · no game context'}
-                      </span>
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={onOpenLibrary}
-                    className="run-history-row flex items-center gap-xs px-l py-s text-left font-body text-s"
-                    style={{
-                      borderTop: '1px solid var(--border-subtle)',
-                      borderBottom: '1px solid var(--border-subtle)',
-                      backgroundColor: 'var(--bg-page-pale)',
-                    }}
-                  >
-                    <span className="font-semibold text-text-primary">Sources</span>
-                    <span className="text-text-tertiary">· {n} videos</span>
-                    <span className="text-text-tertiary" aria-hidden>
-                      <ChevronRightIcon size={14} />
-                    </span>
-                  </button>
+                  {agentHeader}
 
                   <div className="flex flex-col gap-m px-l py-l">
                     <div className="grid gap-s" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
                       <Tile value={String(n)} label="sessions analysed" />
-                      <Tile value={String(issues.length)} label="issues found" />
+                      <Tile value={String(issues.length)} label="findings" />
                       <Tile value={`${bugs} · ${friction}`} label="bugs · friction" />
                       <Tile value="6 / 10" label="completed onboarding" delta={compared ? '↑ from 3/6' : undefined} highlight />
                       <Tile value="7 / 10" label="hit the Furnace bug" />
@@ -304,26 +340,30 @@ export function TestRunThread({
                   </div>
 
                   <div className="flex flex-col gap-xs px-xs pb-xs" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    {/* No "ranked by" caption: the count on the right of every
+                        row is what the list is sorted by, and says so itself. */}
                     <span className="flex items-baseline gap-xs px-m pt-m font-display text-s font-semibold text-text-primary">
                       What {agentName} found
-                      <span className="font-body text-xs font-normal text-text-tertiary">ranked by sessions affected</span>
                     </span>
                     {issues.slice(0, 4).map((issue) => (
-                      <UserTestIssueCard key={issue.id} issue={issue} onClick={onOpenReport} />
+                      <UserTestIssueCard
+                        key={issue.id}
+                        issue={issue}
+                        /* Plays here, like the run page — a clip is ten
+                           seconds of evidence, not a reason to change screen. */
+                        onOpenClip={(clip) =>
+                          setOpenClip({ issue, index: issue.clips.indexOf(clip) })
+                        }
+                      />
                     ))}
                   </div>
 
-                  <div
-                    className="flex items-center gap-s px-l py-m"
-                    style={{ borderTop: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-page-pale)' }}
-                  >
-                    <span className="font-body text-s text-text-secondary leading-[1.5]">
-                      {issues.length - 4} more findings, every clip, by tester and by game step.
-                    </span>
-                    <span className="flex-1" />
-                    <Button variant="secondary" size="md">Export to Jira</Button>
-                    <Button variant="primary" size="md" onClick={onOpenReport}>Open the full report</Button>
-                  </div>
+                  {/* The same band the run page ends on — see ReportCtaBand for
+                      why it is one component and not two. Export to Jira went
+                      with it: the topbar's own Export already covers taking the
+                      run elsewhere, and the run page — the canonical finished-run
+                      screen — never offered it. */}
+                  <ReportCtaBand findingCount={issues.length} onOpenReport={onOpenReport} />
                 </div>
               </AgentMessage>
             )}
@@ -336,28 +376,34 @@ export function TestRunThread({
           <div className="flex flex-col gap-s w-full">
             <UserTestAskPanel
               hideHeading
+              bare
               hideComposer
-              framed
+              answerLayout="document"
+              /* The sheet is signed the way the run report card is — same agent
+                 block, same Sources row. It used to end instead on a "want the
+                 full report?" band, which sold a second run at the bottom of an
+                 answer the reader had just asked for; the report is already one
+                 click away in the history this question was opened from. */
+              answerHeader={agentHeader}
+              /* Never under a report. A finished run ends on the band that asks
+                 you to open the report, and an opened question ends on its
+                 answer — a rail of other questions below either one competes
+                 with the thing the message is actually asking you to do, and on
+                 the thread it sat loose on the page ground under the card,
+                 belonging to nothing. Same call the run page already made.
+
+                 That leaves the composer's placeholder to invite the follow-up:
+                 no run screen shows the chips now. The rail is still built, and
+                 the dock still asks for it — if the chips are wanted back, they
+                 belong inside the message rather than loose beneath it. */
+              hideSuggestions
               onAsk={ask}
               sessionCount={n}
               turns={turns}
               onTurnsChange={setTurns}
               onOpenEvidence={onOpenEvidence}
               onHandoffToOracle={onHandoffToOracle}
-              className="px-0 py-0"
-            />
-            {question && onOpenReport && (
-              <div
-                className="flex items-center gap-s rounded-xl px-m py-s"
-                style={{ backgroundColor: 'var(--bg-tint-light)', border: '1px solid var(--border-tint)' }}
-              >
-                <span className="font-body text-s text-text-secondary leading-[1.5]">
-                  Want the full report on these {n} videos?
-                </span>
-                <span className="flex-1" />
-                <Button variant="primary" size="md" onClick={onOpenReport}>Generate it</Button>
-              </div>
-            )}
+              />
           </div>
         )}
         <div ref={endRef} aria-hidden />
@@ -380,6 +426,23 @@ export function TestRunThread({
             className="page-measure"
           />
         </div>
+      )}
+
+      {openClip && activeClip && (
+        <ClipLightbox
+          tester={activeClip.tester}
+          timeRange={activeClip.timeRange}
+          note={activeClip.note}
+          caption={openClip.issue.title}
+          position={`clip ${openClip.index + 1} of ${openClip.issue.clips.length}`}
+          onPrev={openClip.index > 0 ? () => setOpenClip((c) => (c ? { ...c, index: c.index - 1 } : c)) : undefined}
+          onNext={
+            openClip.index < openClip.issue.clips.length - 1
+              ? () => setOpenClip((c) => (c ? { ...c, index: c.index + 1 } : c))
+              : undefined
+          }
+          onClose={() => setOpenClip(null)}
+        />
       )}
     </div>
   )

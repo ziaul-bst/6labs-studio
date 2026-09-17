@@ -119,12 +119,34 @@ export interface UserTestCategoryRow {
   /** Colours the dot — bugs red, friction amber. */
   tone: IssueKind
   findings: number
-  sessionsAffected: number
+  /**
+   * How many sessions hit anything in this category. Not derivable from the
+   * findings: the same session appears in several of them, so a sum would claim
+   * more sessions than the batch has. `null` when the run did not report it —
+   * the cell prints an em dash rather than a number nobody computed.
+   */
+  sessionsAffected: number | null
   blocking: number
 }
 
 /** The report's masthead — what it is, of what, generated when. */
 export interface UserTestReportMeta {
+  /**
+   * The masthead eyebrow — what kind of report this is. Defaults to a user
+   * test; the AI behavioural run renders the same document and has to say so.
+   */
+  kicker?: string
+  /** What the first tile counts — "sessions" for people, "agents" for an AI run. */
+  sessionsLabel?: string
+  /** What the second tile counts — footage for people, screens for an AI run. */
+  footageTileLabel?: string
+  /**
+   * Replaces the default four masthead tiles outright. A run that counts itself
+   * differently supplies its own set — an AI behavioural run has a pipeline
+   * (agents → sessions played → sessions reviewed) where a human batch has a
+   * single session count.
+   */
+  tiles?: { value: string; label: string; dot?: string }[]
   /** "Build 2.2 — onboarding round" */
   title: string
   game: string
@@ -132,8 +154,16 @@ export interface UserTestReportMeta {
   generated: string
   /** "UT-0412" — printed as "run #UT-0412". */
   runId: string
-  /** Sessions the run read, for the first tile. */
+  /** Sessions in the batch, for the first tile. */
   sessions: number
+  /**
+   * Sessions the analysis actually covered, when it is fewer than the batch —
+   * a recording that failed to process is still a session that was recorded.
+   * Every finding's `totalTesters` counts against this, so when it differs from
+   * `sessions` the tile prints both rather than letting the masthead and the
+   * findings disagree about the size of the run.
+   */
+  analysedSessions?: number
   footageLabel: string
   /** The paragraph under the tiles: what the run found, in prose. */
   narrative: string
@@ -237,6 +267,12 @@ export interface UserTestAskAnswer {
   body: string[]
   /** Used when the answer is really a count per group. */
   table?: { head: string[]; rows: string[][] }
+  /**
+   * What 02 Details holds when the answer has no table — usually an answer the
+   * run could not give, where the detail is *why* it could not. The section is
+   * always drawn, so a numbered 01 never stands alone with no 02 under it.
+   */
+  detail?: string
   evidence: UserTestEvidenceRef[]
   /**
    * Set when the question needs data this run does not hold. The answer then

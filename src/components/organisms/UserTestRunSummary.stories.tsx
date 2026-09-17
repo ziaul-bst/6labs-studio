@@ -35,8 +35,6 @@ export const WithoutGameContext: Story = {
     facts: {
       videos: '10 videos · tag Build V2.1',
       context: null,
-      devices: 'Pixel 7 · iPhone 13 · Galaxy S23',
-      when: 'Aug 26 · 31 min',
     },
   },
 }

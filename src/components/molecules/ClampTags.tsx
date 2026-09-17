@@ -11,10 +11,16 @@ interface ClampTagsProps {
   /** Max number of wrapped rows before overflowing into a +N chip */
   maxRows: number
   renderItem: (item: string) => ReactNode
+  /**
+   * Replaces the plain "+N" chip. Given the items that did not fit, so a caller
+   * can put them on a hover label instead of leaving the reader to guess what
+   * the number stands for. Omit for the plain chip.
+   */
+  renderOverflow?: (hidden: string[]) => ReactNode
   className?: string
 }
 
-export function ClampTags({ items, maxRows, renderItem, className }: ClampTagsProps) {
+export function ClampTags({ items, maxRows, renderItem, renderOverflow, className }: ClampTagsProps) {
   const ghostRef = useRef<HTMLDivElement>(null)
   const [count, setCount] = useState(items.length)
 
@@ -56,11 +62,14 @@ export function ClampTags({ items, maxRows, renderItem, className }: ClampTagsPr
   return (
     <div className={['relative flex flex-wrap gap-xxs w-full min-w-0', className].filter(Boolean).join(' ')}>
       {items.slice(0, count).map((t) => renderItem(t))}
-      {overflow > 0 && (
-        <span className="inline-flex items-center px-s py-[4px] rounded-[6px] bg-base-50 font-body text-2xs font-medium text-base-900 leading-[16px] whitespace-nowrap">
-          +{overflow}
-        </span>
-      )}
+      {overflow > 0 &&
+        (renderOverflow ? (
+          renderOverflow(items.slice(count))
+        ) : (
+          <span className="inline-flex items-center px-s py-[4px] rounded-[6px] bg-base-50 font-body text-2xs font-medium text-base-900 leading-[16px] whitespace-nowrap">
+            +{overflow}
+          </span>
+        ))}
 
       {/* Measuring ghost — full set, out of flow & invisible */}
       <div

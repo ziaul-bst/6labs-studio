@@ -465,7 +465,6 @@ export function Sidebar({
                           collapsed={collapsed}
                           nested={captioned}
                           branchLast={ri === group.items.length - 1}
-                          tone={group.tone ?? 'brand'}
                           onClick={() => onNavChange?.(item.nav as ActiveNav)}
                         />
                       )

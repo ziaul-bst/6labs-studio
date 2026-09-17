@@ -22,7 +22,7 @@
 
 import type { CSSProperties, ReactNode } from 'react'
 import { TESTING_ACCENT_VARS, type TestingAccent } from '../../lib/studioAreas'
-import { CheckIcon } from '../icons/CheckIcon'
+import { FileDocIcon } from '../icons/FileDocIcon'
 import { InfoFilledIcon } from '../icons/InfoFilledIcon'
 import type { TestCaseFile } from '../../lib/types/testing'
 
@@ -37,8 +37,33 @@ export interface SetupZoneProps {
   /** Mono format hint under the description — "CSV · XLSX". */
   formats?: string
   required?: boolean
+  /**
+   * What the zone holds, as a caption over its filled state — "Build", "Test
+   * cases", "Recordings".
+   *
+   * The empty zone says what it is in 16px bold in the middle of the box; the
+   * filled one replaced all of that with its contents, so two filled zones side
+   * by side were "v2.3.1" next to "1 file · 48 cases" with nothing naming
+   * either. A noun, not the prompt: "Add your test cases" over a card that
+   * already has them reads as a step still outstanding.
+   */
+  filledTitle?: string
   accent?: TestingAccent
   onClick?: () => void
+  /**
+   * A note at the foot of the zone, inside it — what the uploaded file has to
+   * contain, and a link to an example of it.
+   *
+   * Inside, because it is a rule about this upload; under the zone it read as
+   * a footnote to the page. At the foot rather than the head, because the zone
+   * has to say what it is before it says what the file needs — above the icon
+   * it was the first thing read in a box whose own title had not been reached.
+   *
+   * Passing one changes the empty zone from a single button into a container
+   * holding a button and the note — a link nested inside a button is neither
+   * valid nor clickable. See SetupZone.
+   */
+  note?: ReactNode
   children?: ReactNode
   className?: string
 }
@@ -50,8 +75,10 @@ export function SetupZone({
   description,
   formats,
   required,
+  filledTitle,
   accent = 'brand',
   onClick,
+  note,
   children,
   className,
 }: SetupZoneProps) {
@@ -62,27 +89,44 @@ export function SetupZone({
         className={['flex flex-col gap-s rounded-3xl px-l py-l min-h-[200px]', className].filter(Boolean).join(' ')}
         style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
       >
+        {filledTitle && (
+          /* Tertiary, not the secondary FieldLabel ink: this names the card it
+             sits on rather than labelling a control, and at full strength it
+             competed with the file name directly under it. */
+          <span className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-text-tertiary leading-[1.5]">
+            {filledTitle}
+          </span>
+        )}
         {children}
+        {note}
       </div>
     )
   }
-  return (
+  /* With a note the zone is a container holding a button and the note, rather
+     than being the button itself — a link inside a button is neither valid nor
+     clickable, and the note has to sit inside the dashed box to read as a rule
+     about this upload rather than as a footnote to the page. Everything above
+     the note is still one target, so the zone loses nothing a reader used. */
+  const prompt = (
     <button
       type="button"
       onClick={onClick}
-      data-filled="false"
       className={[
-        'testing-zone flex flex-col items-center justify-center gap-xs rounded-3xl px-l py-xl min-h-[200px] text-center',
-        className,
+        'flex flex-col items-center justify-center gap-xs flex-1 px-l text-center',
+        note ? 'pt-xl pb-m' : 'py-xl',
+        note ? undefined : 'testing-zone rounded-3xl min-h-[200px]',
       ]
         .filter(Boolean)
         .join(' ')}
+      data-filled={note ? undefined : 'false'}
       style={
-        {
-          border: '2px dashed var(--border-default)',
-          backgroundColor: 'var(--bg-elements)',
-          '--zone-accent': vars.ink,
-        } as CSSProperties
+        note
+          ? undefined
+          : ({
+              border: '2px dashed var(--border-default)',
+              backgroundColor: 'var(--bg-elements)',
+              '--zone-accent': vars.ink,
+            } as CSSProperties)
       }
     >
       <span
@@ -101,6 +145,90 @@ export function SetupZone({
         <span className="font-display text-2xs font-semibold tracking-[0.1em] text-text-tertiary pt-xxs">REQUIRED</span>
       )}
     </button>
+  )
+  if (!note) return className ? <div className={className}>{prompt}</div> : prompt
+  return (
+    <div
+      data-filled="false"
+      className={['testing-zone flex flex-col rounded-3xl min-h-[200px]', className].filter(Boolean).join(' ')}
+      style={
+        {
+          border: '2px dashed var(--border-default)',
+          backgroundColor: 'var(--bg-elements)',
+          '--zone-accent': vars.ink,
+        } as CSSProperties
+      }
+    >
+      {prompt}
+      <div className="px-m pb-m">{note}</div>
+    </div>
+  )
+}
+
+/** The way back to the example sheet — on its own, once a file is attached. */
+export function SampleSheetLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="font-body text-s font-semibold text-text-brand hover:underline whitespace-nowrap"
+    >
+      {label}
+    </a>
+  )
+}
+
+/**
+ * What a case sheet has to contain, and a sheet in that shape to copy — the
+ * banner an empty zone carries at its foot.
+ *
+ * The three columns are not a preference: 6labs verifies a case by comparing an
+ * expected result against footage taken from the state a precondition names, so
+ * a sheet without them produces a run that can only report Not verified. That
+ * is a thing to say before the upload, not in the report — and the example is
+ * what makes it actionable, because "include steps" and "include steps in a
+ * shape we can parse" are different instructions (2026-09-16 dev call).
+ *
+ * Once a file is attached the rule is behind the reader, and reprinting it over
+ * a file that already satisfies it reads as a warning about that file. What
+ * survives is SampleSheetLink, in the zone's own footer row.
+ */
+export function CaseSheetNote({
+  required,
+  href,
+  label,
+}: {
+  required: string[]
+  href: string
+  label: string
+}) {
+  return (
+    /* The same banner SetupNote is — icon, pale fill, subtle rule — so a
+       tinted box inside a composer means the same thing wherever it appears.
+       It sits on the zone's own white, which is what makes it read as a panel
+       inside the box rather than as more of the box's copy. */
+    <div
+      className="flex items-start gap-s w-full px-s py-xs rounded-l"
+      style={{ backgroundColor: 'var(--bg-page-pale)', border: '1px solid var(--border-subtle)' }}
+    >
+      <span className="shrink-0 mt-[2px] text-text-tertiary" aria-hidden>
+        <InfoFilledIcon size={16} />
+      </span>
+      <p className="font-body text-xs text-text-tertiary leading-[1.6] min-w-0 m-0 text-left">
+        Each case needs{' '}
+        <span className="font-medium text-text-secondary">{required.join(', ')}</span> — without
+        them 6labs can only mark the case not verified.{' '}
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="font-semibold text-text-brand hover:underline whitespace-nowrap"
+        >
+          {label}
+        </a>
+      </p>
+    </div>
   )
 }
 
@@ -165,18 +293,23 @@ function casesIn(meta: string): number {
  * (tile · name · meta · remove), a summary line above so the total is readable
  * without adding rows up, and past three files the list scrolls inside a fixed
  * height so the zone never grows taller than its neighbour. "Add another file"
- * stays pinned below the list.
+ * stays pinned below the list, with `trailing` opposite it — one ruled row at
+ * the foot of the zone rather than two stacked links, which read as a short
+ * list of actions where they are two unrelated ones.
  */
 export function ZoneFileList({
   files,
   onRemove,
   onAdd,
   addLabel = 'Add another file',
+  trailing,
 }: {
   files: TestCaseFile[]
   onRemove: (file: TestCaseFile) => void
   onAdd?: () => void
   addLabel?: string
+  /** Right-hand end of the footer row — a link about the files, not about this list. */
+  trailing?: ReactNode
 }) {
   const total = files.reduce((n, f) => n + casesIn(f.meta), 0)
   return (
@@ -199,16 +332,24 @@ export function ZoneFileList({
             className="flex items-center gap-s h-[48px] px-s shrink-0"
             style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)' }}
           >
+            {/* A document, not a tick. The tick said "attached", which the row's
+                own presence already says — and the build zone's own header
+                carries a tick, so the two uploads wore one glyph. */}
             <span
               className="flex items-center justify-center shrink-0 w-[28px] h-[28px] rounded-m"
               style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success)' }}
               aria-hidden
             >
-              <CheckIcon size={16} />
+              <FileDocIcon size={16} />
             </span>
             <span className="flex flex-1 items-baseline gap-xs min-w-0">
-              <span className="font-display text-s font-semibold text-text-primary leading-[1.45] truncate">{f.name}</span>
-              <span className="font-body text-xs text-text-tertiary leading-[1.5] truncate">{f.meta}</span>
+              {/* The name gives way last — both halves were equally shrinkable,
+                  so a long meta ate the file name the row exists to say. It
+                  still caps at 60% so a long name cannot swallow the meta. */}
+              <span className="font-display text-s font-semibold text-text-primary leading-[1.45] shrink-0 max-w-[60%] truncate">
+                {f.name}
+              </span>
+              <span className="font-body text-xs text-text-tertiary leading-[1.5] min-w-0 truncate">{f.meta}</span>
             </span>
             <button
               type="button"
@@ -221,11 +362,15 @@ export function ZoneFileList({
           </li>
         ))}
       </ul>
-      {onAdd && (
+      {(onAdd || trailing) && (
         <ZoneFooter>
-          <button type="button" onClick={onAdd} className="font-semibold text-text-brand hover:underline">
-            + {addLabel}
-          </button>
+          {onAdd && (
+            <button type="button" onClick={onAdd} className="font-semibold text-text-brand hover:underline">
+              + {addLabel}
+            </button>
+          )}
+          <span className="flex-1" />
+          {trailing}
         </ZoneFooter>
       )}
     </div>

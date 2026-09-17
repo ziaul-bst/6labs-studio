@@ -21,10 +21,9 @@
  * Code-first prototype — no Figma source yet.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { UserTestAnswerCard } from '../molecules/UserTestAnswerCard'
 import { UserPrompt } from '../atoms/UserPrompt'
-import { ThinkingOracle } from '../atoms/ThinkingOracle'
 import Button from '../ui/Button'
 import { SendIcon } from '../icons/SendIcon'
 import {
@@ -49,6 +48,14 @@ export interface UserTestAskPanelProps {
   /** Drops the heading — the dock's own header already carries it. */
   hideHeading?: boolean
   /**
+   * Drops the panel's own padding, for hosts that own the column's gutters.
+   * A prop rather than a `px-0 py-0` className from the host: Tailwind resolves
+   * conflicting utilities by their order in the stylesheet, not in the class
+   * attribute, so the override silently lost and every answer sat 20px narrower
+   * than the run message above it.
+   */
+  bare?: boolean
+  /**
    * Drops the inline form. The thread screens pin an Oracle-style composer to
    * the bottom instead; the panel then only renders turns and suggestions, and
    * suggestion chips call `onAsk` so the host owns the question.
@@ -60,26 +67,75 @@ export interface UserTestAskPanelProps {
    * own pale background is the container.
    */
   framed?: boolean
+  /**
+   * Drops the suggested-question chips. The run summary hides them: it ends on
+   * the report CTA, and a rail of questions under that band competed with the
+   * one thing the message is asking you to do.
+   */
+  hideSuggestions?: boolean
+  /**
+   * `document` renders each answer as its own sheet — 01 Summary, 02 Details —
+   * the way the full report reads. Used where the answer *is* the page rather
+   * than a reply in a thread; the card then carries its own frame.
+   */
+  answerLayout?: 'inline' | 'document'
+  /**
+   * Identity band across the top of every document answer — which agent read
+   * what. Every sheet carries it, not just the first: an answer three questions
+   * down the thread is still a document someone will scroll straight to.
+   */
+  answerHeader?: ReactNode
   onAsk?: (question: string) => void
   onOpenEvidence?: (ref: UserTestEvidenceRef) => void
   onHandoffToOracle?: (question: string) => void
   className?: string
 }
 
-/** Long enough to read as work, short enough not to be a wait. */
-export const ANSWER_DELAY_MS = 900
+/** Long enough for the pending sheet to register, short enough not to be a wait. */
+export const ANSWER_DELAY_MS = 1400
 
 /** The canned answer for a question, or the honest fallback. Shared with hosts that own the composer. */
 export function answerFor(question: string) {
   return USER_TEST_ASK_ANSWERS[question] ?? USER_TEST_ASK_FALLBACK
 }
 
-/** Names what this agent actually does — it re-reads the run, it does not search. */
-const THINKING_STEPS = [
-  'Reading this run’s findings…',
-  'Matching clips to the question…',
-  'Checking what the recordings can show…',
-]
+/**
+ * A spinner and one word while the answer is written.
+ *
+ * It replaced a cycling status list ("Reading this run's findings…", "Matching
+ * clips to the question…"). Those lines described real work, but they turned a
+ * sub-second wait into a performance the reader was made to sit through, and
+ * the last line was always still on screen when the answer arrived — so it read
+ * as a claim about what had been done rather than as a wait. One steady label
+ * says the same thing and gets out of the way.
+ *
+ * On a document answer it waits *inside* the sheet, under the same agent block
+ * the answer will carry. Bare on the page ground it was a grey line the width of
+ * one word between two full-width cards, which is why it read as nothing
+ * happening; the sheet arriving first, already signed, is the thing that says
+ * an answer is coming and where it will be.
+ */
+function AnswerPending({ inSheet, header }: { inSheet?: boolean; header?: ReactNode }) {
+  const label = (
+    <span
+      className="inline-flex items-center gap-xs font-body text-s text-text-tertiary leading-[1.5]"
+      role="status"
+    >
+      <span className="testing-spinner-sm shrink-0" aria-hidden />
+      Thinking…
+    </span>
+  )
+  if (!inSheet) return label
+  return (
+    <article
+      className="flex flex-col w-full rounded-2xl overflow-hidden"
+      style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
+    >
+      {header}
+      <div className="px-l py-l">{label}</div>
+    </article>
+  )
+}
 
 export function UserTestAskPanel({
   sessionCount = 10,
@@ -87,8 +143,12 @@ export function UserTestAskPanel({
   turns: controlledTurns,
   onTurnsChange,
   hideHeading = false,
+  bare = false,
   hideComposer = false,
   framed = false,
+  hideSuggestions = false,
+  answerLayout = 'inline',
+  answerHeader,
   onAsk,
   onOpenEvidence,
   onHandoffToOracle,
@@ -137,7 +197,9 @@ export function UserTestAskPanel({
 
   return (
     <div
-      className={['flex flex-col gap-s w-full px-l py-l', className].filter(Boolean).join(' ')}
+      className={['flex flex-col gap-s w-full', bare ? '' : 'px-l py-l', className]
+        .filter(Boolean)
+        .join(' ')}
       style={
         hideHeading
           ? undefined
@@ -160,15 +222,28 @@ export function UserTestAskPanel({
         </div>
       )}
 
+      {/* One break, used twice. A question and its answer are one thing and stay
+          close (gap-s); every boundary *between* exchanges — and the boundary
+          between the run's own message and the first follow-up — gets the same
+          64px, so the thread reads as a series of exchanges rather than one
+          unbroken column. The answers are full document sheets now, and at 20px
+          the bottom of one sat as near the next question as that question sat
+          to its own answer.
+
+          The top break is 44px because both hosts put this panel in a `gap-l`
+          column, which already contributes the other 20 — the two together make
+          the same 64 as the gap between turns. */}
       {turns.length > 0 && (
-        <div className="flex flex-col gap-l w-full pt-xs">
+        <div className="flex flex-col gap-xxl3 w-full pt-[44px]">
           {turns.map((turn) => (
             <div key={turn.id} className="flex flex-col gap-s w-full">
               <UserPrompt text={turn.question} />
+              {/* A document answer is its own sheet, so the frame would be a
+                  second border around the first. */}
               <div
-                className={framed ? 'w-full rounded-2xl px-l py-m' : 'w-full'}
+                className={framed && answerLayout === 'inline' ? 'w-full rounded-2xl px-l py-m' : 'w-full'}
                 style={
-                  framed
+                  framed && answerLayout === 'inline'
                     ? {
                         backgroundColor: 'var(--bg-elements)',
                         border: '1px solid var(--border-subtle)',
@@ -180,11 +255,13 @@ export function UserTestAskPanel({
                 {turn.answer ? (
                   <UserTestAnswerCard
                     answer={turn.answer}
+                    layout={answerLayout}
+                    header={answerHeader}
                     onOpenEvidence={onOpenEvidence}
                     onHandoffToOracle={() => onHandoffToOracle?.(turn.question)}
                   />
                 ) : (
-                  <ThinkingOracle steps={THINKING_STEPS} />
+                  <AnswerPending inSheet={answerLayout === 'document'} header={answerHeader} />
                 )}
               </div>
             </div>
@@ -193,7 +270,7 @@ export function UserTestAskPanel({
         </div>
       )}
 
-      {suggestions.length > 0 && (
+      {!hideSuggestions && suggestions.length > 0 && (
         <div className="flex flex-wrap gap-xs pt-xxs">
           {suggestions.map((s) => {
             /* Marked as a handoff up front, so nobody spends a question

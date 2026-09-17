@@ -43,6 +43,31 @@ export const BlockingOnly: Story = {
   },
 }
 
+/**
+ * Nothing found — the outcome the run most wants to be able to report. The
+ * category table disappears rather than printing column headings over nothing,
+ * and the Findings part says what happened instead of counting to zero.
+ */
+export const NoFindings: Story = {
+  args: {
+    issues: [],
+    meta: {
+      ...USER_TEST_REPORT_META,
+      title: 'Build 2.3 — onboarding round',
+      narrative:
+        'Every session reached the end of the tutorial and on into Chapter 1. No blocking defect, no repeated-action pattern above the noise floor, and nothing cosmetic worth a ticket.',
+    },
+  },
+}
+
+/**
+ * A run that reported its findings but not the per-category session union —
+ * the column prints an em dash rather than a number nobody computed.
+ */
+export const WithoutSessionUnion: Story = {
+  args: { categories: [] },
+}
+
 /** A run with no game-context document: findings still group, steps read as raw screens. */
 export const WithoutGameSteps: Story = {
   args: {

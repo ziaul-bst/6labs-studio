@@ -5,8 +5,13 @@
  *
  * `nested` rows sit inside a ruled group (nav V1 · 1.1): the group's left rule
  * already marks the hierarchy, so the row drops the 4px indicator bar and
- * tightens to 40px. `tone="success"` swaps the brand tint for the AI-testing
- * green so a row's colour says which group it belongs to.
+ * tightens to 40px.
+ *
+ * Every row is selected in brand blue, whatever group it sits in. Testing's AI
+ * group once tinted its rows green to match its caption, but "selected" has to
+ * mean one colour across the whole sidebar — a second selection colour reads as
+ * a different kind of state, not a different section. The caption keeps its
+ * tone; the rows do not.
  *
  * @figmaComponent  Sidebar nav item
  * @figmaNode       1894:18007
@@ -17,8 +22,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { SidebarLabel } from '../atoms/SidebarLabel'
 import { LockIcon } from '../icons/LockIcon'
-
-export type SidebarNavTone = 'brand' | 'success'
 
 interface SidebarNavItemProps {
   label: string
@@ -32,8 +35,6 @@ interface SidebarNavItemProps {
   nested?: boolean
   /** Last row of its group — its branch elbow terminates the spine. */
   branchLast?: boolean
-  /** Active / hover colour family. */
-  tone?: SidebarNavTone
   /**
    * Sold separately and not on this plan. Unlike `disabled` (a SOON row), a
    * locked row stays fully clickable — it resolves to the test's pitch — and is
@@ -53,15 +54,10 @@ export function SidebarNavItem({
   collapsed = false,
   nested = false,
   branchLast = false,
-  tone = 'brand',
   locked = false,
   onClick,
 }: SidebarNavItemProps) {
   const Tag = disabled ? 'div' : 'a'
-  const success = tone === 'success'
-  const activeClass = success ? 'nav-active-success' : 'nav-active-gradient'
-  const hoverClass = success ? 'nav-hover-success' : 'nav-hover-gradient'
-  const inkClass = success ? 'nav-ink-success' : 'nav-ink-brand'
 
   /* The branch is the nesting cue, so it only exists where the group's caption
      and rule do — never in the collapsed 60px column. */
@@ -77,11 +73,7 @@ export function SidebarNavItem({
         .filter(Boolean)
         .join(' ')}
       data-branch-last={branched && branchLast ? 'true' : undefined}
-      style={
-        branched && active
-          ? ({ '--branch-ink': success ? 'var(--success)' : 'var(--brand)' } as CSSProperties)
-          : undefined
-      }
+      style={branched && active ? ({ '--branch-ink': 'var(--brand)' } as CSSProperties) : undefined}
     >
       {/* Active left indicator bar — 4px brand, rounded right side. A nested
           row's group rule already marks the hierarchy, so it drops the bar. */}
@@ -98,8 +90,8 @@ export function SidebarNavItem({
           'flex flex-1 gap-[10px] items-start rounded-m',
           nested && !collapsed ? 'px-[10px] py-[8px]' : 'p-xs',
           disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-          active ? activeClass : disabled ? '' : hoverClass,
-          inkClass,
+          active ? 'nav-active-gradient' : disabled ? '' : 'nav-hover-gradient',
+          'nav-ink-brand',
         ]
           .filter(Boolean)
           .join(' ')}

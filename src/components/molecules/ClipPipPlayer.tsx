@@ -3,8 +3,13 @@
  *
  * Evidence is only evidence if it is cheap to check. A chip that navigates away
  * costs the reader their place in the finding they were halfway through, so the
- * clip comes to them instead: hovering a chip previews it in the corner,
- * clicking pins it there while they read on.
+ * clip comes to them instead: hovering a chip previews it in the corner, and
+ * clicking opens it full size in ClipLightbox.
+ *
+ * The two are one gesture split by cost. The hover preview answers "is this the
+ * clip I mean" for nothing — no click, no modal, no place lost. The lightbox
+ * answers "what actually happens in it", and that is worth stopping for. Neither
+ * is on screen at the same time as the other.
  *
  * Bottom-right rather than beside the chip: an anchored popover would cover the
  * paragraph the clip is evidence for, which is the one thing that must stay
@@ -15,7 +20,6 @@
  */
 
 import { PlayIcon } from '../icons/PlayIcon'
-import { CloseIcon } from '../icons/CloseIcon'
 
 export interface ClipPipPlayerProps {
   /** Who recorded it — "tester_04". */
@@ -24,24 +28,14 @@ export interface ClipPipPlayerProps {
   timeRange: string
   /** What the tester did in it, in the clip's own terms. */
   note: string
-  /** The finding it is evidence for, so a pinned clip still says what it shows. */
+  /** The finding it is evidence for, so the preview still says what it shows. */
   caption?: string
-  /** Pinned clips stay until closed; a hover preview disappears on mouse-out. */
-  pinned?: boolean
-  onClose?: () => void
 }
 
-export function ClipPipPlayer({
-  tester,
-  timeRange,
-  note,
-  caption,
-  pinned = false,
-  onClose,
-}: ClipPipPlayerProps) {
+export function ClipPipPlayer({ tester, timeRange, note, caption }: ClipPipPlayerProps) {
   return (
     <div
-      className="clip-pip fixed bottom-[76px] right-xl z-40 flex flex-col w-[320px] rounded-xl overflow-hidden shadow-big"
+      className="clip-pip fixed bottom-[76px] right-xl z-40 flex flex-col w-[320px] rounded-xl overflow-hidden shadow-big pointer-events-none"
       style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-default)' }}
       role="group"
       aria-label={`Clip from ${tester} at ${timeRange}`}
@@ -64,17 +58,6 @@ export function ClipPipPlayer({
         >
           {tester} · {timeRange}
         </span>
-        {pinned && (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close clip"
-            className="absolute right-xs top-xs flex items-center justify-center w-6 h-6 rounded-round text-white"
-            style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
-          >
-            <CloseIcon size={12} />
-          </button>
-        )}
       </div>
 
       <div className="flex flex-col gap-xxxs px-m py-s">
@@ -83,7 +66,7 @@ export function ClipPipPlayer({
         )}
         <span className="font-body text-s text-text-primary leading-[1.5]">{note}</span>
         <span className="font-body text-xs text-text-tertiary leading-[1.5]">
-          {pinned ? 'Pinned — close to dismiss' : 'Click to pin'}
+          Click to open
         </span>
       </div>
     </div>

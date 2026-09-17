@@ -18,30 +18,46 @@ export interface CaseOutcomeStyle {
   /** Ink for the tag. Amber flips with the theme, so it goes through a class. */
   ink?: string
   inkClass?: string
-  border?: string
   /** Solid colour for a dot or rule standing in for the tag. */
   dot: string
 }
 
+/**
+ * Four outcomes, four names, and the names are fixed: Pass, Failed, Need
+ * review, Not verified. They used to be spelled differently in each place that
+ * printed them — "Fail" on the tag, "Failed" in the rail, "Block" on the
+ * filter, "not verified" in the summary meter — so a reader filtering for
+ * "Block" and a reader reading "not verified" had no way to know they were
+ * looking at the same column. Everything that names an outcome reads it from
+ * here (2026-09-16 dev call).
+ */
 export const CASE_OUTCOME_STYLE: Record<CaseOutcome, CaseOutcomeStyle> = {
   pass: { label: 'Pass', bg: 'var(--success-bg)', ink: 'var(--success)', dot: 'var(--success)' },
-  fail: { label: 'Fail', bg: 'var(--error-bg)', ink: 'var(--error)', dot: 'var(--error)' },
+  fail: { label: 'Failed', bg: 'var(--error-bg)', ink: 'var(--error)', dot: 'var(--error)' },
   review: {
     label: 'Need review',
     bg: 'var(--warning-bg)',
     inkClass: 'issue-amber-ink',
     dot: 'var(--warning)',
   },
-  /* Neutral outcomes sit on a white chip with a border — a grey fill on the
-     grey page read as a hole rather than a tag. */
+  /* Filled like the other three, in the neutral of the same family — it is
+     still the quiet one, but by colour rather than by being the only outline
+     in a row of fills. As a white chip with a border it read as an empty slot
+     next to three filled ones, and on a white row it barely read at all.
+
+     --bg-page-pale, not --bg-subtle: the three coloured fills are 7% tints and
+     land around #F4–#FD on white, so #E6E7EA made the quiet outcome the
+     heaviest chip in the row. */
   blocked: {
-    label: 'Block',
-    bg: 'var(--bg-elements)',
+    label: 'Not verified',
+    bg: 'var(--bg-page-pale)',
     ink: 'var(--text-secondary)',
-    border: 'var(--border-default)',
     dot: 'var(--text-tertiary)',
   },
 }
+
+/** The order every outcome list is read in: decided first, undecided after. */
+export const CASE_OUTCOME_ORDER: CaseOutcome[] = ['pass', 'fail', 'review', 'blocked']
 
 export interface CaseOutcomeTagProps {
   outcome: CaseOutcome
@@ -59,11 +75,7 @@ export function CaseOutcomeTag({ outcome, className }: CaseOutcomeTagProps) {
       ]
         .filter(Boolean)
         .join(' ')}
-      style={{
-        backgroundColor: style.bg,
-        color: style.inkClass ? undefined : style.ink,
-        border: style.border ? `1px solid ${style.border}` : undefined,
-      }}
+      style={{ backgroundColor: style.bg, color: style.inkClass ? undefined : style.ink }}
     >
       {style.label}
     </span>

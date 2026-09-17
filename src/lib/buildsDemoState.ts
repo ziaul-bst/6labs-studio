@@ -82,7 +82,10 @@ const MANY: BuildFile[] = Array.from({ length: 24 }, (_, i) => {
   }
 })
 
-const FAILED_ERROR = 'Upload did not finish — the connection dropped at 64%. Try again.'
+/* Just the fact. The line used to name a cause and a percentage — "the
+   connection dropped at 64%" — which the uploader cannot actually know, and
+   "Try again" repeated the Retry button sitting under it. */
+const FAILED_ERROR = 'Upload failed'
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@
  * border. Sticks to the top of the scroll container so it stays visible while
  * the page body scrolls. Optional right-side `actions` slot for page-level CTAs.
  *
- * The trail is `[ancestors…] › title`. Ancestors are muted and clickable, the
+ * The trail is `[ancestors…] · title`. Ancestors are muted and clickable, the
  * title is the page you are on and is not. Without a `trail` the bar shows the
  * title alone next to the chevron, which reads as "go back to the page you are
  * already on" — so pass the parent wherever one exists.
@@ -35,7 +35,7 @@ interface PageTopbarProps {
   backLabel?: string
   /**
    * Ancestors of this page, outermost first — `[{ label: 'User test' }]` renders
-   * "‹ User test › <title>". The chevron and every ancestor without its own
+   * "‹ User test · <title>". The chevron and every ancestor without its own
    * `onClick` fall back to `onBack`.
    */
   trail?: PageTopbarCrumb[]
@@ -95,7 +95,7 @@ export function PageTopbar({ title, onBack, backLabel, trail, actions }: PageTop
                     {crumb.label}
                   </button>
                   <span style={{ color: 'var(--text-placeholder)' }} aria-hidden>
-                    ›
+                    ·
                   </span>
                 </span>
               ))}

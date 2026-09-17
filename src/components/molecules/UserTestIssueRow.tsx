@@ -1,6 +1,12 @@
 /**
- * UserTestIssueRow — a finding in the full report, with its evidence folded
+ * UserTestIssueRow — a finding in a run's triage list, with its evidence folded
  * underneath.
+ *
+ * Not the full report's row — that is `ReportFindingRow`, which is a document
+ * row and never collapses. This one is the scanning list the AI behavioural run
+ * uses, where seven findings have to fit on one screen before anything is read.
+ * The header claim used to say "the full report" while the report rendered
+ * something else entirely, which left two components owning one concept.
  *
  * The header carries everything needed to triage without opening anything:
  * rank, title, step, kind, reach, confidence, cost. The body is the part that

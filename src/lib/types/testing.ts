@@ -9,15 +9,23 @@
  * Code-first prototype — no Figma source yet.
  */
 
-export type TestRunState = 'progress' | 'done' | 'never' | 'failed'
+/**
+ * 'progress' is the run *producing* evidence — agents playing, videos being
+ * read. 'analysing' is the run reading what it produced: nothing is being
+ * recorded any more, and the report is being written. They are two different
+ * waits, and the AI tests have to say which one a reader is in — "Watch live"
+ * on a run whose agents have all stopped is a link to nothing.
+ */
+export type TestRunState = 'progress' | 'analysing' | 'done' | 'never' | 'failed'
 
 /**
- * Result column of a history row. Functional tests count outcomes (passed /
- * failed / needs review); behavioural and user tests count issues.
+ * Result column of a history row. Functional tests count outcomes — the same
+ * four a case can carry (see CaseOutcome), so the row and the report never
+ * name the outcomes differently; behavioural and user tests count issues.
  */
 export type TestRunResult =
   | { kind: 'issues'; count: number }
-  | { kind: 'counts'; passed: number; failed: number; review: number }
+  | { kind: 'counts'; passed: number; failed: number; review: number; blocked: number }
 
 /**
  * What a history row records. Most tests only ever produce reports; User Test
@@ -35,10 +43,27 @@ export interface TestRunHistoryItem {
   detail: string
   /** Third column: the build, the tag, or the personas. */
   meta: string
+  /**
+   * The run's library tags, when the third column is a Tag column. A batch is
+   * picked by tag and nothing stops a reader picking three, so the column has
+   * to hold a list — given these, the cell renders a rail of pills with a "+N"
+   * for whatever the width cannot take, and `meta` is ignored.
+   *
+   * Left unset where the column is a single fact instead — the build on an AI
+   * functional run, the personas on a behavioural one — which keep `meta`.
+   */
+  tags?: string[]
   state: TestRunState
   result?: TestRunResult
   /** "Sep 5", "now" */
   when: string
+  /**
+   * The case file(s) this run was verified against. Kept on the row so the
+   * report can hand them back as a download — a reader disputing a verdict
+   * wants the sheet the verdict was read from, and re-finding it in someone's
+   * drive is how "the case was wrong" becomes an unanswerable argument.
+   */
+  caseFiles?: TestCaseFile[]
   /** Functional runs from an agency also carry a behavioural pass. */
   withUx?: boolean
   /** Why a failed run stopped — one line, shown in its row and on its screen. */
@@ -48,8 +73,10 @@ export interface TestRunHistoryItem {
 /** A test-case file attached to a functional run. */
 export interface TestCaseFile {
   name: string
-  /** "48 cases · exported from TestRail" */
+  /** "48 cases" */
   meta: string
+  /** Where the uploaded sheet can be fetched back from. */
+  href?: string
 }
 
 /** A build the AI players can be pointed at. */

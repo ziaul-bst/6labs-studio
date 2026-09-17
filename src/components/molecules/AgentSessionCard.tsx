@@ -6,15 +6,14 @@
  * says how far it got. The card judges nothing; the report does that.
  *
  * Live and finished sessions share one card. Live adds a pulsing LIVE badge and
- * a thin progress rule under the thumbnail; finished shows a play affordance
- * and the session length. Nothing else changes, so a grid that is half done
- * still reads as one set.
+ * a thin progress rule under the thumbnail; finished shows a play affordance.
+ * Everything else — the title, the duration — is identical in both, so a grid
+ * that is half done reads as one set rather than two.
  *
  * Code-first prototype — from the PM artifact (screen s47), no Figma source yet.
  */
 
 import { PlayIcon } from '../icons/PlayIcon'
-import { PERSONA_TONE } from '../../lib/mocks/testing'
 import type { AgentSession } from '../../lib/types/testing'
 
 export interface AgentSessionCardProps {
@@ -32,14 +31,13 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
      the middle of its session, varied per agent so a grid of twenty reads as
      twenty recordings rather than one. */
   const current = live ? latest : session.steps[Math.min(session.steps.length - 1, 2 + (session.index % 6))]
-  const tone = PERSONA_TONE[session.persona] ?? 'var(--text-secondary)'
   const title = hidePersona ? `Agent ${session.index + 1}` : `${session.persona} · agent ${session.index + 1}`
 
   return (
     <button
       type="button"
       onClick={() => onOpen?.(session)}
-      aria-label={`${title}, ${live ? `playing, screen ${session.reached} of ${session.steps.length}` : session.durationLabel}`}
+      aria-label={`${title}, ${live ? `live, ${session.durationLabel}` : session.durationLabel}`}
       className={[
         'agent-session-card flex flex-col w-full text-left rounded-2xl overflow-hidden',
         className,
@@ -75,11 +73,17 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
           </span>
         )}
 
+        {/* How long, in both states — "8m so far" while it plays, the finished
+            length once it stops. It used to count screens on a live card
+            ("Screen 10 / 12"), which is the agent's progress through a script
+            the reader cannot see; a duration is the same fact in a unit that
+            needs no explaining, and it means the badge does not change meaning
+            when the session ends. */}
         <span
           className="absolute right-s bottom-s px-xs py-xxxs rounded-s font-code text-2xs text-white whitespace-nowrap"
           style={{ backgroundColor: 'rgba(15,27,51,0.72)' }}
         >
-          {live ? `Screen ${session.reached} / ${session.steps.length}` : session.durationLabel}
+          {session.durationLabel}
         </span>
 
         {live && (
@@ -92,13 +96,18 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
         )}
       </span>
 
-      <span className="flex flex-col gap-xxxs px-m py-s min-w-0">
-        <span className="flex items-center gap-xs min-w-0">
-          <i className="shrink-0 w-[8px] h-[8px] rounded-round" style={{ backgroundColor: tone }} aria-hidden />
-          <span className="font-display text-s font-semibold text-text-primary leading-[1.45] truncate">{title}</span>
-        </span>
-        <span className="font-body text-xs text-text-tertiary leading-[1.5] truncate">
-          {live ? `Playing · ${current.screen}` : `${session.steps.length} screens · ${session.personaDetail}`}
+      {/* Who played it, and nothing else.
+          The body used to carry a persona dot, and under the title either the
+          in-game screen the agent was on ("Playing · Event › Reward") or the
+          persona's description. Across a grid of twenty that is twenty lines of
+          text nobody reads: the screen name is a position in a session you have
+          not opened yet, and the description is the same sentence on every card
+          of that persona — it belongs to the persona, not to this recording.
+          The dot went with them: it encoded the persona a second time, beside a
+          title that already names it. */}
+      <span className="flex flex-col px-m py-s min-w-0">
+        <span className="font-display text-s font-semibold text-text-primary leading-[1.45] truncate">
+          {title}
         </span>
       </span>
     </button>

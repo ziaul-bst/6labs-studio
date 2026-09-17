@@ -283,7 +283,12 @@ export const USER_TEST_REPORT_META: UserTestReportMeta = {
   game: 'Whiteout Survival',
   generated: '14 Sep 2026',
   runId: 'UT-0412',
+  /* 10 recorded, 9 analysed. Every finding in this batch reads "n / 9" and the
+     narrative says "7 of 9", so the tile has to say so too — it read "10
+     sessions" over a page of ninths, which is the first thing a reader would
+     have caught and the last thing a forwarded report can afford. */
   sessions: 10,
+  analysedSessions: 9,
   footageLabel: '2h 14m',
   narrative:
     '7 of 9 sessions hit an unresponsive Upgrade Furnace button at tutorial step 4, and the 3 sessions that ended early all ended there. Two findings blocked progress, both in the tutorial or at Chapter 1 completion; the remaining five are recoverable friction in the City, Hero and Alliance screens. Everything after the tutorial was reached by 6 sessions with no further blockers.',
@@ -451,6 +456,8 @@ export const USER_TEST_ASK_FALLBACK: UserTestAskAnswer = {
     'Nothing in this run answers that directly. Every claim User Test can make has to trace to a frame in one of these ten recordings, and this question does not have one behind it.',
     'Try one of the suggested questions, or open the full report and ask about a specific finding.',
   ],
+  detail:
+    'Nothing to show. The run holds ten recordings, seven findings and twenty-one clips, and none of them carry a frame this question could be answered from — so there is no table under this answer rather than an empty one.',
   evidence: [],
 }
 
