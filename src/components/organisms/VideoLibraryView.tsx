@@ -437,6 +437,29 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     return () => window.clearInterval(tick)
   }, [])
 
+  /* The expectation belongs at the moment the wait starts, which is the moment
+     the transfer finishes — not on a banner somebody dismisses once and never
+     sees again, and not in a tooltip nobody goes looking for. It is said to
+     the person who just did the thing, it recurs naturally with every upload
+     because it is tied to the event rather than to the screen, and it clears
+     itself.
+
+     Watched as a transition rather than read out of the tick, so the state
+     updater stays free of side effects. */
+  const uploadingIds = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const now = new Set(videos.filter((v) => v.status === 'uploading').map((v) => v.id))
+    const landed = videos.filter(
+      (v) => v.status === 'processing' && uploadingIds.current.has(v.id),
+    ).length
+    uploadingIds.current = now
+    if (landed > 0) {
+      showToast(
+        `${landed} ${landed === 1 ? 'video' : 'videos'} uploaded · analysis takes up to 24h`,
+      )
+    }
+  }, [videos])
+
   // ── Upload flow — staging + tags handled in UploadVideosModal ──
   const existingNames = new Set(videos.map((v) => v.title.toLowerCase()))
 

@@ -409,7 +409,9 @@
 .video-lib-duration {
   background: rgba(3, 13, 45, 0.62);
   backdrop-filter: blur(6px);
-}.video-lib-dot {
+}
+
+.video-lib-dot {
   width: 6px;
   height: 6px;
   border-radius: 9999px;
@@ -1403,6 +1405,59 @@ textarea { resize: none; font-family: var(--font-body); }
 .persona-explain {
   flex-shrink: 0;
   min-height: 72px;
+}
+
+/* ─── Tooltip ─────────────────────────────────────────────────────────────
+   Dark plate on a light UI: it has to read as an overlay rather than as a
+   panel that belongs to the surface under it, and it is the same ink the
+   badges over footage already use. Portalled, so it sits above everything and
+   is never clipped by the card it explains. */
+.tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: help;
+  line-height: 0;
+}
+.tooltip-trigger:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+.tooltip-bubble {
+  position: fixed;
+  z-index: 90;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius-m, 8px);
+  background-color: var(--text-primary);
+  color: var(--bg-elements);
+  box-shadow: var(--shadow-big);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.55;
+  pointer-events: none;
+  animation: tooltip-in 120ms ease-out;
+}
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-bubble {
+    animation: none;
+  }
 }
 
 /* ─── Tag labels — one folding rule for every tag-shaped pill ──────────────
@@ -3957,4 +4012,17 @@ textarea { resize: none; font-family: var(--font-body); }
 }
 .build-row-action:hover {
   text-decoration: underline;
+}
+
+/* The info mark inside a status pill. It sits after the label, at the pill's
+   own ink but lighter, so the pill still reads as one object and the mark as
+   an offer inside it rather than a second badge. */
+.video-lib-badge-info {
+  margin-left: 2px;
+  opacity: 0.55;
+  transition: opacity 120ms ease;
+}
+.video-lib-badge:hover .video-lib-badge-info,
+.video-lib-badge-info:focus-visible {
+  opacity: 1;
 }

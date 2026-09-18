@@ -43,6 +43,8 @@ import { TrashIcon } from '../icons/TrashIcon'
 import { EditIcon } from '../icons/EditIcon'
 import { PlusIcon } from '../icons/PlusIcon'
 import { CheckIcon } from '../icons/CheckIcon'
+import { InfoFilledIcon } from '../icons/InfoFilledIcon'
+import { Tooltip } from '../atoms/Tooltip'
 import { EventTag } from '../atoms/EventTag'
 import { SystemTag } from '../atoms/SystemTag'
 import { RecordingWell } from '../atoms/RecordingWell'
@@ -145,14 +147,24 @@ const STATUS_META: Partial<Record<VideoStatus, { color: string; label: string }>
 }
 
 /**
- * Said once per card, where an uploading card puts its progress bar. Analysis
- * is a daily cron, so this is the honest unit — not a percentage, not a
- * countdown. `processingLabel` overrides it once there is a real schedule to
- * quote ("Analysed at ~02:00").
+ * The whole explanation, behind the mark in the badge.
+ *
+ * The BOUND first, because it is the only part that tells you whether to wait
+ * or go and do something else. How 6labs schedules its analysis is our problem
+ * and not the reader's, so it is not mentioned. "Up to", not "within": 24
+ * hours is the worst case, not a promise.
+ *
+ * Then what you CAN do, which is most of the answer: almost nothing is
+ * actually blocked.
+ *
+ * `processingLabel` replaces the first sentence once there is a real time to
+ * quote ("Analysed tonight at ~02:00.").
  */
-const PROCESSING_DEFAULT = 'Analysed in the next daily run'
+const PROCESSING_BOUND = 'Analysis takes up to 24h.'
+const PROCESSING_MEANWHILE =
+  'You can play, rename and tag this video now — it just cannot be used by a test until the analysis finishes.'
 
-function StatusBadge({ status }: { status: VideoStatus }) {
+function StatusBadge({ status, processingLabel }: { status: VideoStatus; processingLabel?: string }) {
   const s = STATUS_META[status]
   if (!s) return null
   return (
@@ -162,6 +174,19 @@ function StatusBadge({ status }: { status: VideoStatus }) {
     >
       <span className="video-lib-dot" style={{ backgroundColor: s.color }} aria-hidden />
       {s.label}
+      {/* The mark rides INSIDE the pill, so the thing that raises the question
+          and the thing that answers it are one object. A separate line under
+          the card said the same thing in type too small to be worth the row,
+          and split the state across two places on the card. */}
+      {status === 'processing' && (
+        <Tooltip
+          label="What does processing mean?"
+          content={`${processingLabel ?? PROCESSING_BOUND} ${PROCESSING_MEANWHILE}`}
+          className="video-lib-badge-info"
+        >
+          <InfoFilledIcon size={12} />
+        </Tooltip>
+      )}
     </span>
   )
 }
@@ -349,7 +374,7 @@ export function VideoLibraryCard({
                 >
                   {title}
                 </span>
-                <StatusBadge status={status} />
+                <StatusBadge status={status} processingLabel={processingLabel} />
                 {source && <LibrarySourceBadge source={source} variant="inline" className="shrink-0" />}
               </div>
               <span className="flex items-center gap-xxs font-body text-xs" style={{ color: 'var(--text-placeholder)' }}>
@@ -364,14 +389,6 @@ export function VideoLibraryCard({
                 )}
                 {metaLine}
               </span>
-              {/* In a row the 168px thumbnail has no room for a sentence, so
-                  the "when" sits under the meta line — the same place a failed
-                  row puts its reason. */}
-              {isProcessing && (
-                <span className="font-body text-2xs truncate" style={{ color: 'var(--text-secondary)' }}>
-                  {processingLabel ?? PROCESSING_DEFAULT}
-                </span>
-              )}
               {isFailed && errorMessage && (
                 <span className="font-body text-2xs truncate" style={{ color: 'var(--error)' }}>
                   {errorMessage}
@@ -477,7 +494,7 @@ export function VideoLibraryCard({
         {/* status badge — top-right. Renders nothing at rest: only uploading,
             processing and failed have anything to say. */}
         <div className="absolute top-s right-s">
-          <StatusBadge status={status} />
+          <StatusBadge status={status} processingLabel={processingLabel} />
         </div>
 
         {/* source — bottom-left, over the scrim; duration takes the right corner.
@@ -601,16 +618,6 @@ export function VideoLibraryCard({
               {metaLine}
             </span>
           </div>
-          {/* WHEN, not how far. There is no "how far": the clip is waiting for
-              a run that happens once a day, and a bar would have to invent a
-              position to draw. Its own line under the meta — on the meta row it
-              competes with the uploader and the date for the same width, and
-              all three lose. */}
-          {isProcessing && (
-            <span className="font-body text-2xs truncate min-w-0" style={{ color: 'var(--text-secondary)' }}>
-              {processingLabel ?? PROCESSING_DEFAULT}
-            </span>
-          )}
 
           {/* Tags — the only labels on the card. System tags (batch/stage/test)
               take their own line above
