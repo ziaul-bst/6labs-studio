@@ -54,7 +54,7 @@ export const LIBRARY_DEMO_NOTES: Record<LibraryDemoState, string> = {
     'Tags and titles as they really arrive from an import — 40+ characters with nothing to break on. Every pill folds at one measure; the full string is on hover.',
   uploading: 'Every clip mid-transfer: progress bars, no duration, nothing selectable in the picker.',
   processing:
-    'Transferred but not analysed yet — the daily run has not reached them. They play and can be tagged; no test can reference them. The toolbar counts them.',
+    'Transferred but not analysed yet — the daily run has not reached them. They play and can be tagged; no test can reference them.',
   failed: 'Failed uploads with the error and Retry. Retry restarts the transfer.',
 }
 

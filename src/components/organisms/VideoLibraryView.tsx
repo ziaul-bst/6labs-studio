@@ -13,8 +13,11 @@
  * version is narrow: the FILE is here — it plays, it has a length, it can be
  * tagged and renamed — and only the ANALYSIS is pending. So a processing clip
  * is not dimmed and not inert; it carries a badge, one line saying when, and
- * it cannot be picked for a run. A count of them sits in the toolbar while any
- * exist, and says nothing at all when none do.
+ * it cannot be picked for a run. That is the whole of it — the state is said
+ * on the clips it is true of, and nowhere else. A toolbar counter of what the
+ * next run still owes you was built and removed: the cards already say it, and
+ * a second copy in the chrome is a number to maintain rather than a thing to
+ * learn.
  *
  * (An earlier "analysing" step was removed on 2026-09-10 because no pipeline
  * existed behind it. This one is not that: it describes a cron that runs.)
@@ -380,10 +383,6 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
      that is already narrow once a batch is picked, and four dropdowns beside
      a pill rail read as two filter systems stacked. */
   const [sourceFacet, setSourceFacet] = useState<Facet<VideoUploadSource>>('all')
-  /* Narrowing to what the next run still owes you — a toggle on the count
-     rather than a fourth facet, because it is a temporary question about a
-     temporary state, not an axis the library is organised along. */
-  const [processingOnly, setProcessingOnly] = useState(false)
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set())
   /* Which clips the tag dialog will write to. The bulk bar hands it the whole
      selection, a card's "Add tags" pill hands it just that clip — one dialog
@@ -620,14 +619,13 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     const matchesQuery =
       !q || v.title.toLowerCase().includes(q) || v.tags.some((t) => t.label.toLowerCase().includes(q))
     const matchesSource = sourceFacet === 'all' || v.source === sourceFacet
-    const matchesProcessing = !processingOnly || v.status === 'processing'
     /* Tag pills are additive, not narrowing — two batches selected means both
        batches, which is how a tester picks a run's footage. */
     const matchesTag =
       activeTags.size === 0 ||
       v.tags.some((t) => activeTags.has(t.label)) ||
       (activeTags.has(RECENT_TAG) && isRecent(v))
-    return matchesQuery && matchesSource && matchesTag && matchesProcessing
+    return matchesQuery && matchesSource && matchesTag
   })
   const activeFacets = (sourceFacet !== 'all' ? 1 : 0) + activeTags.size
   const clearFacets = () => {
@@ -645,10 +643,6 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     () => [...filtered].sort((a, b) => b.addedAt - a.addedAt),
     [filtered],
   )
-
-  /* Counted over the whole library, not the filtered view: it answers "what
-     does the next run still owe me", which a tag filter has no bearing on. */
-  const processingCount = videos.filter((v) => v.status === 'processing').length
 
   const shownSelectedCount = shown.reduce((n, v) => n + (selectedIds.has(v.id) ? 1 : 0), 0)
   const allShownSelected = shown.length > 0 && shownSelectedCount === shown.length
@@ -866,25 +860,6 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                       />
                     </div>
                     <span className="flex-1" />
-
-                    {/* How many clips the next run still has to read. Present
-                        only while there are any: a permanent banner explaining
-                        the pipeline is a sentence everyone reads once and then
-                        stops seeing, and this is the same fact stated where it
-                        is true. Clicking it filters to them, because "which
-                        ones" is the only follow-up. */}
-                    {processingCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setProcessingOnly((v) => !v)}
-                        aria-pressed={processingOnly}
-                        className="library-processing-note flex items-center gap-xs shrink-0 px-s h-[32px] rounded-round font-body text-xs leading-[1.5]"
-                        data-on={processingOnly ? 'true' : 'false'}
-                      >
-                        <span className="video-lib-dot shrink-0" style={{ backgroundColor: 'var(--text-secondary)' }} aria-hidden />
-                        {processingCount} waiting for the next analysis run
-                      </button>
-                    )}
 
                     {/* Search sits right, opposite the selection control: the
                         left of the row acts on the collection, the right of it
