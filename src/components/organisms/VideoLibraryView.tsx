@@ -74,6 +74,9 @@ import {
   type VideoUploadSource,
 } from '../../lib/librarySource'
 import {
+  LONG_LABEL_BATCHES,
+  LONG_LABEL_TITLES,
+  LONG_LABEL_USER_TAGS,
   MANY_TAG_BATCHES,
   MANY_TAG_USER_TAGS,
   useLibraryDemoState,
@@ -264,6 +267,32 @@ function seedForDemoState(state: LibraryDemoState): LibraryVideo[] {
       status: 'failed' as VideoStatus,
       progress: 100,
       error: UPLOAD_ERROR,
+    }))
+  }
+
+  /* Labels as an import writes them, mixed in with ordinary ones: the point of
+     the state is the COMPARISON — a folded 40-character tag has to sit beside
+     "Build V2.2" and still read as the same kind of thing. */
+  if (state === 'long-labels') {
+    const now = Date.now()
+    const H = 1000 * 60 * 60
+    return LONG_LABEL_BATCHES.map((batch, i) => ({
+      id: nextId(),
+      title: LONG_LABEL_TITLES[i % LONG_LABEL_TITLES.length],
+      sizeBytes: (140 + i * 23) * 1024 * 1024,
+      durationLabel: `${6 + i}:${String((i * 13) % 60).padStart(2, '0')}`,
+      status: 'ready' as VideoStatus,
+      progress: 100,
+      source: SOURCE_ORDER[i % SOURCE_ORDER.length],
+      batch,
+      stage: 'pre-release' as VideoStage,
+      testType: 'ai' as LibraryTestType,
+      tags: [
+        batchTag(batch),
+        userTag(LONG_LABEL_USER_TAGS[i % LONG_LABEL_USER_TAGS.length]),
+        userTag(LONG_LABEL_USER_TAGS[(i + 1) % LONG_LABEL_USER_TAGS.length]),
+      ],
+      addedAt: now - i * 5 * H,
     }))
   }
 

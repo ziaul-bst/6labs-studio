@@ -25,15 +25,14 @@ import { TestingPageHeader } from '../molecules/TestingPageHeader'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
 import { InstructionsField, SetupNote } from '../molecules/TestingSetupPieces'
+import { PersonaPicker } from '../molecules/PersonaPicker'
 import { SegmentedControl } from '../atoms/SegmentedControl'
 import { AIBehaviouralRunView, type AIBehaviouralRunTab, type VideosStatusFilter } from './AIBehaviouralRunView'
 import { AIAgentSessionView, AGENT_LOOP_MS } from './AIAgentSessionView'
 import { BuildField } from './BuildPickerModal'
 import Button from '../ui/Button'
-import Checkbox from '../ui/Checkbox'
 import Input from '../ui/Input'
 import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
-import { DropdownArrowIcon } from '../icons/DropdownArrowIcon'
 import {
   AI_BEHAVIOURAL_HISTORY,
   AI_BEHAVIOURAL_RUN_META,
@@ -135,7 +134,6 @@ export function AIBehaviouralTestView({
      asking for a New player and a Whale is a decision the composer should not
      be making on the reader's behalf. */
   const [personaIds, setPersonaIds] = useState<string[]>(['generic'])
-  const [personasOpen, setPersonasOpen] = useState(false)
   const [length, setLength] = useState<SessionLength>('15')
   const [customLength, setCustomLength] = useState('45')
   const [instructions, setInstructions] = useState('')
@@ -151,7 +149,6 @@ export function AIBehaviouralTestView({
   const [liveReached, setLiveReached] = useState(4)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const timers = useRef<number[]>([])
-  const personaRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), [])
   useEffect(() => {
@@ -235,15 +232,6 @@ export function AIBehaviouralTestView({
         : [],
     [activeRun, sessions],
   )
-  useEffect(() => {
-    if (!personasOpen) return
-    const onDoc = (e: MouseEvent) => {
-      if (personaRef.current && !personaRef.current.contains(e.target as Node)) setPersonasOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [personasOpen])
-
   const personas = PERSONAS.filter((p) => personaIds.includes(p.id))
   const lengthLabel = length === 'custom' ? `${customLength} min` : `${length} min`
   const totalAgents = personas.reduce((n, p) => n + countOf(p.id), 0)
@@ -390,62 +378,7 @@ export function AIBehaviouralTestView({
             </Row>
 
             <Row label="Personas">
-              <div ref={personaRef} className="relative w-full">
-                <button
-                  type="button"
-                  aria-haspopup="listbox"
-                  aria-expanded={personasOpen}
-                  onClick={() => setPersonasOpen((v) => !v)}
-                  /* Same 40px field as the Build select above it. */
-                  className="flex items-center gap-xs w-full h-[40px] text-left px-s font-body text-s"
-                  style={{
-                    backgroundColor: 'var(--bg-elements)',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-input)',
-                    color: personas.length ? 'var(--text-primary)' : 'var(--text-placeholder)',
-                  }}
-                >
-                  <span className="flex-1 truncate">
-                    {personas.length ? personas.map((p) => p.label).join(', ') : 'Choose personas…'}
-                  </span>
-                  <DropdownArrowIcon size={16} className="shrink-0 text-text-tertiary" />
-                </button>
-                {personasOpen && (
-                  <div
-                    role="listbox"
-                    aria-multiselectable
-                    aria-label="Personas"
-                    className="absolute left-0 right-0 top-[calc(100%+8px)] z-40 flex flex-col p-xxs rounded-xl shadow-big max-h-[340px] overflow-y-auto"
-                    style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
-                  >
-                    {PERSONAS.map((p) => {
-                      const on = personaIds.includes(p.id)
-                      return (
-                        <label
-                          key={p.id}
-                          className="testing-menu-row flex items-center gap-s px-s py-xs rounded-m cursor-pointer"
-                        >
-                          <Checkbox
-                            checked={on}
-                            onChange={() =>
-                              setPersonaIds((prev) => (on ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
-                            }
-                            aria-label={p.label}
-                          />
-                          <span className="flex-1 font-display text-s font-semibold text-text-primary">{p.label}</span>
-                          <span className="font-body text-xs text-text-tertiary">{p.detail}</span>
-                        </label>
-                      )
-                    })}
-                    <div
-                      className="px-s py-xs mt-xxs font-body text-xs text-text-tertiary"
-                      style={{ borderTop: '1px solid var(--border-subtle)' }}
-                    >
-                      Personas come from the player model.
-                    </div>
-                  </div>
-                )}
-              </div>
+              <PersonaPicker personas={PERSONAS} value={personaIds} onChange={setPersonaIds} />
             </Row>
 
             <Row label="Agents">

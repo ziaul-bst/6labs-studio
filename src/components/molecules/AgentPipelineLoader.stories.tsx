@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { AgentPipelineLoader, type PipelineStep } from './AgentPipelineLoader'
+import { ORACLE_FOLLOWUP_STEPS } from '../../lib/mocks/oracle-pipeline'
 
 const meta = {
   title: 'Molecules/AgentPipelineLoader',
@@ -137,6 +138,22 @@ export const GenericError: Story = {
 /** First step running — the earliest frame of the reveal. */
 export const FirstStepRunning: Story = {
   args: { steps: ORACLE_STEPS, currentStep: 0, state: 'running' },
+}
+
+/**
+ * A follow-up in an open thread: three thread-aware steps over four seconds,
+ * in place of the first question's seven. The card is painted at its final
+ * height so it never grows under the composer.
+ */
+export const FollowUp: Story = {
+  args: { steps: ORACLE_FOLLOWUP_STEPS, currentStep: 1, state: 'running' },
+  decorators: [
+    (Story) => (
+      <div style={{ minHeight: 232, display: 'flex', flexDirection: 'column' }}>
+        <Story />
+      </div>
+    ),
+  ],
 }
 
 /** No pinned durations — the loader times each step live instead. */

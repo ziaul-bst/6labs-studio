@@ -1,6 +1,12 @@
 /**
  * EventTag — Pill-shaped label for tagging sessions/events.
  *
+ * A tag is a label, not a sentence: the pill caps its label at the shared
+ * `.tag-label` measure and ellipsises past it, so one imported tag like
+ * "B.A.N.K..O.F..B.A.R.O.D.A.BossFightv1.2" cannot take a whole row away from
+ * the tags beside it. The full text stays available on hover and to a screen
+ * reader — nothing is lost, it is only folded.
+ *
  * @figmaComponent  Event Tag
  * @figmaNode       107:23034
  * @figmaFile       i9fxQ6pXrgRITEzopoXpWL
@@ -9,14 +15,17 @@
 
 interface EventTagProps {
   label: string
+  /** Where the pill has a wide row to itself — a dialog, a detail panel. */
+  wide?: boolean
   className?: string
 }
 
-export function EventTag({ label, className }: EventTagProps) {
+export function EventTag({ label, wide = false, className }: EventTagProps) {
   return (
     <span
+      title={label}
       className={[
-        'inline-flex items-center justify-center',
+        'inline-flex items-center justify-center max-w-full',
         'px-s py-[4px]',
         'rounded-round',
         'bg-base-50',
@@ -27,7 +36,7 @@ export function EventTag({ label, className }: EventTagProps) {
         .filter(Boolean)
         .join(' ')}
     >
-      {label}
+      <span className={wide ? 'tag-label tag-label-wide' : 'tag-label'}>{label}</span>
     </span>
   )
 }

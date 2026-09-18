@@ -34,11 +34,18 @@ export function RunFacts({ facts, className }: RunFactsProps) {
           <dt className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5] whitespace-nowrap">
             {f.label}
           </dt>
+          {/* `truncate` has to sit on a BLOCK to ellipsise — on the flex row
+              itself it clips mid-word with no ellipsis, which reads as corrupt
+              rather than as shortened. So the row stays flex (some values are
+              a chip plus text) and the fold happens in a block inside it,
+              capped at a measure. Reachable, not hypothetical: an uploaded
+              build that is not a .apk keeps its whole filename as its version,
+              and a 60-character one used to push this header off the card. */}
           <dd
-            className="m-0 flex items-center gap-xs min-w-0 font-body text-s font-semibold text-text-primary leading-[1.5] truncate"
-            title={f.title}
+            className="m-0 flex items-center gap-xs min-w-0 font-body text-s font-semibold text-text-primary leading-[1.5]"
+            title={f.title ?? (typeof f.value === 'string' ? f.value : undefined)}
           >
-            {f.value}
+            <span className="block min-w-0 max-w-[28ch] truncate">{f.value}</span>
           </dd>
         </div>
       ))}

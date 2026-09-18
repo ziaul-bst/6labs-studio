@@ -458,7 +458,11 @@ export function UserTestReport({
  * tying for loudest. The number is what makes the parts countable at a glance:
  * a reader who sees 01 knows there is a 02 below.
  */
-function PartHeader({
+/**
+ * Exported for the report's own loading state, which draws the same parts in
+ * the same places so nothing moves when the findings land.
+ */
+export function PartHeader({
   index,
   label,
   meta,

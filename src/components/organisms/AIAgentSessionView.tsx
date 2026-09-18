@@ -31,7 +31,9 @@ import { ChevronIcon } from '../icons/ChevronIcon'
 import { CheckIcon } from '../icons/CheckIcon'
 import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
 import { IssueKindTag } from '../atoms/IssueKindTag'
+import { RecordingWell } from '../atoms/RecordingWell'
 import { PERSONA_TONE, formatSessionTime } from '../../lib/mocks/testing'
+import { useRecordingDemoState } from '../../lib/recordingDemoState'
 import type { AgentSession, AIBehaviouralRunMeta } from '../../lib/types/testing'
 import type { IssueKind } from '../../lib/types/userTest'
 
@@ -88,12 +90,18 @@ export function AIAgentSessionView({
   const reached = session.reached
   const total = session.steps.length
   const last = reached - 1
+  const demoOrientation = useRecordingDemoState()
   const [idx, setIdx] = useState(() => Math.min(initialStep ?? (live ? last : 0), last))
   const [playing, setPlaying] = useState(initialStep === undefined)
   const stripRef = useRef<HTMLDivElement>(null)
   const step = session.steps[idx]
   const tone = PERSONA_TONE[session.persona] ?? 'var(--text-secondary)'
   const durationSec = session.steps[total - 1].atSec + 20
+  /* Portrait unless the session says otherwise — every 6labs recording is a
+     phone capture. It sets the split as well as the well: see the layout rule
+     in globals.css. The fixtures leave it unset so a reviewer can put the
+     whole screen into either shape from the dock. */
+  const orientation = session.orientation ?? demoOrientation
 
   /* Opened mid-run, a live session lands on the newest screen 6labs has
      captured — the rest of the walk is the reader's. */
@@ -216,7 +224,9 @@ export function AIAgentSessionView({
                   states a finished fact about an unfinished session. While it
                   plays this counts up with it and says so. */}
               <RunFacts
-                className="w-auto shrink-0 gap-x-xxl"
+                /* Not shrink-0: it has to be able to compress before the fold
+                   inside it can engage. */
+                className="w-auto min-w-0 gap-x-xxl"
                 facts={[
                   { label: 'Build', value: meta.build },
                   live
@@ -226,14 +236,30 @@ export function AIAgentSessionView({
               />
             </header>
 
-            <div className="agent-session-layout w-full">
+            <div className="agent-session-layout w-full" data-media={orientation}>
               {/* The recording */}
               <div className="flex flex-col min-w-0">
-                <div
-                  className="agent-frame relative w-full overflow-hidden"
-                  style={{ aspectRatio: '16 / 9', background: step.scene, transition: 'background 300ms ease' }}
+                <RecordingWell
+                  className="agent-frame"
+                  scene={step.scene}
+                  orientation={orientation}
+                  /* Said as a fact about 6labs, not about the agent: the agent
+                     is not stuck, the capture is behind. */
+                  pendingLabel="Waiting for the frame. 6labs has the agent on this screen, not the picture of it yet."
+                  /* The HUD stand-in belongs to the game, so it is clipped to
+                     the footage — on a portrait clip it would otherwise float
+                     out over the ambience and read as 6labs' own chrome. */
+                  pane={
+                    !live && (
+                      <span className="absolute left-s top-s flex gap-xs" aria-hidden>
+                        <i className="block w-[38px] h-[10px] rounded-xs" style={{ backgroundColor: 'rgba(255,220,130,0.5)' }} />
+                        <i className="block w-[24px] h-[10px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
+                        <i className="block w-[24px] h-[10px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
+                      </span>
+                    )
+                  }
                 >
-                  {live ? (
+                  {live && (
                     /* The one place a reader must not mistake a recording for a
                        replay: the frame itself says an AI is playing it now. */
                     <span
@@ -243,12 +269,6 @@ export function AIAgentSessionView({
                       <i className="agent-live-dot" style={{ color: 'var(--error)' }} aria-hidden />
                       AI playing · live
                     </span>
-                  ) : (
-                    <span className="absolute left-m top-s flex gap-xs" aria-hidden>
-                      <i className="block w-[54px] h-[12px] rounded-xs" style={{ backgroundColor: 'rgba(255,220,130,0.5)' }} />
-                      <i className="block w-[36px] h-[12px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
-                      <i className="block w-[36px] h-[12px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
-                    </span>
                   )}
                   <span
                     className="absolute right-m top-s px-xs py-xxxs rounded-s font-code text-xs text-white"
@@ -257,12 +277,18 @@ export function AIAgentSessionView({
                     {formatSessionTime(step.atSec)}
                   </span>
 
-                  {/* The caption is what the agent did on this screen. */}
+                  {/* The caption is what the agent did on this screen. Two
+                      lines and no more: an action can arrive as a sentence
+                      ("Blocked by the account creation screen — please handle
+                      the login to continue"), and a caption that grows eats
+                      the frame it is captioning. The whole of it is in the
+                      panel's Did row, where it has room. */}
                   <span
-                    className="absolute left-0 right-0 bottom-0 flex items-center gap-xs px-l py-m font-display text-s font-semibold text-white leading-[1.5]"
-                    style={{ background: 'linear-gradient(180deg, transparent, rgba(15,27,51,0.8))' }}
+                    title={step.action}
+                    className="absolute left-0 right-0 bottom-0 flex items-center gap-xs px-l pt-xxl pb-m font-display text-s font-semibold text-white leading-[1.5]"
+                    style={{ background: 'linear-gradient(180deg, transparent, rgba(15,27,51,0.85))' }}
                   >
-                    {step.action}
+                    <span className="line-clamp-2 wrap-anywhere">{step.action}</span>
                   </span>
 
                   <span className="agent-frame-nav absolute inset-0 flex items-center justify-between px-s pointer-events-none">
@@ -273,7 +299,7 @@ export function AIAgentSessionView({
                       <ChevronIcon size={20} direction="right" />
                     </FrameNav>
                   </span>
-                </div>
+                </RecordingWell>
 
                 {/* Transport, then the filmstrip: the same timeline twice — once
                     as a bar to scrub, once as frames to read. */}
@@ -332,15 +358,20 @@ export function AIAgentSessionView({
                         onClick={() => select(i)}
                         aria-label={`Screen ${i + 1}, ${s.screen}`}
                         title={s.screen}
+                        /* The strip keeps ONE thumbnail shape whatever the
+                           footage is — it is read as a row of positions in a
+                           timeline, and a row of differently-shaped tiles does
+                           not read as a row. The shape inside it is the well's
+                           problem, and the well already solves it. */
                         className="relative shrink-0 w-[104px] h-[62px] rounded-m overflow-hidden"
                         style={{
-                          background: s.scene,
                           opacity: future ? 0.3 : active ? 1 : 0.72,
                           outline: active ? '2px solid var(--brand)' : '2px solid transparent',
                           outlineOffset: -2,
                           cursor: future ? 'default' : 'pointer',
                         }}
                       >
+                        <RecordingWell scene={s.scene} orientation={orientation} compact fill />
                         <span
                           className="absolute left-xxs bottom-xxs px-xxs rounded-xs font-code text-2xs text-white"
                           style={{ backgroundColor: 'rgba(15,27,51,0.6)' }}
@@ -356,51 +387,104 @@ export function AIAgentSessionView({
               {/* The reading of this screen: which screen, then what the agent
                   saw, why it decided, and what it did. While live these arrive
                   one beat at a time — see the loop above. */}
-              <aside
-                className="agent-screen-panel flex flex-col min-w-0"
-                aria-label="Analysis of the current screen"
-                aria-live="polite"
-              >
-                <div className="flex flex-col gap-m px-l py-l flex-1">
+              <aside className="agent-screen-panel flex flex-col min-w-0" aria-label="Analysis of the current screen">
+                {/* The live region is this one line, not the whole panel. With
+                    aria-live on the panel, one press of the right-arrow queued
+                    the screen name, the observation, the full reasoning, the
+                    action, the observed line AND the payload label for
+                    announcement — a reader stepping through six screens was
+                    buried. What changes and is worth saying is WHICH screen you
+                    are on; the reading itself is there to be read. */}
+                <span className="sr-only" aria-live="polite">
+                  Screen {idx + 1} of {total}. {step.screen}.
+                </span>
+                {/* The reading scrolls inside the panel rather than growing it.
+                    A screen where the agent loaded a skill file, or reasoned
+                    for two thousand characters about a login wall, is not rare
+                    — and a panel that grows to fit one takes the frame it is
+                    explaining off the top of the window, which is the one
+                    thing this screen exists to keep side by side. */}
+                <div
+                  className="agent-screen-scroll flyout-scrollbar flex flex-col gap-m px-l py-l flex-1 min-h-0"
+                  tabIndex={0}
+                >
                   <div className="flex flex-col gap-xs">
                     <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
                       Screen {idx + 1} · {formatSessionTime(step.atSec)}
                     </span>
-                    <h2 className="font-display text-l font-semibold text-text-primary leading-[1.25] tracking-[-0.01em] m-0">
+                    {/* A screen name comes from the game's own vocabulary and
+                        can arrive as a path with no spaces in it. */}
+                    <h2 className="font-display text-l font-semibold text-text-primary leading-[1.25] tracking-[-0.01em] m-0 wrap-anywhere">
                       {step.screen}
                     </h2>
                   </div>
 
-                  <Reading label="Saw">{step.saw}</Reading>
+                  {/* Keyed on the screen so stepping through a session always
+                      lands on the folded default — an opened block is a
+                      decision about THIS screen, not a mode. */}
+                  <Reading key={`saw-${idx}`} label="Saw">
+                    {step.saw}
+                  </Reading>
 
                   <div
-                    className="flex flex-col gap-xxxs rounded-xl px-m py-s"
+                    className="flex flex-col gap-xxxs rounded-xl px-m py-s min-w-0"
                     style={{ backgroundColor: 'var(--bg-page-pale)', borderLeft: '3px solid var(--border-default)' }}
                   >
                     <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
                       Reasoning
                     </span>
-                    <span className="font-body text-s text-text-primary leading-[1.6]">
-                      “{step.reasoning}”
-                    </span>
+                    {/* Folded at eight lines. A model's reasoning runs as long
+                        as it runs, and the first lines are the ones that say
+                        what it decided; the rest is there for the reader who
+                        doubts it, one click away. Folding is per screen — step
+                        to the next one and it is folded again, because the
+                        default is skim. */}
+                    <ExpandableText key={`reasoning-${idx}`} lines={8} moreLabel="Show the full reasoning">
+                      <span className="font-body text-s text-text-primary leading-[1.6] wrap-anywhere">
+                        “{step.reasoning}”
+                      </span>
+                    </ExpandableText>
                   </div>
 
-                  <div className="flex flex-col gap-xxs">
+                  <div className="flex flex-col gap-xxs min-w-0">
                     <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
                       Did
                     </span>
-                    <span className="inline-flex items-start gap-xs font-display text-m font-semibold text-text-primary leading-[1.4]">
+                    <span className="flex items-start gap-xs font-display text-m font-semibold text-text-primary leading-[1.4] min-w-0">
                       <span className="text-text-tertiary shrink-0" aria-hidden>→</span>
-                      {step.action}
+                      <span className="min-w-0 wrap-anywhere">{step.action}</span>
                     </span>
                     {step.observed && (
                       <span
-                        className="inline-flex items-center gap-xxs font-body text-xs font-medium leading-[1.5]"
+                        className="flex items-start gap-xxs font-body text-xs font-medium leading-[1.5] min-w-0"
                         style={{ color: 'var(--success)' }}
                       >
-                        <CheckIcon size={12} />
-                        {step.observed}
+                        <span className="shrink-0 mt-[2px]">
+                          <CheckIcon size={12} />
+                        </span>
+                        <span className="min-w-0 wrap-anywhere">{step.observed}</span>
                       </span>
+                    )}
+
+                    {/* What the action carried, when it carried anything — the
+                        skill file a player loaded, a prompt, a response. It is
+                        evidence rather than reading: thousands of monospaced
+                        characters that answer "what exactly did it load", a
+                        question nobody asks until they doubt the line above.
+                        So it is shut, it says how much is inside, and opened it
+                        gets a box of its own to scroll in rather than pushing
+                        the rest of the screen's reading out of the panel. */}
+                    {step.payload && (
+                      <details key={`payload-${idx}`} className="agent-payload">
+                        <summary className="agent-payload-summary">
+                          <ChevronIcon size={12} direction="right" />
+                          <span className="min-w-0 wrap-anywhere">{step.payload.label}</span>
+                          <span className="agent-payload-size">
+                            {formatChars(step.payload.body.length)}
+                          </span>
+                        </summary>
+                        <pre className="agent-payload-body flyout-scrollbar">{step.payload.body}</pre>
+                      </details>
                     )}
                   </div>
 
@@ -420,8 +504,8 @@ export function AIAgentSessionView({
                     playing" is already said three times above — topbar status,
                     header pill, and the badge on the frame. */}
                 <div
-                  className="flex items-center justify-between gap-xs px-l h-[56px]"
-                  style={{ borderTop: '1px solid var(--border-subtle)' }}
+                  className="agent-screen-actions flex items-center justify-between gap-xs px-l h-[56px]"
+                  style={{ borderTop: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-elements)' }}
                 >
                   <Button
                     variant="secondary"
@@ -455,7 +539,12 @@ export function AIAgentSessionView({
                 <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
                   Instructions to the players
                 </span>
-                <p className="font-body text-s text-text-secondary leading-[1.6] m-0 max-w-[110ch]">“{instructions}”</p>
+                {/* `pre-line` because the brief is written in a textarea: an
+                    author who numbered three instructions gets three lines
+                    back, not one run-on paragraph. */}
+                <p className="font-body text-s text-text-secondary leading-[1.6] m-0 max-w-[92ch] whitespace-pre-line wrap-anywhere">
+                  “{instructions}”
+                </p>
               </blockquote>
             )}
 
@@ -513,10 +602,14 @@ export function AIAgentSessionView({
                             aria-hidden
                           />
                           <span className="flex flex-col gap-xxxs min-w-0 flex-1">
-                            <span className="font-body text-s font-medium text-text-primary leading-[1.5]">
+                            {/* A finding title can carry a selector or a path;
+                                min-w-0 lets this column shrink below its
+                                min-content width, so it needs the break rule
+                                to go with it or it runs under the tag. */}
+                            <span className="font-body text-s font-medium text-text-primary leading-[1.5] wrap-anywhere">
                               {f.title}
                             </span>
-                            <span className="font-body text-xs text-text-tertiary leading-[1.5]">
+                            <span className="font-body text-xs text-text-tertiary leading-[1.5] wrap-anywhere">
                               Screen {f.stepIndex + 1} · {session.steps[f.stepIndex]?.screen ?? '—'}
                             </span>
                           </span>
@@ -539,11 +632,85 @@ export function AIAgentSessionView({
 
 function Reading({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-xxxs">
+    <div className="flex flex-col gap-xxxs min-w-0">
       <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">{label}</span>
-      <span className="font-body text-s text-text-secondary leading-[1.6]">{children}</span>
+      {/* An observation quotes the screen, and a screen can be a wall of rules
+          text — folded at six lines, opened with one click. */}
+      <ExpandableText lines={6} moreLabel="Show everything the agent saw">
+        <span className="font-body text-s text-text-secondary leading-[1.6] wrap-anywhere">{children}</span>
+      </ExpandableText>
     </div>
   )
+}
+
+/**
+ * Prose that folds at N lines and opens on request — with the control shown
+ * only when there is something folded.
+ *
+ * It measures rather than counts characters: the same sentence folds at a
+ * different point in a 380px column and a 700px one, and the panel is both
+ * depending on which way the recording is shaped. Measuring also means the
+ * control is honest — a "Show more" that opens two extra words is a worse
+ * offer than no control at all.
+ */
+function ExpandableText({
+  children,
+  lines,
+  moreLabel,
+}: {
+  children: ReactNode
+  lines: number
+  moreLabel: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [clipped, setClipped] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const measure = () => setClipped(el.scrollHeight - el.clientHeight > 2)
+    measure()
+    /* The column changes width with the recording's shape and with the
+       window, so the answer is re-measured rather than decided once. */
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [children, open])
+
+  return (
+    <div className="flex flex-col items-start gap-xxxs min-w-0">
+      {/* Clamped by LINE rather than by height: the fold then lands on a line
+          boundary whatever type size the text inside is set in, and it never
+          cuts a line in half. */}
+      <div
+        ref={bodyRef}
+        className="w-full min-w-0"
+        style={
+          open
+            ? undefined
+            : {
+                display: '-webkit-box',
+                WebkitLineClamp: lines,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }
+        }
+      >
+        {children}
+      </div>
+      {(clipped || open) && (
+        <button type="button" className="agent-more-link" onClick={() => setOpen((v) => !v)}>
+          {open ? 'Show less' : moreLabel}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** "4,182 characters" reads as a size; "4182" reads as an id. */
+function formatChars(n: number): string {
+  return `${n.toLocaleString('en-GB')} characters`
 }
 
 function FrameNav({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: ReactNode }) {

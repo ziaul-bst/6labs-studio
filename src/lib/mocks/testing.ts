@@ -94,18 +94,125 @@ export const BUILDS: BuildOption[] = [
   { id: 'v2.2.9', version: 'v2.2.9', meta: 'uploaded Aug 14' },
 ]
 
+/**
+ * The personas a run can be played by.
+ *
+ * Two texts per persona, and they are not the same text shortened. The
+ * `detail` is a qualifier written for the SET — six words, leading with what
+ * makes this one different from the one above it, so a column of them can be
+ * scanned rather than read. The `description` is the player model's own
+ * sentence about that persona, read one at a time when you are deciding
+ * between two of them.
+ *
+ * The model's sentences share a template — "<adjective> player who <verb>s
+ * <object>" — which is fine in isolation and useless in a list: the first four
+ * words of every one of them are the same, so the eye has to get past the
+ * boilerplate twelve times to find the word that differs. That is the whole
+ * reason the picker separates the two texts instead of stacking a sentence
+ * under every name.
+ */
 export const PERSONAS: Persona[] = [
   /* First, and deliberately not a persona: a run that just wants the build
      played needs an option that says so, rather than a "New player" whose
      behaviour it did not ask for and cannot tell apart from the real thing. */
-  { id: 'generic', label: 'Generic', detail: 'no persona — plays the build as-is' },
-  { id: 'new-player', label: 'New player', detail: 'day 0–3' },
-  { id: 'core', label: 'Core', detail: 'day 7–30' },
-  { id: 'whale', label: 'Whale', detail: 'top 2% spend' },
-  { id: 'lapsed', label: 'Lapsed', detail: 'returning after 14d' },
-  { id: 'competitive', label: 'Competitive', detail: 'PvP-first, rally-heavy' },
-  { id: 'casual', label: 'Casual', detail: 'short sessions, no spend' },
-  { id: 'explorer', label: 'Explorer', detail: 'opens every screen' },
+  {
+    id: 'generic',
+    label: 'Generic',
+    detail: 'no persona — plays the build as-is',
+    description:
+      'No behavioural model. Plays the build the way the build asks to be played, so the run reports the product rather than a player type.',
+  },
+  {
+    id: 'new-player',
+    label: 'New player',
+    detail: 'day 0–3',
+    description:
+      'First session, no prior knowledge of the game. Follows whatever the tutorial highlights and gives up quickly when a screen does not say what to do next.',
+  },
+  {
+    id: 'core',
+    label: 'Core',
+    detail: 'day 7–30',
+    description:
+      'Knows the loop and chases progression. Skips tutorials, goes straight for the highest-value action on screen, and notices when a reward curve changes.',
+  },
+  {
+    id: 'whale',
+    label: 'Whale',
+    detail: 'top 2% spend',
+    description:
+      'Optimises for power and buys early. Opens the store from anywhere it is offered and treats a blocked purchase path as the thing worth reporting.',
+  },
+  {
+    id: 'lapsed',
+    label: 'Lapsed',
+    detail: 'returning after 14d',
+    description:
+      'Coming back after two weeks away. Re-learns the loop from the UI rather than from memory, and is the first to hit anything that changed while they were gone.',
+  },
+  {
+    id: 'competitive',
+    label: 'Competitive',
+    detail: 'PvP-first, rally-heavy',
+    description:
+      'Grinds leaderboards and competitive content aggressively. Prioritises anything ranked, and reads any queue or matchmaking delay as a fault.',
+  },
+  {
+    id: 'casual',
+    label: 'Casual',
+    detail: 'short sessions, no spend',
+    description:
+      'Plays in short bursts without competitive pressure and never opens the store. Leaves the moment a session asks for more time than it promised.',
+  },
+  {
+    id: 'explorer',
+    label: 'Explorer',
+    detail: 'opens every screen',
+    description:
+      'Relaxed and story-focused, explores side content for its own sake. Reaches screens a goal-directed player never sees, which is where unfinished UI turns up.',
+  },
+  {
+    id: 'collector',
+    label: 'Collector',
+    detail: 'completes item sets',
+    description:
+      'Collection-driven: completes item sets and pursues rare rewards. Spends the session in inventory, crafting and reward screens rather than in the main loop.',
+  },
+  {
+    id: 'completionist',
+    label: 'Completionist',
+    detail: 'chases 100%',
+    description:
+      'Pursues total content completion relentlessly. Will re-enter a finished chapter to clear the last objective, so it finds content that cannot be completed.',
+  },
+  {
+    id: 'event-chaser',
+    label: 'Event chaser',
+    detail: 'limited-time content only',
+    description:
+      'Spikes engagement for limited-time content and rewards. Enters through the event banner and ignores everything the event does not lead to.',
+  },
+  {
+    id: 'farm-specialist',
+    label: 'Farm specialist',
+    detail: 'repeats resource loops',
+    description:
+      'Efficiency-obsessed: repeatedly farms the optimal resource loop. Runs the same few screens hundreds of times, which is where a rate or a cap goes wrong.',
+  },
+  {
+    id: 'min-maxer',
+    label: 'Min-maxer',
+    detail: 'optimal builds only',
+    description:
+      'Strategic optimiser pursuing mathematically optimal builds and resource paths. Compares numbers across screens and reports any that disagree.',
+  },
+  {
+    id: 'occasional',
+    label: 'Occasional player',
+    detail: 'one session a week',
+    description:
+      'Returns about once a week and plays for a few minutes. Never accumulates enough context to be carried by habit, so the UI has to re-orient them every time.',
+  },
 ]
 
 // ── Run thread ────────────────────────────────────────────────────────────────
@@ -165,13 +272,97 @@ const scene = (i: number) =>
   `radial-gradient(120% 80% at 30% 70%, ${SCENE_HUES[i % SCENE_HUES.length]} 0%, #2f4a75 60%, #1f2c55 100%)`
 
 /**
+ * The same stand-in frame, for surfaces outside a run that still have to show
+ * what a recording looks like — the locked pitch's evidence stack. Exported so
+ * sample footage everywhere is the same footage.
+ */
+export const sceneGradient = scene
+
+/**
+ * A skill file, as a player actually loads one. Nobody reads this — it is here
+ * because the panel has to survive it: four thousand monospaced characters
+ * arriving under a one-line action, which is what a real session put there.
+ */
+const WHITEOUT_SKILL = `# Whiteout Survival Game Agent Skill
+
+You are an expert Whiteout Survival player controlling the game on a mobile
+device. The game package name is \`com.gof.global\`. Your goal is to play the
+game efficiently, making smart decisions based on what you see on screen.
+
+## 0. Skill File Scope
+
+This file covers game mechanics, navigation, visual identification, and
+conservative default behaviour for playing Whiteout Survival. It describes what
+is available, how to navigate, and what is typically efficient — not a rigid
+prescription for every session.
+
+**Absolute rules — always apply regardless of session goals:**
+
+- Real-money in-app purchases are BLOCKED BY DEFAULT: do NOT open, confirm, or
+  complete a payment/checkout dialog. The ONLY exception is when the current
+  sub-task's \`constraints\` or behavioural directives EXPLICITLY authorise
+  real-money spending — specifically the verbatim permission "Real-money in-app
+  purchases are explicitly authorized for this sub-task (high-spend persona)";
+  in that case a real-money purchase that gives clear value is permitted.
+  Absent that explicit authorisation, treat any real-money purchase as
+  requiring explicit user action and do not initiate it.
+- Never attack other players, join rallies, send messages, leave or modify the
+  alliance, use teleporter items (Random/Advanced/Alliance Teleporter that
+  relocate the city on the world map), or dismiss troops without explicit user
+  permission. This does not apply to in-event teleport mechanics that are part
+  of an event mode (for example, the "Teleport to center" action in Frostfire
+  Mine).
+
+All other guidance reflects cautious defaults. Spending, retry, and exploration
+decisions should be guided by the current session's goals and play style.
+
+## 1. Game Launch and Pop-Up Handling
+
+### 1.1 Launching the Game
+
+- ALWAYS use LaunchApp with packageName \`com.gof.global\`
+- The game takes 10-20 seconds to fully load; expect loading screens with
+  progress bars
+- Wait until the main city view appears before taking any action
+- **First-time login**: you may encounter a server selection screen or
+  guest/social login options
+  - If server selection appears, ask the user which server to join before
+    proceeding
+  - Ask the user before creating a character, linking an account, or changing
+    accounts. These are credential actions and are never yours to take.
+
+### 1.2 Pop-Ups on Entry
+
+Expect two to five pop-ups on entering the city. Close them from the top of the
+stack down. A pop-up that asks for an account action is not a pop-up to close —
+it is a stop.
+`
+
+/**
  * The screens a session walks through — the same script for every agent so a
  * reviewer can compare sessions, with flags that vary per agent (see
  * `buildAgentSessions`). Flags point at the issues the report lists.
+ *
+ * Two of these screens are here because of their LENGTH rather than their
+ * content: the skill load carries four thousand characters of payload, and the
+ * account wall carries the kind of reasoning a model writes when it has hit
+ * something it is not allowed to do. Both came off real sessions. A screen
+ * script made only of one-line steps is a script that never tests the panel.
  */
 export const AI_BEHAVIOURAL_STEPS: AgentStep[] = [
   { screen: 'Splash', saw: 'Splash screen with the game logo and a loading bar at 40%.', reasoning: 'Nothing to do until the load completes — a Play button should appear.', action: 'Tap Play', observed: 'Observed 5000 ms · sign-in dialog appeared', atSec: 0, scene: scene(0) },
-  { screen: 'Sign-in', saw: 'Sign-in dialog: email and password fields, and a Continue as guest option.', reasoning: 'The brief gives a test account, so sign in rather than continue as a guest.', action: 'Enter credentials, tap Sign in', observed: 'Observed 5000 ms · World Map loaded with the tutorial pointer', atSec: 12, scene: scene(1) },
+  { screen: 'Launch Whiteout Survival › Load skill', saw: 'The device home screen, with Whiteout Survival on the second row.', reasoning: 'Before launching I load the game-specific skill so the rest of the session reads the screens in the game’s own vocabulary rather than guessing at them.', action: 'Loading Whiteout Survival skill for game-specific knowledge.', payload: { label: 'Whiteout Survival Game Agent skill', body: WHITEOUT_SKILL }, observed: 'Observed 5000 ms · skill loaded', atSec: 6, scene: scene(1) },
+  { screen: 'Sign-in', saw: 'Sign-in dialog: email and password fields, and a Continue as guest option.', reasoning: 'The brief gives a test account, so sign in rather than continue as a guest.', action: 'Enter credentials, tap Sign in', observed: 'Observed 5000 ms · World Map loaded with the tutorial pointer', atSec: 12, scene: scene(2) },
+  {
+    screen: 'Play Whiteout Survival › Requesting takeover',
+    saw: 'A Tips dialog over the loading screen: "To ensure the security of your account and character, please create your character on the mobile version first before logging in." Two buttons — Change Account and Quit.',
+    reasoning:
+      'I was set to play Whiteout Survival for a couple of minutes as this persona. The game launched, but a Tips screen has come up that wants either a character created or the account changed, and the executor is stuck behind it.\n\nMy instructions on this are not ambiguous: I am not to touch account creation, login, or anything credential-related without explicit permission, and this screen is asking for exactly that. The persona’s goal for this session is to explore, which is the priority, and a retry is technically available — but a retry here would be a retry against an account wall, and this is the most sensitive area in the playbook. The screen is asking for a user-only action.\n\nSo the only move left is to hand it back. I request a takeover, name what is blocking, and say what I will do once it is cleared: resume from the loading screen, take the tutorial in order, and keep the session’s remaining time for the event the brief actually asked about.',
+    action: 'Blocked by the account/character creation screen. Please handle the login or character creation to continue.',
+    observed: 'Observed 5000 ms · waiting on the user',
+    atSec: 28,
+    scene: scene(3),
+  },
   { screen: 'Tutorial › Furnace', saw: 'Tutorial overlay; a pointer highlights the Upgrade Furnace button.', reasoning: 'As a first-time player I follow the highlighted action.', action: 'Tap Upgrade Furnace', observed: 'Observed 5000 ms · no change on screen', atSec: 41, scene: scene(2), flag: { kind: 'bug', issueId: 'furnace', note: 'No response to the first tap — hint overlay may be intercepting' } },
   { screen: 'Tutorial › Furnace', saw: 'Same screen — the hint is still up and the button has not changed state.', reasoning: 'The tap may have been swallowed by the overlay; retry before treating it as a blocker.', action: 'Tap Upgrade Furnace (retry ×3)', observed: 'Observed 5000 ms · upgrade animation played', atSec: 58, scene: scene(3), flag: { kind: 'bug', issueId: 'furnace', note: '3 taps, 17s lost before the upgrade went through' } },
   { screen: 'Tutorial › Hero screen', saw: 'Furnace upgraded; the tutorial advanced to the Hero screen with a Continue prompt.', reasoning: 'Keep following the tutorial.', action: 'Tap Continue', observed: 'Observed 5000 ms · hero roster visible', atSec: 84, scene: scene(4) },
@@ -274,6 +465,15 @@ export function buildAgentSessions(runId: string, meta: AIBehaviouralRunMeta, li
        screen. Capping it below the last one parked the live viewer on a
        screen it could never leave. */
     const reached = done ? steps.length : Math.min(steps.length, Math.max(1, liveReached + (i % 4) - 1))
+    /* A live session knows which screen its agent is on a beat before it has
+       the picture of it — the analysis arrives over the wire, the frame after.
+       So the newest screen of a live session carries no frame, and the well
+       shows what it is waiting for. Stripping it here rather than in the step
+       script keeps it a property of being LIVE, which is what it is. */
+    const withPendingFrame =
+      done || reached < 1
+        ? steps
+        : steps.map((s, si) => (si === reached - 1 ? { ...s, scene: undefined } : s))
     return {
       id: `${runId}-a${i + 1}`,
       index: i,
@@ -281,7 +481,7 @@ export function buildAgentSessions(runId: string, meta: AIBehaviouralRunMeta, li
       personaDetail: PERSONA_DETAIL[persona] ?? '',
       status: done ? 'done' : 'live',
       reached,
-      steps,
+      steps: withPendingFrame,
       durationLabel: done ? meta.lengthLabel : `${Math.max(1, Math.round(steps[reached - 1].atSec / 60))}m so far`,
     }
   })

@@ -34,6 +34,8 @@ export interface ChatMessage {
   response?: OracleResponseData
   /** Whether this AI response is still loading */
   isLoading?: boolean
+  /** A follow-up in an open thread — shorter, thread-aware loader. */
+  followUp?: boolean
 }
 
 interface OracleChatViewProps {
@@ -70,6 +72,7 @@ export function OracleChatView({
   className,
 }: OracleChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const columnRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -77,6 +80,26 @@ export function OracleChatView({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages])
+
+  /* Follow the loader as it grows. The pipeline reveals a row every second or
+     so, and a single scroll on submit left the card cut off under the composer
+     by the third row. Stick to the bottom while the reader is already there;
+     a reader who has scrolled up to re-read the first answer is left alone. */
+  useEffect(() => {
+    const scroller = scrollRef.current
+    const column = columnRef.current
+    if (!scroller || !column || typeof ResizeObserver === 'undefined') return
+    let lastHeight = column.offsetHeight
+    const ro = new ResizeObserver(() => {
+      const grew = column.offsetHeight - lastHeight
+      lastHeight = column.offsetHeight
+      if (grew <= 0) return
+      const distance = scroller.scrollHeight - grew - (scroller.scrollTop + scroller.clientHeight)
+      if (distance < 96) scroller.scrollTop = scroller.scrollHeight
+    })
+    ro.observe(column)
+    return () => ro.disconnect()
+  }, [])
 
   return (
     <div
@@ -89,7 +112,7 @@ export function OracleChatView({
         ref={scrollRef}
         className="absolute inset-0 overflow-y-auto overflow-x-hidden flyout-scrollbar page-scroll"
       >
-        <div className="flex flex-col gap-l items-center pt-xxl pb-[200px] page-measure">
+        <div ref={columnRef} className="flex flex-col gap-l items-center pt-xxl pb-[200px] page-measure">
           {messages.map((msg) => {
             if (msg.type === 'user' && msg.text) {
               return (
@@ -102,6 +125,7 @@ export function OracleChatView({
                   key={msg.id}
                   response={msg.response}
                   isLoading={msg.isLoading}
+                  followUp={msg.followUp}
                   onExpandSources={() => onExpandSources(msg.response!.id)}
                   onSourceClick={onSourceClick}
                   onOpenLibrary={onOpenLibrary}

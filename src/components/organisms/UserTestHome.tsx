@@ -19,6 +19,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { TestingPageHeader } from '../molecules/TestingPageHeader'
+import { Skeleton } from '../atoms/Skeleton'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
 import { SelectedVideosStrip } from '../molecules/SelectedVideosStrip'
@@ -411,8 +412,16 @@ function ChatGlyph() {
 
 /** Tiny skeleton of a report, so the sample card shows its shape without a screenshot. */
 function SamplePreview() {
+  /* Frozen — a preview is a shape, not a wait, so the shine stays off. */
   const bar = (w: string, tone?: string) => (
-    <span className="block h-[6px] rounded-xs" style={{ width: w, backgroundColor: tone ?? 'var(--bg-subtle)' }} />
+    <Skeleton
+      variant="bar"
+      width={w}
+      height={6}
+      radius="rounded-xs"
+      shimmer={false}
+      style={tone ? { backgroundColor: tone } : undefined}
+    />
   )
   return (
     <div

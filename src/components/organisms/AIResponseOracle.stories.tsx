@@ -66,6 +66,18 @@ export const Loading: Story = {
   },
 }
 
+/** A follow-up in an open thread — the short, thread-aware pipeline. */
+export const FollowUpLoading: Story = {
+  args: {
+    response: { ...mockResponse, contentHtml: '' },
+    isLoading: true,
+    followUp: true,
+    onExpandSources: () => {},
+    onSuggestionClick: () => {},
+    onDislike: () => {},
+  },
+}
+
 export const NoSources: Story = {
   args: {
     response: { ...mockResponse, sources: [] },

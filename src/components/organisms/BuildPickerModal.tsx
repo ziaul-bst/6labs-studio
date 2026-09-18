@@ -21,6 +21,7 @@ import type { ReactNode } from 'react'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import { ProgressBar } from '../atoms/ProgressBar'
+import { Spinner } from '../atoms/Spinner'
 import { SetupZone } from '../molecules/TestingSetupPieces'
 import { CloseIcon } from '../icons/CloseIcon'
 import { UploadIcon } from '../icons/UploadIcon'
@@ -410,7 +411,7 @@ export function BuildField({ value, onChange, placeholder = 'Choose a build…',
         <span className="flex-1" />
         {inFlight > 0 && (
           <span className="inline-flex items-center gap-xxs font-body text-xs text-text-tertiary whitespace-nowrap">
-            <span className="testing-spinner-sm shrink-0" aria-hidden />
+            <Spinner size={12} tone="neutral" />
             {inFlight} uploading
           </span>
         )}

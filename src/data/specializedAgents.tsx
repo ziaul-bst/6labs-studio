@@ -122,6 +122,8 @@ export const SPECIALIZED_AGENTS: SpecializedAgent[] = [
         activeSub: 'Running the retention model…',
         doneSub: 'Risk scores generated.',
         callout: {
+          /* A real warning — players about to leave — not a neutral finding. */
+          type: 'warning',
           lead: '3,820 players trending toward churn',
           rest: ' — dominant driver is the level 24 difficulty spike',
         },

@@ -20,9 +20,13 @@ import { TestingTabs } from '../molecules/TestingTabs'
 import { AgentSessionCard } from '../molecules/AgentSessionCard'
 import { VideosEmptyState } from '../molecules/VideosEmptyState'
 import { PersonaHitRates } from '../molecules/PersonaHitRates'
-import { UserTestReport } from './UserTestReport'
+import { StatTile } from '../molecules/StatTile'
+import { UserTestReport, PartHeader } from './UserTestReport'
 import { FilterPill } from '../atoms/FilterPill'
 import { ProgressBar } from '../atoms/ProgressBar'
+import { Spinner } from '../atoms/Spinner'
+import { Skeleton, SkeletonText } from '../atoms/Skeleton'
+import { CheckIcon } from '../icons/CheckIcon'
 import { RunFailedNotice, runFailureText } from '../molecules/RunFailedNotice'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
@@ -76,6 +80,13 @@ function hoursLabel(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
+/**
+ * The report's identity, read by the finished report and by its loading state
+ * so the masthead cannot say one thing while it waits and another when it lands.
+ */
+const REPORT_KICKER = 'AI behavioural report'
+const runIdLabel = (run: TestRunHistoryItem) => run.id.toUpperCase()
+
 export function AIBehaviouralRunView({
   run,
   meta,
@@ -124,7 +135,7 @@ export function AIBehaviouralRunView({
               </StatusPill>
             ) : analysing ? (
               <StatusPill bg="var(--bg-tint)" ink="var(--text-brand)">
-                <span className="testing-spinner" aria-hidden />
+                <Spinner size={12} tone="current" />
                 Analysing {meta.agents} {meta.agents === 1 ? 'session' : 'sessions'}
               </StatusPill>
             ) : (
@@ -237,32 +248,19 @@ export function AIBehaviouralRunView({
                 }
                 secondary={sessions.length > 0 ? { label: 'Watch saved sessions', onClick: () => onTabChange('videos') } : undefined}
               />
-            ) : sessions.length === 0 ? (
-              /* Nothing has been recorded yet, so there is nothing to analyse.
-                 Distinct from the in-flight state below, which has sessions
-                 arriving: this one is the run before any agent has produced a
-                 frame, and saying "0 of 20 analysed" would imply work is
-                 already underway on footage that does not exist. */
-              <div
-                className="flex flex-col gap-xs items-start w-full rounded-2xl px-xl py-xxl"
-                style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
-              >
-                <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
-                  No behaviour to analyse yet
-                </span>
-                <span className="font-body text-s text-text-secondary leading-[1.7] max-w-[74ch]">
-                  The {meta.agents} AI {meta.agents === 1 ? 'player has' : 'players have'} not recorded
-                  anything on {meta.build} yet. The report is written from what they play, so it
-                  appears here once the first sessions land.
-                </span>
-              </div>
-            ) : inProgress || analysing ? (
+            ) : sessions.length === 0 || inProgress || analysing ? (
+              /* The report is not pretended: the sheet arrives with the facts
+                 the run already knows and the shape of the ones it does not.
+                 Before any agent has produced a frame the sheet is dormant —
+                 saying "0 of 20 analysed" would imply work already under way
+                 on footage that does not exist. */
               <ReportPending
-                analysing={analysing}
+                phase={sessions.length === 0 ? 'none' : analysing ? 'analysing' : 'playing'}
+                run={run}
+                meta={meta}
                 done={analysing ? meta.agents : done}
                 total={meta.agents}
-                liveLabel={!analysing && liveSession ? `Watch agent ${liveSession.index + 1} live` : undefined}
-                onWatchLive={!analysing && liveSession ? () => onOpenSession(liveSession.id) : undefined}
+                footageHours={hoursLabel(sessions.length * minutesIn(meta.lengthLabel))}
                 onWatch={() => onTabChange('videos')}
               />
             ) : (
@@ -293,69 +291,214 @@ export function AIBehaviouralRunView({
 /* ── Report ─────────────────────────────────────────────────────────────── */
 
 /**
- * Two waits, one card. While the agents are still playing, the thing that is
- * moving is the session count, and the way in is a live session. Once they have
- * all stopped, the count is finished and the only thing still happening is the
- * analysis — so the headline changes, the bar is full, and the only offer left
- * is the footage the report is being written from.
+ * The report, arriving. Three waits, one sheet.
  *
- * Saying "20 of 20 sessions done" under "the report lands when all 20 sessions
- * finish" would be the screen contradicting itself.
+ * It is the finished report's own masthead — kicker, run name, run id — with
+ * the facts the run already knows printed for real (personas, sessions played)
+ * and the ones it does not (footage, bugs, friction) drawn as skeleton tiles
+ * exactly where the numbers will land. One status line says which wait this
+ * is and how far along; the two parts under it hold the shape of the summary
+ * and the findings. When the real report replaces it, nothing moves.
+ *
+ * Counted work gets a counted bar: while the agents play, the session count is
+ * the one moving fact. Once they have all stopped, nothing is countable — the
+ * findings are being ranked — so the bar is indeterminate and three beats say
+ * where the analysis is. Before any agent has produced a frame the sheet is
+ * dormant: same shape, no spinner, no bar, the shine frozen.
+ *
+ * No buttons inside the sheet. While the run plays, the live strip above the
+ * tabs owns the one brand action; the status line carries a quiet text link
+ * to the sessions so the Report tab always has a way in.
  */
+type ReportPendingPhase = 'none' | 'playing' | 'analysing'
+
 function ReportPending({
-  analysing,
+  phase,
+  run,
+  meta,
   done,
   total,
-  liveLabel,
-  onWatchLive,
+  footageHours,
   onWatch,
 }: {
-  analysing?: boolean
+  phase: ReportPendingPhase
+  run: TestRunHistoryItem
+  meta: AIBehaviouralRunMeta
   done: number
   total: number
-  liveLabel?: string
-  onWatchLive?: () => void
+  /** Known once every agent has stopped. */
+  footageHours: string
   onWatch: () => void
 }) {
+  const playing = phase === 'playing'
+  const analysing = phase === 'analysing'
+  const none = phase === 'none'
+  const shimmer = !none
+  const sessionsWord = total === 1 ? 'session' : 'sessions'
+
   return (
-    <div
-      className="flex flex-col gap-m w-full rounded-2xl px-xl py-xl"
+    <article
+      className="report-sheet skeleton-surface flex flex-col w-full rounded-3xl overflow-hidden shadow-sm"
       style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
+      aria-busy={shimmer || undefined}
     >
-      <div className="flex items-center gap-s">
-        <span className="testing-spinner shrink-0" aria-hidden />
-        <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
-          {analysing
-            ? total === 1
-              ? 'Writing the report from the session'
-              : `Writing the report from all ${total} sessions`
-            : total === 1
-              ? 'The report lands when the session finishes'
-              : `The report lands when all ${total} sessions finish`}
-        </span>
+      <header
+        className="report-masthead flex flex-col gap-xl px-xxxl pt-xxl pb-xl"
+        style={{ backgroundColor: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-default)' }}
+      >
+        <div className="flex flex-col gap-xs">
+          <div className="flex flex-wrap items-baseline gap-s">
+            <span className="font-display text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary leading-[1.5]">
+              {REPORT_KICKER}
+            </span>
+            <span className="flex-1" />
+            <span className="font-code text-xs text-text-tertiary leading-[1.5] whitespace-nowrap">
+              run #{runIdLabel(run)}
+            </span>
+          </div>
+          <h1 className="font-display text-2xl font-semibold text-text-primary leading-[1.2]">{run.name}</h1>
+
+          {/* The one moving fact — where the finished report prints "report generated …". */}
+          <div className="flex items-center gap-s font-body text-m text-text-secondary leading-[1.6]" role="status">
+            {!none && <Spinner size={16} tone="brand" />}
+            <span>
+              {none ? (
+                <>No behaviour to analyse yet · waiting for the first session on {meta.build}</>
+              ) : playing ? (
+                <>
+                  Report lands when {total === 1 ? 'the session finishes' : `all ${total} sessions finish`} ·{' '}
+                  <span className="font-semibold text-text-primary tabular-nums">
+                    {done} of {total}
+                  </span>{' '}
+                  done
+                </>
+              ) : (
+                <>Writing the report from {total === 1 ? 'the session' : `all ${total} sessions`}</>
+              )}
+            </span>
+            <span className="flex-1" />
+            {!none && (
+              <button
+                type="button"
+                onClick={onWatch}
+                className="inline-flex items-center gap-xxs font-body text-s font-semibold text-text-brand leading-[1.5] hover:underline whitespace-nowrap"
+              >
+                {playing ? 'All sessions' : `Watch the ${total} ${sessionsWord}`}
+                <span aria-hidden>→</span>
+              </button>
+            )}
+          </div>
+
+          {/* White track: the masthead band is the bar's own default grey. */}
+          {playing && (
+            <ProgressBar
+              value={(done / Math.max(total, 1)) * 100}
+              label="Sessions finished"
+              track="var(--bg-elements)"
+              className="mt-xxs"
+            />
+          )}
+          {analysing && (
+            <div className="flex flex-col gap-s mt-xxs">
+              <ProgressBar indeterminate label="Writing the report" track="var(--bg-elements)" />
+              <AnalysisBeats />
+            </div>
+          )}
+        </div>
+
+        <div className="stat-tiles gap-s">
+          <StatTile
+            surface="band"
+            value={String(meta.personas.length)}
+            label={meta.personas.length === 1 ? 'persona' : 'personas'}
+          />
+          <StatTile surface="band" value={String(done)} label={`of ${total} ${sessionsWord} played`} />
+          {analysing ? (
+            <StatTile surface="band" value={footageHours} label="footage reviewed" />
+          ) : (
+            <StatTile surface="band" value="" label="footage reviewed" loading shimmer={shimmer} />
+          )}
+          <StatTile surface="band" value="" label="bugs" dot="var(--error)" loading shimmer={shimmer} />
+          <StatTile surface="band" value="" label="friction points" dot="var(--warning)" loading shimmer={shimmer} />
+        </div>
+      </header>
+
+      <div className="report-body flex flex-col px-xxxl pt-xxl pb-xxl3">
+        <PartHeader index="01" label="Summary" first />
+        <SkeletonText lines={3} lineHeight={14} gap={14} lastWidth="62%" className="max-w-[86ch] pt-l" />
+
+        <PartHeader
+          index="02"
+          label="Findings"
+          meta={none ? 'nothing recorded yet' : playing ? 'ranked once the last agent has played' : 'being ranked now'}
+        />
+        <div className="flex flex-col rounded-xl overflow-hidden mt-l" style={{ border: '1px solid var(--border-subtle)' }}>
+          <div className="flex items-center h-[40px] px-m" style={{ backgroundColor: 'var(--bg-page-pale)' }}>
+            <Skeleton variant="bar" width={120} height={10} shimmer={shimmer} />
+          </div>
+          {[62, 48, 55].map((w) => (
+            <div key={w} className="flex items-center gap-s px-m py-s" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+              <Skeleton variant="circle" width={24} shimmer={shimmer} />
+              <Skeleton variant="text" width={`${w}%`} height={12} shimmer={shimmer} />
+              <span className="flex-1" />
+              <Skeleton variant="bar" width={56} shimmer={shimmer} />
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="flex items-center gap-s">
-        <span className="font-body text-s text-text-secondary whitespace-nowrap">
-          {analysing ? `all ${total} sessions played` : `${done} of ${total} sessions done`}
-        </span>
-        <ProgressBar value={(done / total) * 100} className="flex-1" />
-      </div>
-      <p className="font-body text-s text-text-secondary leading-[1.65] max-w-[80ch] m-0">
-        {analysing
-          ? 'Every agent has stopped. The findings are being ranked by how many of them hit each one, which is the last step and the one that needs the whole batch — the recordings themselves are all watchable now.'
-          : "Every session is analysed screen by screen as it plays. Flagged screens become the report's findings, ranked by how many agents hit them — so the report cannot be written until the last agent has played."}
-      </p>
-      <div className="flex items-center gap-xs">
-        {onWatchLive && liveLabel && (
-          <Button variant="primary" size="md" onClick={onWatchLive}>
-            {liveLabel}
-          </Button>
-        )}
-        <Button variant={analysing ? 'primary' : 'secondary'} size="md" onClick={onWatch}>
-          All sessions
-        </Button>
-      </div>
-    </div>
+    </article>
+  )
+}
+
+/**
+ * The three beats of the analysis, in the dot vocabulary AnalysisProgressCard
+ * uses — done tick, active ring, waiting ring. The status line above carries
+ * the sheet's only spinner.
+ */
+function AnalysisBeats() {
+  const beats = [
+    { label: 'Sessions read', state: 'done' },
+    { label: 'Findings ranked', state: 'active' },
+    { label: 'Report written', state: 'waiting' },
+  ] as const
+  return (
+    <ul className="flex flex-wrap items-center gap-m list-none m-0 p-0">
+      {beats.map((b) => (
+        <li key={b.label} className="flex items-center gap-xs">
+          {b.state === 'done' ? (
+            <span
+              className="flex items-center justify-center shrink-0 w-[14px] h-[14px] rounded-round text-white"
+              style={{ backgroundColor: 'var(--success)' }}
+              aria-hidden
+            >
+              <CheckIcon size={12} />
+            </span>
+          ) : (
+            <span
+              className="shrink-0 w-[14px] h-[14px] rounded-round"
+              style={{
+                border: `1.5px solid ${b.state === 'active' ? 'var(--brand)' : 'var(--border-default)'}`,
+                backgroundColor: b.state === 'active' ? 'var(--bg-tint-light)' : 'transparent',
+              }}
+              aria-hidden
+            />
+          )}
+          <span
+            className="font-body text-xs leading-[1.5]"
+            style={{
+              color:
+                b.state === 'done'
+                  ? 'var(--text-primary)'
+                  : b.state === 'active'
+                    ? 'var(--text-brand)'
+                    : 'var(--text-tertiary)',
+            }}
+          >
+            {b.label}
+          </span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -402,7 +545,7 @@ function ReportBody({
 
   const reportMeta = useMemo(
     () => ({
-      kicker: 'AI behavioural report',
+      kicker: REPORT_KICKER,
       /* The noun each finding counts against — "16 / 20 agents". Still needed
          alongside `tiles`, which only replaces the masthead numbers. */
       sessionsLabel: 'agents',
@@ -412,7 +555,7 @@ function ReportBody({
          say it in the type size a masthead number deserves. */
       game: '',
       generated: meta.startedLabel,
-      runId: run.id.toUpperCase(),
+      runId: runIdLabel(run),
       sessions: meta.agents,
       footageLabel: `${screensAnalysed}`,
       /* What the run was made of, then what came out of it: how many kinds of

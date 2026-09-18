@@ -93,6 +93,14 @@ import {
 } from '../lib/historyDemoState'
 import { setLibraryDemoState, useLibraryDemoState } from '../lib/libraryDemoState'
 import {
+  RECORDING_DEMO_LABELS,
+  RECORDING_DEMO_NOTES,
+  RECORDING_DEMO_STATES,
+  setRecordingDemoState,
+  useRecordingDemoState,
+} from '../lib/recordingDemoState'
+import type { RecordingOrientation } from '../lib/types/testing'
+import {
   RUN_DEMO_LABELS,
   RUN_DEMO_NOTES,
   RUN_DEMO_STATES_AI_BEHAVIOURAL,
@@ -471,6 +479,7 @@ export function HomePage() {
   const barista = useBarista()
   const [activeNav, setActiveNav] = useState<ActiveNav>(() => parseNavHash().nav)
   const libraryDemoState = useLibraryDemoState()
+  const recordingDemoState = useRecordingDemoState()
   const connectorsDemoState = useConnectorsDemoState()
   const uploadsDemoState = useUploadsDemoState()
   const runDemoState = useRunDemoState()
@@ -766,6 +775,39 @@ export function HomePage() {
         ],
       })
       setActiveHistoryId(ORACLE_DEMO_THREAD_ID)
+      return
+    }
+    if (next === 'followup') {
+      /* The answered thread, plus a follow-up whose answer never resolves —
+         the real one is only up for ORACLE_FOLLOWUP_MS, too short to review. */
+      const seeded = SEEDED_ORACLE_THREADS[ORACLE_DEMO_THREAD_ID] ?? []
+      setOracleHistory(DEFAULT_ORACLE_HISTORY)
+      setOracleThreads({
+        ...SEEDED_ORACLE_THREADS,
+        [ORACLE_DEMO_THREAD_ID]: [
+          ...seeded,
+          {
+            id: `${ORACLE_DEMO_THREAD_ID}-followup-user`,
+            type: 'user',
+            text: 'Which of these friction points affects whales the most?',
+          },
+          {
+            id: `${ORACLE_DEMO_THREAD_ID}-followup-ai`,
+            type: 'ai',
+            isLoading: true,
+            followUp: true,
+            response: {
+              id: `${ORACLE_DEMO_THREAD_ID}-followup-resp`,
+              sources: [],
+              contentHtml: '',
+              creditsUsed: 0,
+              relatedPrompts: [],
+            },
+          },
+        ],
+      })
+      setActiveHistoryId(ORACLE_DEMO_THREAD_ID)
+      setOracleViewKey((k) => k + 1)
       return
     }
     // 'seeded' and 'thread' share the fixtures and differ only in what is open.
@@ -1298,7 +1340,7 @@ export function HomePage() {
                moment the pipeline starts it is a reading surface and takes the
                detail treatment, like a report, rather than waiting for the
                answer to land. */
-            activeNav === 'home' || (activeNav === 'oracle' && activeHistoryId === null && !oracleRunning) || activeNav === 'uploads' || activeNav === 'library' || (activeNav === 'radiologist' && radiologistView === 'home') || (activeNav === 'specialized' && specializedAgentId === null) || (activeNav === 'connectors' && selectedConnectorId === null) || (activeNav === 'user-test' && userTestScreen === 'home') || activeNav === 'testing-home' || (['functional-test', 'ai-functional-test', 'ai-behavioural-test'].includes(activeNav) && (testingSubScreen === 'home' || activeTestLocked))
+            activeNav === 'home' || (activeNav === 'oracle' && activeHistoryId === null && !oracleRunning) || activeNav === 'uploads' || activeNav === 'library' || (activeNav === 'radiologist' && radiologistView === 'home') || (activeNav === 'specialized' && specializedAgentId === null) || (activeNav === 'connectors' && selectedConnectorId === null) || (activeNav === 'user-test' && (userTestScreen === 'home' || activeTestLocked)) || activeNav === 'testing-home' || (['functional-test', 'ai-functional-test', 'ai-behavioural-test'].includes(activeNav) && (testingSubScreen === 'home' || activeTestLocked))
               ? 'home'
               : 'detail'
           }
@@ -1643,6 +1685,25 @@ export function HomePage() {
                     note: CONNECTORS_DEMO_NOTES[key],
                   })),
                   onChange: (key: string) => setConnectorsDemoState(key as ConnectorsDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          /* The shape of the footage — on every screen of a behavioural run
+             that shows a recording: the Videos grid and the session viewer. A
+             device does not rotate mid-run, so one switch sets both. */
+          ...(activeNav === 'ai-behavioural-test' && !onTestHomeScreen
+            ? [
+                {
+                  id: 'recording',
+                  label: 'Recording',
+                  value: recordingDemoState,
+                  options: RECORDING_DEMO_STATES.map((key) => ({
+                    key,
+                    label: RECORDING_DEMO_LABELS[key],
+                    note: RECORDING_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => setRecordingDemoState(key as RecordingOrientation),
+                  defaultKey: 'portrait',
                 } satisfies StateMachineDockRow,
               ]
             : []),

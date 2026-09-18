@@ -4,14 +4,8 @@ import { AreaLockedPitch } from './AreaLockedPitch'
 const meta = {
   title: 'Organisms/AreaLockedPitch',
   component: AreaLockedPitch,
+  parameters: { layout: 'fullscreen' },
   tags: ['autodocs'],
-  decorators: [
-    (Story) => (
-      <div style={{ height: 560, display: 'flex' }}>
-        <Story />
-      </div>
-    ),
-  ],
 } satisfies Meta<typeof AreaLockedPitch>
 
 export default meta

@@ -104,3 +104,21 @@ export const FilterRow: Story = {
   args: { label: 'All', count: 24 },
   render: () => <Row />,
 }
+
+/** Tags do not all come from a designer. Ingest writes a batch name, a teammate
+ *  types a word, and an import writes whatever the source system called it —
+ *  which is where the first pill here came from. Each label folds at one
+ *  measure, so the row of choices keeps its shape and the fold costs one pill's
+ *  width instead of the whole row. Full text on hover and in the accessible name. */
+export const LongLabels: Story = {
+  args: { label: 'placeholder' },
+  render: () => (
+    <div className="flex flex-wrap items-center gap-xs" style={{ maxWidth: 720 }}>
+      <FilterPill label="B.A.N.K..O.F..B.A.R.O.D.A.BossFightv1.2" count={1} multi />
+      <FilterPill label="release/2026-09-16/candidate-4-hotfix-matchmaking" count={3} multi />
+      <FilterPill label="regression-suite-full-pass-before-store-submission" count={12} selected multi />
+      <FilterPill label="Build V2.2" count={5} multi />
+      <FilterPill label="onboarding" count={2} multi />
+    </div>
+  ),
+}

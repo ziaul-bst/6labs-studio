@@ -38,6 +38,7 @@ import { PlusIcon } from '../icons/PlusIcon'
 import { CheckIcon } from '../icons/CheckIcon'
 import { EventTag } from '../atoms/EventTag'
 import { SystemTag } from '../atoms/SystemTag'
+import { RecordingWell } from '../atoms/RecordingWell'
 import { LibrarySourceBadge } from '../atoms/LibrarySourceBadge'
 import { UserAvatar } from '../atoms/UserAvatar'
 import { ClampTags } from './ClampTags'
@@ -218,11 +219,14 @@ export function VideoLibraryCard({
           onClick={onOpen}
           title={isReady ? undefined : 'Available once the upload finishes'}
         >
-          {thumbnailSrc ? (
-            <img src={thumbnailSrc} alt="" className="absolute inset-0 w-full h-full object-cover" />
-          ) : (
-            <div className="absolute inset-0" style={{ background: gradient }} />
-          )}
+          {/* Same treatment as the grid card — see the note there. */}
+          <RecordingWell
+            src={thumbnailSrc}
+            scene={thumbnailSrc ? undefined : gradient}
+            orientation="landscape"
+            compact
+            fill
+          />
           <div className="absolute inset-0 video-lib-thumb-texture" aria-hidden />
           {!isReady && <div className="absolute inset-0 video-lib-dim" aria-hidden />}
 
@@ -387,12 +391,19 @@ export function VideoLibraryCard({
         onClick={onOpen}
         title={isReady ? undefined : 'Available once the upload finishes'}
       >
-        {/* base layer */}
-        {thumbnailSrc ? (
-          <img src={thumbnailSrc} alt="" className="absolute inset-0 w-full h-full object-cover" />
-        ) : (
-          <div className="absolute inset-0" style={{ background: gradient }} />
-        )}
+        {/* Base layer. A library holds footage from every source, so it cannot
+            assume a shape — but it does not have to: a still is CONTAINED and
+            the same still, blurred, fills what is left. A portrait phone
+            capture then shows the whole screen rather than the middle 26% of
+            it, which is what `object-cover` was giving. The stand-in gradient
+            has no shape to preserve, so it keeps filling the box. */}
+        <RecordingWell
+          src={thumbnailSrc}
+          scene={thumbnailSrc ? undefined : gradient}
+          orientation="landscape"
+          compact
+          fill
+        />
         {/* dot texture for depth */}
         <div className="absolute inset-0 video-lib-thumb-texture" aria-hidden />
         {/* dim scrim for non-ready so it reads as "not yet usable" */}
@@ -499,9 +510,13 @@ export function VideoLibraryCard({
       ) : (
         <div className="flex flex-col gap-xxs p-m min-w-0">
           <div className="flex items-start gap-xs min-w-0">
+            {/* Two lines, and they break anywhere: a capture device writes a
+                filename with no spaces in it, and a clamp alone only limits the
+                HEIGHT — the line itself still runs past the card. */}
             <span
-              className="flex-1 min-w-0 font-display text-s font-semibold line-clamp-2"
+              className="flex-1 min-w-0 font-display text-s font-semibold line-clamp-2 wrap-anywhere"
               style={{ color: 'var(--text-primary)' }}
+              title={title}
             >
               {title}
             </span>

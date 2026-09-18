@@ -14,6 +14,15 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** The locked preset the app ships: Functional test off the plan, two tests on it. */
+export const Functional: Story = {
+  args: {
+    test: byId('functional-test'),
+    includedTests: ['User test', 'AI behavioural test'],
+    carriesOver: 'Your 14 Gameplay Library recordings and game context carry over — nothing to set up again.',
+  },
+}
+
 /** A human test the studio hasn't bought — purple accent, agency outcomes. */
 export const ExternalAgency: Story = {
   args: { test: byId('agency-test') },

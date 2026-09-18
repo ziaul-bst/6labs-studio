@@ -9,6 +9,7 @@
  */
 
 import { UserProfileIcon as UserProfileSectionIcon } from '../icons/section'
+import { LockBadge } from '../atoms/LockBadge'
 import type { UserProfile } from '../../lib/types/radiologist'
 
 interface UserProfileCardProps {
@@ -63,26 +64,28 @@ const STAT_ICONS: Record<string, JSX.Element> = {
   ),
 }
 
+/**
+ * A frosted strip over a stat the plan does not include. The lock is the one
+ * LockBadge the rest of the product uses; the frost is mixed from the element
+ * colour so it follows dark mode instead of staying a white veil.
+ */
 function LockedOverlay() {
   return (
     <div
-      className="absolute bottom-[10px] left-[6px] right-[7px] flex items-center justify-between h-[23px] px-xxs py-[1px] overflow-hidden rounded-s z-[3]"
-      style={{ backdropFilter: 'blur(10px)', backgroundColor: 'rgba(255,255,255,0.2)' }}
+      className="absolute bottom-[8px] left-[6px] right-[6px] flex items-center justify-between gap-xxs h-[26px] px-xxs overflow-hidden rounded-s z-[3]"
+      style={{
+        backdropFilter: 'var(--blur-bg-small)',
+        backgroundColor: 'color-mix(in srgb, var(--bg-elements) 72%, transparent)',
+        border: '1px solid var(--border-subtle)',
+      }}
     >
-      <div className="flex items-center gap-xxs flex-1">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-          <path d="M12.757 7.168C12.595 6.995 12.398 6.909 12.166 6.909H11.889V5.136C11.889 4.004 11.507 3.031 10.743 2.219C9.979 1.406 9.065 1 8 1C6.935 1 6.021 1.406 5.257 2.219C4.493 3.031 4.111 4.004 4.111 5.136V6.909H3.833C3.602 6.909 3.405 6.995 3.243 7.168C3.081 7.34 3 7.549 3 7.796V13.114C3 13.36 3.081 13.569 3.243 13.742C3.405 13.914 3.602 14 3.833 14H12.167C12.398 14 12.595 13.914 12.757 13.742C12.919 13.569 13 13.36 13 13.114V7.796C13 7.549 12.919 7.34 12.757 7.168Z" fill="currentColor" />
-        </svg>
-        <span className="font-display font-semibold text-xs leading-[1.5] flex-1 min-w-0" style={{ color: '#353D57' }}>
-          Locked
-        </span>
-        <span
-          className="shrink-0 px-xxs py-[1px] rounded-xs text-center whitespace-nowrap"
-          style={{ border: '1px solid var(--brand)', color: 'var(--brand)', fontSize: '10px', fontWeight: 600, letterSpacing: '0.6px' }}
-        >
-          PRO
-        </span>
-      </div>
+      <LockBadge />
+      <span
+        className="shrink-0 px-xxs py-[1px] rounded-xs font-display text-2xs font-semibold tracking-[0.06em] whitespace-nowrap"
+        style={{ border: '1px solid var(--brand)', color: 'var(--text-brand)' }}
+      >
+        PRO
+      </span>
     </div>
   )
 }

@@ -14,6 +14,8 @@
  * Code-first prototype — no Figma source yet.
  */
 
+import { Skeleton } from '../atoms/Skeleton'
+
 export type StatTileSurface = 'sheet' | 'band'
 
 export interface StatTileProps {
@@ -27,11 +29,50 @@ export interface StatTileProps {
    * colour; `band` is a filled header strip.
    */
   surface?: StatTileSurface
+  /**
+   * The number is not known yet. The tile keeps its geometry and its dot and
+   * draws the value as a skeleton bar, so a loading report has its tiles in
+   * place and nothing moves when the count lands. `shimmer={false}` for a
+   * tile that is waiting on nothing (a run that has not started).
+   */
+  loading?: boolean
+  shimmer?: boolean
   className?: string
 }
 
-export function StatTile({ value, label, dot, surface = 'sheet', className }: StatTileProps) {
+export function StatTile({
+  value,
+  label,
+  dot,
+  surface = 'sheet',
+  loading = false,
+  shimmer = true,
+  className,
+}: StatTileProps) {
   const onBand = surface === 'band'
+  if (loading) {
+    return (
+      <div
+        className={['flex flex-col gap-xxxs rounded-xl px-m py-s', className].filter(Boolean).join(' ')}
+        style={{
+          backgroundColor: onBand ? 'var(--bg-elements)' : 'var(--bg-page-pale)',
+          border: onBand ? undefined : '1px solid var(--border-subtle)',
+        }}
+      >
+        {/* Same 26px line the number occupies (text-l at 1.3), so the tile is
+            exactly the height it will be once the value arrives. */}
+        <span className="flex items-center gap-xs h-[26px]">
+          {dot && (
+            <span className="w-[8px] h-[8px] rounded-round shrink-0" style={{ backgroundColor: dot }} aria-hidden />
+          )}
+          <Skeleton variant="text" width={40} height={18} radius="rounded-s" shimmer={shimmer} />
+        </span>
+        <span className="flex items-center h-[18px]">
+          <span className="font-body text-xs text-text-tertiary leading-[1.5]">{label}</span>
+        </span>
+      </div>
+    )
+  }
   return (
     <div
       className={['flex flex-col gap-xxxs rounded-xl px-m py-s', className]

@@ -26,7 +26,12 @@ import { ActionFeedbackBar } from '../molecules/ActionFeedbackBar'
 import { SuggestionCard } from '../molecules/SuggestionCard'
 import { CitationPreview } from '../molecules/CitationPreview'
 import { AgentPipelineLoader } from '../molecules/AgentPipelineLoader'
-import { ORACLE_PIPELINE_STEPS, ORACLE_RESPONSE_MS } from '../../lib/mocks/oracle-pipeline'
+import {
+  ORACLE_FOLLOWUP_MS,
+  ORACLE_FOLLOWUP_STEPS,
+  ORACLE_PIPELINE_STEPS,
+  ORACLE_RESPONSE_MS,
+} from '../../lib/mocks/oracle-pipeline'
 import { useCitations } from '../../lib/hooks/useCitations'
 import type { Citation } from '../../lib/types/citation'
 import type { TranscriptSegment } from '../../lib/types/transcript'
@@ -56,8 +61,14 @@ export interface OracleResponseData {
 
 interface AIResponseOracleProps {
   response: OracleResponseData
-  /** Whether the response is still loading (shows shimmer) */
+  /** Whether the response is still loading (shows the pipeline stepper) */
   isLoading?: boolean
+  /**
+   * A follow-up in an open thread. The wait is shorter and the steps are
+   * different — the thread is the context, so the loader must not claim to be
+   * looking for it.
+   */
+  followUp?: boolean
   onExpandSources: () => void
   /** Opens one cited video. Index is its position in `response.sources`. */
   onSourceClick?: (source: SourceItem, index: number) => void
@@ -75,6 +86,7 @@ interface AIResponseOracleProps {
 export function AIResponseOracle({
   response,
   isLoading,
+  followUp = false,
   onExpandSources,
   onSourceClick,
   onOpenLibrary,
@@ -90,6 +102,8 @@ export function AIResponseOracle({
      early-return below — a hook added after it would unmount on the very
      transition it exists for. */
   const [pipelineStep, setPipelineStep] = useState(0)
+  const steps = followUp ? ORACLE_FOLLOWUP_STEPS : ORACLE_PIPELINE_STEPS
+  const responseMs = followUp ? ORACLE_FOLLOWUP_MS : ORACLE_RESPONSE_MS
 
   useEffect(() => {
     if (!isLoading) {
@@ -99,12 +113,12 @@ export function AIResponseOracle({
     /* Paced against the answer's own delay rather than a fixed tick, so the
        last step is still running when the response arrives instead of the
        pipeline sitting complete for a second or two. */
-    const per = ORACLE_RESPONSE_MS / (ORACLE_PIPELINE_STEPS.length + 1)
+    const per = responseMs / (steps.length + 1)
     const id = setInterval(() => {
-      setPipelineStep((s) => Math.min(s + 1, ORACLE_PIPELINE_STEPS.length - 1))
+      setPipelineStep((s) => Math.min(s + 1, steps.length - 1))
     }, per)
     return () => clearInterval(id)
-  }, [isLoading])
+  }, [isLoading, responseMs, steps.length])
 
   const handleOpenCitation = useCallback(
     (citation: Citation) => onOpenCitation?.(citation),
@@ -144,9 +158,12 @@ export function AIResponseOracle({
       <div className={['flex flex-col items-start pb-l w-full', className].filter(Boolean).join(' ')}>
         <div
           className="flex flex-col items-start overflow-hidden rounded-3xl w-full bg-bg-elements"
-          style={{ border: '1px solid var(--border-subtle)' }}
+          /* A follow-up card is painted at its final height from the first
+             frame, so it lands whole above the composer and the rows reveal
+             inside it instead of pushing the card's foot under the input. */
+          style={{ border: '1px solid var(--border-subtle)', minHeight: followUp ? 232 : undefined }}
         >
-          <AgentPipelineLoader steps={ORACLE_PIPELINE_STEPS} currentStep={pipelineStep} />
+          <AgentPipelineLoader steps={steps} currentStep={pipelineStep} />
         </div>
       </div>
     )

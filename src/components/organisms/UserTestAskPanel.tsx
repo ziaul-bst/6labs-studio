@@ -23,7 +23,10 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { UserTestAnswerCard } from '../molecules/UserTestAnswerCard'
+import { SectionHeading } from '../molecules/SectionHeading'
 import { UserPrompt } from '../atoms/UserPrompt'
+import { Spinner } from '../atoms/Spinner'
+import { SkeletonText } from '../atoms/Skeleton'
 import Button from '../ui/Button'
 import { SendIcon } from '../icons/SendIcon'
 import {
@@ -100,39 +103,54 @@ export function answerFor(question: string) {
 }
 
 /**
- * A spinner and one word while the answer is written.
+ * The answer sheet, arriving.
  *
- * It replaced a cycling status list ("Reading this run's findings…", "Matching
- * clips to the question…"). Those lines described real work, but they turned a
- * sub-second wait into a performance the reader was made to sit through, and
- * the last line was always still on screen when the answer arrived — so it read
- * as a claim about what had been done rather than as a wait. One steady label
- * says the same thing and gets out of the way.
+ * One steady status line — not a cycling list. A cycling list ("Reading this
+ * run's findings…", "Matching clips…") turned a sub-second wait into a
+ * performance, and its last line was always still on screen when the answer
+ * landed, so it read as a claim rather than a wait.
  *
- * On a document answer it waits *inside* the sheet, under the same agent block
- * the answer will carry. Bare on the page ground it was a grey line the width of
- * one word between two full-width cards, which is why it read as nothing
- * happening; the sheet arriving first, already signed, is the thing that says
- * an answer is coming and where it will be.
+ * On a document answer the sheet arrives first, already signed with the same
+ * agent block the answer will carry, and its body holds the shape of the
+ * summary it is about to contain: the real "01 Summary" heading with the
+ * status where its meta goes, then two paragraphs of skeleton text. Before
+ * this it was the header and one word of "Thinking…", and after the thread
+ * scrolled to it that one word sat under the composer — the visible state was
+ * a signed sheet with nothing in it.
  */
-function AnswerPending({ inSheet, header }: { inSheet?: boolean; header?: ReactNode }) {
-  const label = (
+function AnswerPending({
+  inSheet,
+  header,
+  sessionCount,
+}: {
+  inSheet?: boolean
+  header?: ReactNode
+  sessionCount: number
+}) {
+  const status = (
     <span
       className="inline-flex items-center gap-xs font-body text-s text-text-tertiary leading-[1.5]"
       role="status"
     >
-      <span className="testing-spinner-sm shrink-0" aria-hidden />
-      Thinking…
+      <Spinner size={16} tone="neutral" />
+      Reading {sessionCount} {sessionCount === 1 ? 'session' : 'sessions'}…
     </span>
   )
-  if (!inSheet) return label
+  if (!inSheet) return status
   return (
     <article
-      className="flex flex-col w-full rounded-2xl overflow-hidden"
+      className="skeleton-surface flex flex-col w-full rounded-2xl overflow-hidden"
       style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
+      aria-busy
     >
       {header}
-      <div className="px-l py-l">{label}</div>
+      <section className="flex flex-col gap-m px-l py-l">
+        <SectionHeading index="01" title="Summary" meta={status} />
+        <div className="flex flex-col gap-m max-w-[92ch]">
+          <SkeletonText lines={3} lineHeight={14} gap={12} lastWidth="62%" />
+          <SkeletonText lines={2} lineHeight={14} gap={12} lastWidth="40%" />
+        </div>
+      </section>
     </article>
   )
 }
@@ -166,7 +184,8 @@ export function UserTestAskPanel({
   /* Follow the newest turn. In a docked window the thread is taller than the
      window, so an answer that arrives below the fold reads as no answer. */
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    endRef.current?.scrollIntoView({ block: 'end', behavior: reduce ? 'auto' : 'smooth' })
   }, [turns.length, turns[turns.length - 1]?.answer])
 
   /* The deferred answer must land on whatever the thread looks like when the
@@ -261,12 +280,18 @@ export function UserTestAskPanel({
                     onHandoffToOracle={() => onHandoffToOracle?.(turn.question)}
                   />
                 ) : (
-                  <AnswerPending inSheet={answerLayout === 'document'} header={answerHeader} />
+                  <AnswerPending
+                    inSheet={answerLayout === 'document'}
+                    header={answerHeader}
+                    sessionCount={sessionCount}
+                  />
                 )}
               </div>
             </div>
           ))}
-          <div ref={endRef} aria-hidden />
+          {/* The composer is sticky over the foot of the thread, so "scroll to
+              the end" has to stop a composer's height short of it. */}
+          <div ref={endRef} aria-hidden style={{ scrollMarginBottom: 'var(--composer-clearance)' }} />
         </div>
       )}
 

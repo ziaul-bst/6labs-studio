@@ -6,7 +6,12 @@
  * against another screen and it holds.
  */
 
-import { MANY_TAG_BATCHES, type LibraryDemoState } from '../libraryDemoState'
+import {
+  LONG_LABEL_BATCHES,
+  LONG_LABEL_TITLES,
+  MANY_TAG_BATCHES,
+  type LibraryDemoState,
+} from '../libraryDemoState'
 import type {
   GameContextDoc,
   UserTestAskAnswer,
@@ -476,6 +481,24 @@ export function pickerVideosFor(state: LibraryDemoState): PickerVideo[] {
 
   if (state === 'failed') {
     return PICKER_VIDEOS.map((v) => ({ ...v, status: 'failed' as PickerStatus }))
+  }
+
+  /* The picker groups by tag, so a long tag lands in a GROUP HEADING here
+     rather than in a pill — a different fold, same source data. */
+  if (state === 'long-labels') {
+    const cycle = [GRADIENTS.a, GRADIENTS.b, GRADIENTS.c]
+    const sources: PickerSource[] = ['recorder', 'direct', 'cli']
+    return LONG_LABEL_BATCHES.map((tag, i) => ({
+      id: `ll-${i}`,
+      title: LONG_LABEL_TITLES[i % LONG_LABEL_TITLES.length],
+      duration: `${6 + i}:${String((i * 13) % 60).padStart(2, '0')}`,
+      meta: `${140 + i * 23} MB · Sep ${12 + i}`,
+      tag,
+      status: 'ready' as PickerStatus,
+      source: sources[i % sources.length],
+      recent: i < 2,
+      gradient: cycle[i % cycle.length],
+    }))
   }
 
   if (state === 'many-tags') {

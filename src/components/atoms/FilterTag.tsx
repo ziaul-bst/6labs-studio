@@ -2,6 +2,10 @@
  * FilterTag — selectable pill tag for filter sections.
  * States: default (outlined), selected (brand tint bg + brand text).
  *
+ * The label caps at the shared `.tag-label` measure: a tag row is a set of
+ * choices read side by side, and one long imported label must not push the
+ * rest of the set off the row. Full text on hover.
+ *
  * @figmaComponent  Filter Tags
  * @figmaNode       6425:222911
  * @figmaFile       i9fxQ6pXrgRITEzopoXpWL
@@ -21,9 +25,11 @@ export function FilterTag({ label, selected = false, onClick, className = '' }: 
       type="button"
       className={`filter-tag ${className}`}
       data-selected={String(selected)}
+      title={label}
+      aria-label={label}
       onClick={onClick}
     >
-      {label}
+      <span className="tag-label">{label}</span>
     </button>
   )
 }

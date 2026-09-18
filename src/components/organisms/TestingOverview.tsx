@@ -24,7 +24,7 @@ import { AIScaleIcon } from '../icons/AIScaleIcon'
 import { TestCaseGenIcon } from '../icons/TestCaseGenIcon'
 import { LocalizationIcon } from '../icons/LocalizationIcon'
 import type { IconProps } from '../icons/types'
-import { LockIcon } from '../icons/LockIcon'
+import { LockBadge } from '../atoms/LockBadge'
 import {
   TESTING_ACCENT_VARS,
   TESTING_TESTS,
@@ -175,15 +175,7 @@ function Tile({ test, locked, onOpen }: { test: TestingTestMeta; locked?: boolea
         )}
         {/* Locked is not SOON: the tile keeps its colour and stays clickable — it
             opens the pitch — and says so with a lock rather than by fading. */}
-        {locked && !soon && (
-          <span
-            className="inline-flex items-center gap-xxs px-xs py-xxxs rounded-xs font-display text-2xs font-semibold uppercase tracking-[0.12em]"
-            style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
-          >
-            <LockIcon size={12} />
-            Locked
-          </span>
-        )}
+        {locked && !soon && <LockBadge />}
       </div>
       <span
         className="font-display text-m font-semibold leading-[1.35] pt-xxs"

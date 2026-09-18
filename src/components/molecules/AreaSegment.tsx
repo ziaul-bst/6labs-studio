@@ -24,6 +24,7 @@ import type { ComponentType } from 'react'
 import { AREA_LABEL, type AreaEntitlement, type StudioArea } from '../../lib/studioAreas'
 import { IntelligenceIcon } from '../icons/IntelligenceIcon'
 import { TestRunIcon } from '../icons/TestRunIcon'
+import { LockIcon } from '../icons/LockIcon'
 import type { IconProps } from '../icons/types'
 
 export interface AreaSegmentProps {
@@ -134,8 +135,8 @@ export function AreaSegment({ areas, active, onChange, collapsed = false }: Area
               <span className="truncate">{AREA_LABEL[area]}</span>
               {/* Purchasable areas are marked, not locked out — the tab opens a pitch. */}
               {purchasable && (
-                <span className="ml-xxs shrink-0 font-body text-xs" aria-hidden>
-                  ↗
+                <span className="ml-xxs shrink-0 flex items-center text-text-tertiary" aria-hidden>
+                  <LockIcon size={12} />
                 </span>
               )}
             </button>

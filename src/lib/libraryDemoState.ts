@@ -15,12 +15,19 @@
  */
 import { useSyncExternalStore } from 'react'
 
-export type LibraryDemoState = 'default' | 'empty' | 'many-tags' | 'uploading' | 'failed'
+export type LibraryDemoState =
+  | 'default'
+  | 'empty'
+  | 'many-tags'
+  | 'long-labels'
+  | 'uploading'
+  | 'failed'
 
 export const LIBRARY_DEMO_STATES: LibraryDemoState[] = [
   'default',
   'empty',
   'many-tags',
+  'long-labels',
   'uploading',
   'failed',
 ]
@@ -30,6 +37,7 @@ export const LIBRARY_DEMO_LABELS: Record<LibraryDemoState, string> = {
   default: 'Default',
   empty: 'Empty',
   'many-tags': 'Many tags',
+  'long-labels': 'Long labels',
   uploading: 'Uploading',
   failed: 'Failed',
 }
@@ -39,9 +47,37 @@ export const LIBRARY_DEMO_NOTES: Record<LibraryDemoState, string> = {
   default: 'The seeded library — a few batches across every source.',
   empty: 'No videos at all: the first-run drop zone. The picker shows its own empty state.',
   'many-tags': '40+ tags, so the “+N more” menu has to scroll. Open it to check the list caps and scrolls.',
+  'long-labels':
+    'Tags and titles as they really arrive from an import — 40+ characters with nothing to break on. Every pill folds at one measure; the full string is on hover.',
   uploading: 'Every clip mid-transfer: progress bars, no duration, nothing selectable in the picker.',
   failed: 'Failed uploads with the error and Retry. Retry restarts the transfer.',
 }
+
+/**
+ * Tags and titles exactly as an import writes them: a source system's own
+ * naming, a pasted build path, a sentence somebody typed into a tag field.
+ * None of these are hypothetical — the first is the one that arrived from a
+ * partner's batch export and took the whole tag rail with it.
+ */
+export const LONG_LABEL_BATCHES: string[] = [
+  'B.A.N.K..O.F..B.A.R.O.D.A.BossFightv1.2',
+  'Build V2.2',
+  'release/2026-09-16/candidate-4-hotfix-matchmaking',
+  'Frost Festival',
+]
+
+export const LONG_LABEL_USER_TAGS: string[] = [
+  'regression-suite-full-pass-before-store-submission',
+  'onboarding',
+  'whiteoutsurvival_com.gof.global_tutorial_furnace_upgrade',
+  'retention',
+]
+
+/** A filename that came off a capture device rather than out of a person. */
+export const LONG_LABEL_TITLES: string[] = [
+  'ut-1209—WhiteoutSurvival_com.gof.global_2026-09-16T11-42-08Z_agent-02_portrait_1080x2340.mp4',
+  'CqHgH14ReFvYjK0C2MvYgVRDmojfIuG6gacn8x68b6MaRBOkCV3ljkbYXw2hCLL.mp4',
+]
 
 /**
  * A long, plausible tag vocabulary for the `many-tags` state. Real studios grow

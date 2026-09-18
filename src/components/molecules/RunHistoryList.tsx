@@ -27,6 +27,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react'
 import { SegmentedControl } from '../atoms/SegmentedControl'
+import { Spinner } from '../atoms/Spinner'
 import { IssueCountPill } from '../atoms/IssueCountPill'
 import { EventTag } from '../atoms/EventTag'
 import { CASE_OUTCOME_STYLE } from '../atoms/CaseOutcomeTag'
@@ -255,7 +256,7 @@ export function RunHistoryList({
                 inProgress ? 'In progress' : analysing ? 'Analysing' : failed ? 'Failed' : isQuestion ? 'Question' : 'Report'
               }
             >
-              {pending ? <span className="testing-spinner" /> : failed ? <FailedGlyph size={18} /> : isQuestion ? <QuestionGlyph /> : <ReportGlyph />}
+              {pending ? <Spinner size={18} tone="current" /> : failed ? <FailedGlyph size={18} /> : isQuestion ? <QuestionGlyph /> : <ReportGlyph />}
             </span>
 
             <span className="flex flex-col gap-xxxs min-w-0">
@@ -310,7 +311,7 @@ export function RunHistoryList({
                     e.stopPropagation()
                     onOpen?.(run)
                   }}
-                  leftIcon={<span className="testing-spinner" aria-hidden />}
+                  leftIcon={<Spinner size={16} tone="current" />}
                 >
                   Analysing…
                 </Button>

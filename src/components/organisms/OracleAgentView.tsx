@@ -36,7 +36,7 @@ import type { SourceItem } from '../molecules/SourcesGrid'
 import type { Citation } from '../../lib/types/citation'
 import { MOCK_SESSIONS } from '../../lib/mocks/radiologist-sessions'
 import { MOCK_EXCERPTS } from '../../lib/mocks/excerpts'
-import { ORACLE_RESPONSE_MS } from '../../lib/mocks/oracle-pipeline'
+import { ORACLE_FOLLOWUP_MS, ORACLE_RESPONSE_MS } from '../../lib/mocks/oracle-pipeline'
 
 const ORACLE_GRADIENT =
   'radial-gradient(circle at 60% 55%, #05C290 0%, #0E99BF 50%, #1770EF 100%)'
@@ -224,10 +224,14 @@ export function OracleAgentView({
       text: text,
     }
 
+    const isFirstMessage = threadHistoryId === null
+
     const aiMsg: ChatMessage = {
       id: `ai-${Date.now()}`,
       type: 'ai',
       isLoading: true,
+      /* In an open thread the loader is the short, thread-aware one. */
+      followUp: !isFirstMessage,
       response: {
         id: `resp-${Date.now()}`,
         sources: [],
@@ -237,7 +241,6 @@ export function OracleAgentView({
       },
     }
 
-    const isFirstMessage = threadHistoryId === null
     const historyId = isFirstMessage ? userMsg.id : threadHistoryId
 
     setMessages((prev) => [...prev, userMsg, aiMsg])
@@ -319,7 +322,7 @@ export function OracleAgentView({
       setViewState('result')
       onQueryComplete?.(historyId)
       if (externalSource) onExternalQueryComplete?.(externalSource)
-    }, ORACLE_RESPONSE_MS)
+    }, isFirstMessage ? ORACLE_RESPONSE_MS : ORACLE_FOLLOWUP_MS)
   }, [threadHistoryId, onQuerySubmit, onQueryComplete, onExternalQueryComplete])
 
   const handleSubmit = useCallback(() => {

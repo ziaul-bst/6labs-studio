@@ -150,8 +150,19 @@ export interface VerificationTotals {
 export interface Persona {
   id: string
   label: string
-  /** "day 0–3", "top 2% spend" */
+  /**
+   * The qualifier that rides beside the name everywhere the persona is named —
+   * a session header, a run fact, an agent row. Six words at most: it is read
+   * in passing, not studied. "day 0–3", "top 2% spend".
+   */
   detail: string
+  /**
+   * What the persona actually does, in a sentence. This is the player model's
+   * own description, so its length is not ours to control — which is why it is
+   * never laid out per row. The picker shows ONE of these at a time, for the
+   * persona under the cursor, in a strip that is always in the same place.
+   */
+  description: string
 }
 
 export type SessionLength = '15' | '30' | '60' | 'custom'
@@ -178,13 +189,39 @@ export interface AgentStep {
   observed?: string
   /** Seconds into the session when this screen was reached. */
   atSec: number
-  /** Fill for the stand-in frame — real builds ship a still here. */
-  scene: string
+  /**
+   * Fill for the stand-in frame — real builds ship a still here.
+   *
+   * ABSENT means the frame has not been captured yet, which is a real state on
+   * a live session: 6labs knows the agent reached this screen a beat before it
+   * has the picture of it. The well shows its waiting treatment rather than a
+   * blank box or, worse, the previous screen's frame.
+   */
+  scene?: string
+  /**
+   * The raw text an action carried, when it carried any — the skill file a
+   * player loaded, a prompt it sent, a response it got back. Thousands of
+   * characters, monospaced, and not prose: it is evidence you open when you
+   * doubt the one-line action above it, so it ships collapsed.
+   */
+  payload?: { label: string; body: string }
   /** Set when this moment fed a finding. The id points into the run's issues. */
   flag?: { kind: 'bug' | 'friction'; issueId: string; note: string }
 }
 
 export type AgentSessionStatus = 'live' | 'done'
+
+/**
+ * How the recording is shaped. Every 6labs recording is a phone screen
+ * capture, so PORTRAIT is the norm and the wells are built for it; landscape
+ * is the exception (a tablet build, an emulator run in landscape).
+ *
+ * It belongs to the session, not to the step: a device does not rotate
+ * halfway through a run, and every well that shows this session — the hero
+ * frame, the filmstrip, the card in the Videos grid — has to agree about the
+ * shape before it lays anything out.
+ */
+export type RecordingOrientation = 'portrait' | 'landscape'
 
 /** One AI player's session inside a behavioural run — one video in the Videos tab. */
 export interface AgentSession {
@@ -199,6 +236,8 @@ export interface AgentSession {
   steps: AgentStep[]
   /** "30 min" when done, "8m so far" while live. */
   durationLabel: string
+  /** Defaults to portrait — see RecordingOrientation. */
+  orientation?: RecordingOrientation
 }
 
 /** The facts about a behavioural run every screen of it repeats. */

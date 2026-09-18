@@ -39,7 +39,9 @@ export const ORACLE_PIPELINE_STEPS: PipelineStep[] = [
     title: 'Consulting Radiologist',
     activeSub: 'Scanning first-session recordings…',
     doneSub: '58 sessions scanned',
+    /* Informational, not a warning: the step found what it went looking for. */
     callout: {
+      type: 'info',
       lead: '58 sessions found',
       rest: ' — first-session recordings across the last three builds',
     },
@@ -49,6 +51,7 @@ export const ORACLE_PIPELINE_STEPS: PipelineStep[] = [
     activeSub: 'Weighing each session against the question…',
     doneSub: '41 sessions selected — 17 filtered out',
     callout: {
+      type: 'info',
       lead: '41 sessions',
       rest: ' selected with a clear tutorial run to compare',
     },
@@ -61,6 +64,38 @@ export const ORACLE_PIPELINE_STEPS: PipelineStep[] = [
   {
     title: 'Validating response',
     activeSub: 'Confirming accuracy against source data…',
+    doneSub: 'Every claim traced to a clip',
+  },
+]
+
+/**
+ * A follow-up in an open thread. Shorter, because the work is shorter: the
+ * question has already been understood once, the sessions have already been
+ * selected, and the thread IS the context. Running the first-question pipeline
+ * again here said "No prior context found in this thread" under an answer the
+ * reader had just finished — the loader contradicting the screen it sat on.
+ *
+ * Three steps, paced so the answer lands as the last one is still running.
+ * Number-light on purpose: a fixed "41 sessions" here would be a claim about
+ * whatever thread this happens to run in. The first answer above carries the
+ * numbers; the follow-up only has to say it is reading them.
+ */
+export const ORACLE_FOLLOWUP_MS = 4000
+
+export const ORACLE_FOLLOWUP_STEPS: PipelineStep[] = [
+  {
+    title: 'Reading the thread',
+    activeSub: 'Picking up what this thread has already established…',
+    doneSub: 'Anchored to the sessions and findings already in this thread',
+  },
+  {
+    title: 'Checking the sessions',
+    activeSub: 'Re-reading the sessions this thread already selected…',
+    doneSub: 'Selected sessions re-read — nothing new scanned',
+  },
+  {
+    title: 'Writing the answer',
+    activeSub: 'Drawing the answer from those sessions…',
     doneSub: 'Every claim traced to a clip',
   },
 ]

@@ -10,6 +10,14 @@
  * States: default (white, ruled), selected (brand tint, brand ink, the count
  * badge deepens to the stronger tint), hover (border darkens).
  *
+ * The rail is a row of choices read side by side, so the label caps at the
+ * shared `.tag-label` measure (wide here — a rail has more room than a card)
+ * and ellipsises past it. One tag arriving from an import as
+ * "B.A.N.K..O.F..B.A.R.O.D.A.BossFightv1.2" used to take the whole row and
+ * push every other batch onto a second line; folded, it costs one pill's
+ * width like every other choice. The count never folds — it is the reason the
+ * pill exists — and the full label stays on hover and in the aria-label.
+ *
  * Code-first prototype — no Figma source yet.
  */
 
@@ -52,12 +60,13 @@ export function FilterPill({
       aria-checked={menu ? undefined : selected}
       aria-expanded={menu ? selected : undefined}
       aria-label={count !== undefined ? `${label}, ${count}` : label}
+      title={label}
       disabled={disabled}
       onClick={onClick}
       className={[
         /* 40px tall — the same height as an Input size=lg, so a search field can
            share the row without a visible step. */
-        'filter-pill inline-flex items-center gap-xs rounded-round h-[40px] pl-m pr-xs',
+        'filter-pill inline-flex items-center gap-xs rounded-round h-[40px] pl-m pr-xs max-w-full',
         'font-display text-s font-semibold leading-[1.5] whitespace-nowrap',
         disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
         className,
@@ -74,10 +83,10 @@ export function FilterPill({
           count !== undefined ? undefined : trailing ? 'var(--space-s, 12px)' : 'var(--space-m, 16px)',
       }}
     >
-      {label}
+      <span className="tag-label tag-label-wide">{label}</span>
       {count !== undefined && (
         <span
-          className="inline-flex items-center justify-center min-w-[26px] px-xs rounded-round font-body text-xs font-medium leading-[1.6]"
+          className="inline-flex shrink-0 items-center justify-center min-w-[26px] px-xs rounded-round font-body text-xs font-medium leading-[1.6]"
           style={{
             backgroundColor: selected ? 'var(--bg-tint)' : 'var(--bg-subtle)',
             color: selected ? 'var(--text-brand)' : 'var(--text-secondary)',

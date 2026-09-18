@@ -303,7 +303,13 @@ export interface TestingTestPitch {
   headline: string
   /** Three concrete outcomes, phrased as what the studio gets. */
   outcomes: string[]
-  /** Row titles for the greyed sample-report preview. */
+  /**
+   * Masthead of the sample report on the pitch page. Optional for the SOON
+   * tests, which never render one; without it the first preview row stands in,
+   * which is what the old muted miniature did.
+   */
+  previewTitle?: string
+  /** Row titles for the sample-report preview. */
   previewRows: string[]
 }
 
@@ -325,7 +331,8 @@ export const TESTING_TESTS: TestingTestMeta[] = [
     pitch: {
       headline: 'Find where real players struggle in recorded sessions, ranked by how many testers hit each issue.',
       outcomes: ['Bugs and friction points by game step, each backed by clips.', 'Comparison against the previous build: new, still open and fixed.', 'Ask the run questions and get answers grounded in the recordings.'],
-      previewRows: ['“Upgrade Furnace” button unresponsive after tutorial hint', 'Repeated taps on locked Hero Recruit', 'Daily reward dialog overlaps chapter-complete popup', 'Backtracking between Alliance and World Map'],
+      previewTitle: 'Onboarding flow v3 · 10 sessions',
+      previewRows: ['“Upgrade Furnace” button unresponsive after tutorial hint', 'Repeated taps on locked Hero Recruit', 'Daily reward dialog overlaps chapter-complete popup'],
     },
   },
   {
@@ -333,7 +340,8 @@ export const TESTING_TESTS: TestingTestMeta[] = [
     pitch: {
       headline: 'Verify the tests your team already ran against the footage, case by case, without re-running anything.',
       outcomes: ['Every test case marked passed, failed or not verifiable, with the clip behind each result.', 'Regressions surfaced against the previous build, so new failures stand out from known ones.', 'Recordings become searchable by case, module and outcome.'],
-      previewRows: ['Battle Pass premium purchase', 'Furnace upgrade from tutorial hint', 'Purchase restore after reinstall', 'Complete the tutorial on a fresh install'],
+      previewTitle: 'Release candidate 4.2 · 96 cases',
+      previewRows: ['Furnace upgrade from tutorial hint', 'Purchase restore after reinstall', 'Complete the tutorial on a fresh install'],
     },
   },
   {
@@ -353,7 +361,8 @@ export const TESTING_TESTS: TestingTestMeta[] = [
     pitch: {
       headline: 'AI players play your build as real personas, and 6labs analyses the sessions exactly as it does human ones.',
       outcomes: ['Behavioural and UX findings before a single human tester is booked.', 'Personas derived from the player model, sharpened by every human session you add.', 'The same report and Q&A you get from a user test.'],
-      previewRows: ['Frost Festival — new player & whale · 20 sessions', 'Whales skip the battle pass upgrade path', 'New players stall at Research screen', 'Event shop not discovered by day 3'],
+      previewTitle: 'Frost Festival — new player & whale · 20 sessions',
+      previewRows: ['Whales skip the battle pass upgrade path', 'New players stall at Research screen', 'Event shop not discovered by day 3'],
     },
   },
   {
@@ -361,7 +370,8 @@ export const TESTING_TESTS: TestingTestMeta[] = [
     pitch: {
       headline: 'AI players execute your test cases on any build and report what passed, failed or could not be reached, with video.',
       outcomes: ['A full regression pass in about 30 minutes, without a tester in the loop.', 'Re-run any earlier build to confirm when a failure was introduced.', 'Every outcome carries the recording the agent produced.'],
-      previewRows: ['Season 9 — core loop · 24 cases', 'Battle Pass premium purchase', 'Chapter 2 unlock after Chapter 1 stars', 'Daily quest reset at 00:00 UTC'],
+      previewTitle: 'Season 9 — core loop · 24 cases',
+      previewRows: ['Battle Pass premium purchase', 'Chapter 2 unlock after Chapter 1 stars', 'Daily quest reset at 00:00 UTC'],
     },
   },
   {
@@ -396,19 +406,26 @@ export type TestingPlan = Partial<Record<TestingTestId, TestEntitlement>>
  * third preset, 'human-only' (both AI tests locked), was dropped when these
  * were renamed — nothing but its own label ever referenced it.
  */
-export type TestingPlanKey = 'unlocked' | 'locked'
+export type TestingPlanKey = 'unlocked' | 'locked-functional' | 'locked-behaviour'
 
 export const TESTING_PLAN_LABELS: Record<TestingPlanKey, string> = {
   unlocked: 'Unlocked',
-  locked: 'Locked',
+  'locked-functional': 'Functional locked',
+  'locked-behaviour': 'Behavioural locked',
 }
 
+/*
+ * Locked must sit on a LIVE test — a SOON test doesn't exist yet, so there is
+ * nothing to sell. That leaves four, and every one of them has a pitch page
+ * worth reviewing, so the two presets between them cover all four: one locks
+ * the pair that verifies test cases, the other the pair that looks for
+ * friction. Each preset keeps one test in each group unlocked, so the sidebar
+ * always shows a locked row beside an entitled one.
+ */
 export const TESTING_PLAN_PRESETS: Record<TestingPlanKey, TestingPlan> = {
   unlocked: {},
-  /* One test locked in each group, so both treatments are reviewable. Locked
-     must sit on a live test — a SOON test doesn't exist yet, so there is
-     nothing to sell. */
-  locked: { 'functional-test': 'locked', 'ai-functional-test': 'locked' },
+  'locked-functional': { 'functional-test': 'locked', 'ai-functional-test': 'locked' },
+  'locked-behaviour': { 'user-test': 'locked', 'ai-behavioural-test': 'locked' },
 }
 
 export function isTestLocked(plan: TestingPlan, id: string): boolean {

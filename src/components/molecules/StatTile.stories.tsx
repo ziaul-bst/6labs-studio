@@ -39,6 +39,30 @@ export const NonNumericValue: Story = {
   args: { value: '2h 14m', label: 'footage reviewed' },
 }
 
+/** The number is not known yet — same geometry, the value drawn as a skeleton bar. */
+export const Loading: Story = {
+  args: { value: '', label: 'footage reviewed', loading: true, surface: 'band' },
+  decorators: [
+    (Story) => (
+      <div className="p-l rounded-xl" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+        <Story />
+      </div>
+    ),
+  ],
+}
+
+/** A loading tile keeps its status dot, so the row's colour code is in place before the count. */
+export const LoadingWithDot: Story = {
+  args: { value: '', label: 'bugs', dot: 'var(--error)', loading: true, surface: 'band' },
+  decorators: [
+    (Story) => (
+      <div className="p-l rounded-xl" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+        <Story />
+      </div>
+    ),
+  ],
+}
+
 /** The four tiles as the summary blocks use them. */
 export const Row: Story = {
   render: () => (

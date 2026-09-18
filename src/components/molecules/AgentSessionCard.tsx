@@ -14,6 +14,8 @@
  */
 
 import { PlayIcon } from '../icons/PlayIcon'
+import { RecordingWell } from '../atoms/RecordingWell'
+import { useRecordingDemoState } from '../../lib/recordingDemoState'
 import type { AgentSession } from '../../lib/types/testing'
 
 export interface AgentSessionCardProps {
@@ -25,6 +27,7 @@ export interface AgentSessionCardProps {
 }
 
 export function AgentSessionCard({ session, onOpen, hidePersona = false, className }: AgentSessionCardProps) {
+  const demoOrientation = useRecordingDemoState()
   const live = session.status === 'live'
   const latest = session.steps[Math.max(0, session.reached - 1)]
   /* A live card shows where the agent is; a finished one shows a screen from
@@ -32,6 +35,7 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
      twenty recordings rather than one. */
   const current = live ? latest : session.steps[Math.min(session.steps.length - 1, 2 + (session.index % 6))]
   const title = hidePersona ? `Agent ${session.index + 1}` : `${session.persona} · agent ${session.index + 1}`
+  const orientation = session.orientation ?? demoOrientation
 
   return (
     <button
@@ -46,15 +50,26 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
         .join(' ')}
       style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
     >
-      {/* The frame — the screen the agent is on. Stand-in gradient until real
-          stills ship; the HUD bars keep it reading as a game screen. */}
-      <span className="relative block w-full overflow-hidden" style={{ aspectRatio: '16 / 10', background: current.scene }}>
-        <span className="absolute left-s top-s flex gap-xxs" aria-hidden>
-          <i className="block w-[40px] h-[8px] rounded-xs" style={{ backgroundColor: 'rgba(255,220,130,0.5)' }} />
-          <i className="block w-[26px] h-[8px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
-          <i className="block w-[26px] h-[8px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
-        </span>
-
+      {/* The frame — the screen the agent is on, in the same well the session
+          viewer uses, so a portrait capture is shaped the same way in the grid
+          as it is on the page the grid opens into. A card gets a squarer box
+          than the viewer does: at 280px wide there is no room to spend on
+          ambience. Stand-in gradient until real stills ship; the HUD bars keep
+          it reading as a game screen. */}
+      <RecordingWell
+        scene={current.scene}
+        orientation={orientation}
+        compact
+        className="w-full"
+        style={{ aspectRatio: orientation === 'portrait' ? '4 / 3' : '16 / 10' }}
+        pane={
+          <span className="absolute left-xxs top-xxs flex gap-xxxs" aria-hidden>
+            <i className="block w-[24px] h-[6px] rounded-xs" style={{ backgroundColor: 'rgba(255,220,130,0.5)' }} />
+            <i className="block w-[16px] h-[6px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
+            <i className="block w-[16px] h-[6px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
+          </span>
+        }
+      >
         {live ? (
           <span
             className="absolute right-s top-s inline-flex items-center gap-xxs px-xs py-xxxs rounded-round font-display text-2xs font-semibold uppercase tracking-[0.08em]"
@@ -94,7 +109,7 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
             />
           </span>
         )}
-      </span>
+      </RecordingWell>
 
       {/* Who played it, and nothing else.
           The body used to carry a persona dot, and under the title either the

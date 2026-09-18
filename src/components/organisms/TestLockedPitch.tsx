@@ -7,23 +7,37 @@
  * hides. Its row stays in the sidebar and its tile stays on the Overview, both
  * marked with a lock, and selecting either lands here.
  *
- * The screen answers three questions in order: what is this and why can't I
- * use it (status banner), what would I get (outcomes), and how do I get it
- * (Contact sales — the only path, since tests are enabled per workspace by the
- * sales team). The sample report is a recognisable output, greyed and capped
- * with the lock, rather than marketing art.
+ * Four bands, one idea each, in the order a reader actually asks them:
+ *
+ *   Hero            what this is — and, in the scene, what the test is made of
+ *   How it works    three stages — and the one that differs between human and AI
+ *   What you get    three outcomes, each on its own flat drawing
+ *   Finished run    the real output, full width, every row carrying its clips
+ *   How to unlock   the three steps, and the button that starts them
+ *
+ * The ask is at the FOOT, not in the hero: a reader met the button before the
+ * argument and then had nothing to press once they had finished reading. The
+ * page now ends on proof, then action.
+ *
+ * What it replaced: a grey "not included in your plan" strip, a bullet card
+ * carrying a second primary, and a desaturated miniature behind a dashed
+ * panel, a gradient fade and a button-shaped pill that wasn't a button.
  *
  * Code-first prototype — no Figma source yet.
  */
 
-import type { ComponentType } from 'react'
-import { TestingPageHeader } from '../molecules/TestingPageHeader'
+import type { ComponentType, CSSProperties } from 'react'
+import { PitchClose, PitchFlow, PitchHero, PitchOutcomes, PitchSection, type PitchFlowStep } from '../molecules/LockedPitchPieces'
+import { PitchScene } from '../molecules/PitchScene'
+import type { PitchArtKey } from '../molecules/PitchArt'
+import { SUPPORT_EMAIL } from '../molecules/ContactSalesDialog'
+import { SampleCaseReport, SampleFindingReport } from '../molecules/PitchSampleReport'
 import Button from '../ui/Button'
-import { LockIcon } from '../icons/LockIcon'
-import { CheckIcon } from '../icons/CheckIcon'
 import { TESTING_ICONS } from './TestingOverview'
-import { TESTING_ACCENT_VARS, type TestingTestMeta } from '../../lib/studioAreas'
+import { TESTING_ACCENT_VARS, type TestingTestId, type TestingTestMeta } from '../../lib/studioAreas'
 import type { IconProps } from '../icons/types'
+import type { CaseOutcome } from '../../lib/types/testing'
+import type { IssueSeverity } from '../../lib/types/userTest'
 
 export interface TestLockedPitchProps {
   test: TestingTestMeta
@@ -36,11 +50,111 @@ export interface TestLockedPitchProps {
   className?: string
 }
 
-const PREVIEW_OUTCOMES = ['fail', 'pass', 'review', 'pass'] as const
-const OUTCOME_CHIP = {
-  pass: { label: 'Passed', bg: 'var(--success-bg)', ink: 'var(--success)' },
-  fail: { label: 'Failed', bg: 'var(--error-bg)', ink: 'var(--error)' },
-  review: { label: 'Needs review', bg: 'var(--warning-bg)', ink: '#8A6300' },
+/**
+ * Which drawing sits on each outcome tile. Art is presentation, not copy, so
+ * it lives here rather than in the pitch data — the sentences stay the PM's.
+ */
+const OUTCOME_ART: Partial<Record<TestingTestId, PitchArtKey[]>> = {
+  'user-test': ['clips', 'compare', 'ask'],
+  'functional-test': ['report', 'compare', 'search'],
+  'ai-behavioural-test': ['report', 'personas', 'ask'],
+  'ai-functional-test': ['clock', 'rerun', 'clips'],
+}
+
+/**
+ * How the test works, in three stages — and the reason this band exists.
+ *
+ * A human test and its AI counterpart end in the same report, so their pitch
+ * pages were reading as the same product. Only the FIRST stage differs, and it
+ * differs completely: on a human test the studio supplies the footage, on an
+ * AI test 6labs' own players produce it from a persona and a brief. Stages two
+ * and three are deliberately identical, because they are.
+ */
+function flowFor(test: TestingTestMeta): PitchFlowStep[] {
+  const ai = test.group === 'ai'
+  const verifies = test.id === 'functional-test' || test.id === 'ai-functional-test'
+
+  const source: PitchFlowStep = ai
+    ? {
+        art: 'aiplayer',
+        title: verifies ? 'AI players execute your cases' : 'AI players play your build',
+        body: verifies
+          ? 'No footage needed. You pick the build and the test cases; 6labs players run them on a real device and record themselves.'
+          : 'No footage needed. You pick the personas and write the brief; 6labs players play the build and record themselves.',
+      }
+    : {
+        art: 'upload',
+        title: verifies ? 'You add the recordings and your cases' : 'You add the recordings',
+        body: verifies
+          ? "Your own testers' sessions, uploaded to the Gameplay Library, plus the case sheet they were run against."
+          : "Your own testers' sessions, uploaded to the Gameplay Library or pushed from the recorder app.",
+      }
+
+  return [
+    source,
+    {
+      art: 'analysis',
+      title: verifies ? '6labs verifies every case' : '6labs reads every session',
+      body: 'Screen by screen, against the game context you have already given it — the same analysis whoever produced the footage.',
+    },
+    {
+      art: 'report',
+      title: 'You get the report',
+      body: verifies
+        ? 'Every case marked pass, failed or need review, each with the clip behind its result.'
+        : 'Findings ranked by how many sessions hit them, each with the clips behind them.',
+    },
+  ]
+}
+
+/**
+ * The sample each test shows, in the shape of the report it writes.
+ *
+ * A functional test verifies CASES and leads with coverage; a user or
+ * behavioural test ranks FINDINGS and leads with what the run was made of.
+ * Two different documents, so two different samples — printing one table for
+ * both was the pitch showing the wrong product's report.
+ *
+ * Sample numbers, consistent with the fixtures the real screens use, and the
+ * band that holds this is labelled "Sample data".
+ */
+const CASE_OUTCOMES: CaseOutcome[] = ['fail', 'pass', 'review']
+const FINDING_SEVERITIES: IssueSeverity[] = ['blocking', 'disruptive', 'cosmetic']
+const SAMPLE_CLIPS = [4, 2, 3]
+
+/** Coverage and the headline over it — the first question a case report answers. */
+const SAMPLE_COVERAGE: Partial<Record<TestingTestId, { headline: string; coverage: { pass: number; fail: number; review: number; notRun: number } }>> = {
+  'functional-test': {
+    headline: '62 of 96 cases verified',
+    coverage: { pass: 41, fail: 12, review: 9, notRun: 34 },
+  },
+  'ai-functional-test': {
+    headline: '24 of 24 cases verified, in 28 minutes',
+    coverage: { pass: 19, fail: 2, review: 3, notRun: 0 },
+  },
+}
+
+/** What the run was made of — the masthead numbers a findings report leads with. */
+const SAMPLE_TILES: Partial<Record<TestingTestId, Array<{ value: string; label: string; dot?: string }>>> = {
+  'user-test': [
+    { value: '10', label: 'sessions analysed' },
+    { value: '2h 14m', label: 'footage reviewed' },
+    { value: '3', label: 'bugs', dot: 'var(--error)' },
+    { value: '4', label: 'friction points', dot: 'var(--warning)' },
+  ],
+  'ai-behavioural-test': [
+    { value: '2', label: 'personas' },
+    { value: '20', label: 'sessions played' },
+    { value: '10h', label: 'footage reviewed' },
+    { value: '3', label: 'bugs', dot: 'var(--error)' },
+    { value: '4', label: 'friction points', dot: 'var(--warning)' },
+  ],
+}
+
+/** "User test and AI behavioural test" · "A, B and C". */
+function listOf(items: string[]): string {
+  if (items.length <= 1) return items.join('')
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
 }
 
 export function TestLockedPitch({
@@ -52,137 +166,114 @@ export function TestLockedPitch({
   className,
 }: TestLockedPitchProps) {
   const Icon = TESTING_ICONS[test.icon] as ComponentType<IconProps> | undefined
-  const vars = TESTING_ACCENT_VARS[test.accent]
   const pitch = test.pitch
+  /* A functional test decides cases; the other two rank findings. */
+  const verifiesCases = test.id === 'functional-test' || test.id === 'ai-functional-test'
+  const sampleRows = pitch.previewTitle ? pitch.previewRows : pitch.previewRows.slice(1)
+  const sampleTitle = pitch.previewTitle ?? pitch.previewRows[0]
+  const sampleMeta = `Sep 5 · ${test.group === 'ai' ? 'AI player sessions' : 'your recordings'}`
 
   return (
-    <div className={['flex flex-col gap-l page-measure pt-[120px] pb-xxl3', className].filter(Boolean).join(' ')}>
-      <TestingPageHeader title={test.label} description={pitch.headline} icon={Icon ? <Icon size={32} /> : null} accent={test.accent} />
+    <div className={['flex flex-col gap-xxl2 page-measure pt-[120px] pb-xxl3', className].filter(Boolean).join(' ')}>
+      <PitchHero
+        icon={Icon ? <Icon size={32} /> : null}
+        visual={<PitchScene test={test.id} accent={TESTING_ACCENT_VARS[test.accent].ink} />}
+        accent={test.accent}
+        eyebrow={
+          test.group === 'ai'
+            ? 'AI player testing · 6labs plays your build'
+            : 'Human testing · your own recordings'
+        }
+        title={test.label}
+        description={pitch.headline}
+      />
 
-      {/* 1 · Status — why this page and not the product */}
-      <div
-        className="flex items-center gap-s rounded-2xl px-l py-m"
-        style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-default)' }}
-        role="status"
+      <PitchSection label="How it works" style={{ '--pitch-delay': '90ms' } as CSSProperties}>
+        <PitchFlow steps={flowFor(test)} accent={test.accent} />
+      </PitchSection>
+
+      <PitchSection label="What you get" style={{ '--pitch-delay': '180ms' } as CSSProperties}>
+        <PitchOutcomes outcomes={pitch.outcomes} art={OUTCOME_ART[test.id]} accent={test.accent} />
+      </PitchSection>
+
+      <PitchSection
+        label="What a finished run looks like"
+        trailing={
+          <span className="font-body text-xs text-text-tertiary leading-[1.5] whitespace-nowrap">Sample data</span>
+        }
+        style={{ '--pitch-delay': '270ms' } as CSSProperties}
       >
-        <span
-          className="flex items-center justify-center shrink-0 w-[36px] h-[36px] rounded-l"
-          style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
-          aria-hidden
-        >
-          <LockIcon size={20} />
-        </span>
-        <div className="flex flex-col gap-xxxs flex-1 min-w-0">
-          <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
-            {test.label} is not included in your plan
-          </span>
-          <span className="font-body text-s text-text-secondary leading-[1.5]">
-            {includedTests.length > 0
-              ? `Your plan includes ${includedTests.join(', ')}. Tests are added per workspace by our sales team.`
-              : 'Tests are added per workspace by our sales team.'}
-          </span>
-        </div>
-        <Button variant="primary" size="lg" onClick={() => onContactSales?.(test)}>
-          Contact sales
-        </Button>
-      </div>
+        {/* Full width and fully legible: this is the thing being sold, so it is
+            shown at the size the real one is read at, in the shape the real one
+            has. Nothing sits on top of it. */}
+        {verifiesCases ? (
+          <SampleCaseReport
+            title={sampleTitle}
+            meta={sampleMeta}
+            headline={SAMPLE_COVERAGE[test.id]?.headline ?? ''}
+            coverage={SAMPLE_COVERAGE[test.id]?.coverage ?? { pass: 19, fail: 2, review: 3, notRun: 0 }}
+            rows={sampleRows.map((label, i) => ({
+              label,
+              outcome: CASE_OUTCOMES[i] ?? 'pass',
+              clips: SAMPLE_CLIPS[i] ?? 3,
+            }))}
+          />
+        ) : (
+          <SampleFindingReport
+            title={sampleTitle}
+            meta={sampleMeta}
+            tiles={SAMPLE_TILES[test.id] ?? []}
+            rows={sampleRows.map((label, i) => ({
+              label,
+              severity: FINDING_SEVERITIES[i] ?? 'cosmetic',
+              reach: test.group === 'ai' ? `${16 - i * 6} / 20 agents` : `${6 - i * 2} / 10 sessions`,
+              clips: SAMPLE_CLIPS[i] ?? 3,
+            }))}
+          />
+        )}
+      </PitchSection>
 
-      <div className="grid gap-l w-full items-stretch" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' }}>
-        {/* 2 · What you get */}
-        <div
-          className="flex flex-col gap-l rounded-3xl px-xl py-xl"
-          style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
-        >
-          <div className="flex flex-col gap-xxs">
-            <span className="font-display text-xs font-semibold uppercase tracking-[0.08em] text-text-tertiary">What you get</span>
-            <h2 className="font-display text-l font-semibold text-text-primary leading-[1.3]">{test.tagline}</h2>
-          </div>
-          <ul className="flex flex-col gap-m list-none m-0 p-0">
-            {pitch.outcomes.map((o) => (
-              <li key={o} className="flex items-start gap-s">
-                <span
-                  className="flex items-center justify-center shrink-0 w-6 h-6 rounded-round mt-xxxs"
-                  style={{ backgroundColor: vars.bg, color: vars.ink }}
-                  aria-hidden
-                >
-                  <CheckIcon size={12} />
-                </span>
-                <span className="font-body text-s text-text-primary leading-[1.6]">{o}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="flex flex-col gap-s pt-m mt-auto" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-            <p className="font-body text-s text-text-secondary leading-[1.6]">{carriesOver}</p>
-            <div className="flex items-center gap-s flex-wrap">
-              <Button variant="primary" size="md" onClick={() => onContactSales?.(test)}>
-                Contact sales
-              </Button>
-              <Button variant="secondary" size="md" onClick={() => onSeeSample?.(test)}>
-                See a sample report
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* 3 · A recognisable output, greyed and locked */}
-        <div
-          className="relative flex flex-col gap-s rounded-3xl px-xl py-xl overflow-hidden"
-          style={{ backgroundColor: 'var(--bg-page-pale)', border: '1px dashed var(--border-default)' }}
-          aria-hidden
-        >
-          <div className="flex items-center gap-xs">
-            <span className="font-display text-xs font-semibold uppercase tracking-[0.08em] text-text-tertiary">Sample report</span>
-            <span className="font-body text-xs text-text-tertiary">· what a finished run looks like</span>
-          </div>
-          <div
-            className="flex flex-col rounded-2xl overflow-hidden"
-            style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)', filter: 'saturate(0.35)', opacity: 0.9 }}
-          >
-            <div className="flex items-center gap-s px-m py-s" style={{ backgroundColor: 'var(--bg-page-pale)', borderBottom: '1px solid var(--border-subtle)' }}>
-              <span className="font-display text-s font-semibold text-text-primary truncate">{pitch.previewRows[0]}</span>
-              <span className="flex-1" />
-              <span className="font-body text-xs text-text-tertiary whitespace-nowrap">Sep 5 · 8 videos</span>
-            </div>
-            {pitch.previewRows.slice(1).map((row, i) => {
-              const chip = OUTCOME_CHIP[PREVIEW_OUTCOMES[i] ?? 'pass']
-              return (
-                <div key={row} className="flex items-center gap-s px-m py-s" style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)' }}>
-                  <span
-                    className="flex items-center justify-center shrink-0 w-6 h-6 rounded-m font-display text-xs font-semibold"
-                    style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="flex-1 min-w-0 font-body text-s text-text-primary truncate">{row}</span>
-                  <span
-                    className="inline-flex items-center px-xs py-xxxs rounded-s font-display text-2xs font-semibold whitespace-nowrap"
-                    style={{ backgroundColor: chip.bg, color: chip.ink }}
-                  >
-                    {chip.label}
-                  </span>
-                </div>
-              )
-            })}
-            <div className="flex items-center gap-s px-m py-s" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-              {[0, 1, 2].map((k) => (
-                <span key={k} className="block h-[8px] rounded-xs" style={{ width: `${28 - k * 6}%`, backgroundColor: 'var(--bg-subtle)' }} />
-              ))}
-            </div>
-          </div>
-          <div
-            className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-xl pt-xxl2 pointer-events-none"
-            style={{ background: 'linear-gradient(180deg, rgba(245,245,245,0) 0%, var(--bg-page-pale) 70%)' }}
-          >
-            <span
-              className="inline-flex items-center gap-xs rounded-round px-m py-xs font-display text-s font-semibold"
-              style={{ backgroundColor: 'var(--bg-elements)', color: 'var(--text-primary)', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-sm)' }}
-            >
-              <LockIcon size={16} />
-              Unlocked by sales for your workspace
-            </span>
-          </div>
-        </div>
-      </div>
+      <PitchSection label="How to unlock it" style={{ '--pitch-delay': '360ms' } as CSSProperties}>
+        <PitchClose
+          steps={[
+            {
+              title: 'Tell us you want it',
+              body: (
+                <>
+                  Press Contact sales, or mail{' '}
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-text-brand font-semibold hover:underline">
+                    {SUPPORT_EMAIL}
+                  </a>
+                  .
+                </>
+              ),
+            },
+            {
+              title: 'We switch it on here',
+              body: `${test.label} is enabled on this workspace — no new account, nothing to install.`,
+            },
+            /* "Start where you are", not "run it the same day": how fast we
+               switch a test on is not ours to promise on a page. What is true
+               is that nothing has to be set up again. */
+            { title: 'Start where you are', body: carriesOver },
+          ]}
+          action={
+            <Button variant="primary" size="lg" onClick={() => onContactSales?.(test)}>
+              Contact sales
+            </Button>
+          }
+          secondaryAction={
+            <Button variant="secondary" size="lg" onClick={() => onSeeSample?.(test)}>
+              See a sample report
+            </Button>
+          }
+          planLine={
+            includedTests.length > 0
+              ? `Your plan already includes ${listOf(includedTests)}. Tests are added per workspace by our team.`
+              : 'Tests are added per workspace by our team.'
+          }
+        />
+      </PitchSection>
     </div>
   )
 }

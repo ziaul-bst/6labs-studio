@@ -306,14 +306,24 @@ export function UploadVideosModal({
                   style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-default)' }}
                   onClick={() => document.getElementById('batch-tag-input')?.focus()}
                 >
+                  {/* Folds at the shared tag measure — the first tag typed here
+                      becomes the batch name, and a batch pasted out of a
+                      partner's export is where the 40-character tags come from
+                      in the first place. */}
                   {tags.map((t) => (
                     <span
                       key={t}
-                      className="inline-flex items-center gap-xxs pl-s pr-xs py-xxxs rounded-round font-body text-xs"
+                      title={t}
+                      className="inline-flex items-center gap-xxs max-w-full pl-s pr-xs py-xxxs rounded-round font-body text-xs"
                       style={{ backgroundColor: 'var(--bg-tint-light)', color: 'var(--brand)' }}
                     >
-                      {t}
-                      <button type="button" onClick={() => removeTag(t)} aria-label={`Remove tag ${t}`} className="inline-flex">
+                      <span className="tag-label tag-label-wide">{t}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeTag(t)}
+                        aria-label={`Remove tag ${t}`}
+                        className="inline-flex shrink-0"
+                      >
                         <CloseIcon size={12} />
                       </button>
                     </span>

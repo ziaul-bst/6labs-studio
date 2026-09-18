@@ -14,15 +14,16 @@
 
 // ── Oracle ────────────────────────────────────────────────────────────────────
 
-export type OracleDemoState = 'seeded' | 'first-run' | 'thread' | 'thinking'
+export type OracleDemoState = 'seeded' | 'first-run' | 'thread' | 'thinking' | 'followup'
 
-export const ORACLE_DEMO_STATES: OracleDemoState[] = ['seeded', 'first-run', 'thread', 'thinking']
+export const ORACLE_DEMO_STATES: OracleDemoState[] = ['seeded', 'first-run', 'thread', 'thinking', 'followup']
 
 export const ORACLE_DEMO_LABELS: Record<OracleDemoState, string> = {
   seeded: 'Seeded',
   'first-run': 'First run',
   thread: 'Answered',
   thinking: 'Thinking',
+  followup: 'Follow-up thinking',
 }
 
 export const ORACLE_DEMO_NOTES: Record<OracleDemoState, string> = {
@@ -30,6 +31,8 @@ export const ORACLE_DEMO_NOTES: Record<OracleDemoState, string> = {
   'first-run': 'A brand-new workspace: no history at all, so the sidebar section disappears too.',
   thread: 'An answered thread open, with citations, sources and related prompts.',
   thinking: 'Mid-response: the question is in, the answer is still resolving.',
+  followup:
+    'A follow-up asked in an answered thread — the short, thread-aware loader, held open. Normally a four-second window.',
 }
 
 /** The seeded thread the "Answered" state opens — first entry of DEFAULT_ORACLE_HISTORY. */

@@ -83,7 +83,8 @@ type ActiveNav =
  * Intelligence, `overview` for Testing — so the two never read as the same
  * "Home" in the collapsed 60px column.
  */
-const NAV_ICONS: Record<NavIconKey, ComponentType<IconProps>> = {
+/** Exported so a locked area's pitch can draw its rows with the same glyphs. */
+export const NAV_ICONS: Record<NavIconKey, ComponentType<IconProps>> = {
   query: QueryIcon,
   overview: GridIcon,
   oracle: OracleIcon,

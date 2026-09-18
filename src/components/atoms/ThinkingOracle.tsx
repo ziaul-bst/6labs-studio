@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { Spinner } from './Spinner'
 
 const THINKING_STEPS = [
   'Analyzing Prompt...',
@@ -50,10 +51,7 @@ export function ThinkingOracle({ steps = THINKING_STEPS, className }: ThinkingOr
         .filter(Boolean)
         .join(' ')}
     >
-      <svg className="oracle-step-spinner shrink-0" width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="6.5" stroke="var(--border-subtle)" strokeWidth="1.5" />
-        <path d="M8 1.5a6.5 6.5 0 0 1 6.5 6.5" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
+      <Spinner size={16} tone="neutral" />
       <span
         className="font-body text-s font-normal leading-[1.5] oracle-shimmer-text"
         style={{ opacity: visible ? 1 : 0, transition: 'opacity 250ms ease' }}

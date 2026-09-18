@@ -113,14 +113,23 @@ export function AddTagsDialog({ isOpen, onClose, count, suggestions = [], onConf
               style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-default)' }}
               onClick={() => document.getElementById('bulk-tag-input')?.focus()}
             >
+              {/* A committed tag folds at the shared measure like every other
+                  tag surface — the remove control is what the chip is for, and
+                  a 40-character label must not push it out of reach. */}
               {tags.map((t) => (
                 <span
                   key={t}
-                  className="inline-flex items-center gap-xxs pl-s pr-xs py-xxxs rounded-round font-body text-xs"
+                  title={t}
+                  className="inline-flex items-center gap-xxs max-w-full pl-s pr-xs py-xxxs rounded-round font-body text-xs"
                   style={{ backgroundColor: 'var(--bg-tint-light)', color: 'var(--brand)' }}
                 >
-                  {t}
-                  <button type="button" onClick={() => remove(t)} aria-label={`Remove tag ${t}`} className="inline-flex">
+                  <span className="tag-label tag-label-wide">{t}</span>
+                  <button
+                    type="button"
+                    onClick={() => remove(t)}
+                    aria-label={`Remove tag ${t}`}
+                    className="inline-flex shrink-0"
+                  >
                     <CloseIcon size={12} />
                   </button>
                 </span>

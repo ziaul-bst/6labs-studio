@@ -10,6 +10,7 @@
 
 import { useState, useCallback } from 'react'
 import { VideoControlsBar } from './VideoControlsBar'
+import { RecordingWell } from '../atoms/RecordingWell'
 import { ClockIcon } from '../icons/ClockIcon'
 import type { SessionEvent } from '../../lib/types/radiologist'
 
@@ -83,8 +84,12 @@ export function VideoPlayerThumbnail({
         style={{ aspectRatio: '392 / 220', backgroundColor: 'black' }}
         onClick={handlePlayPause}
       >
+        {/* Contained rather than cropped: this is the full-size player, and a
+            player that crops a portrait capture to its middle third is showing
+            the wrong thing at the one size where it matters. The blurred copy
+            behind fills the room the shape leaves. */}
         {thumbnailSrc ? (
-          <img src={thumbnailSrc} alt="Session recording" className="absolute inset-0 w-full h-full object-cover" />
+          <RecordingWell src={thumbnailSrc} orientation="landscape" fill />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-base-910 to-base-950" />
         )}

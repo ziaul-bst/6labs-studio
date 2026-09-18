@@ -23,6 +23,8 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import Button from '../ui/Button'
 import { RefreshIcon } from '../icons/RefreshIcon'
+import { Spinner } from '../atoms/Spinner'
+import { ProgressBar } from '../atoms/ProgressBar'
 
 /** Callout note surfaced under a step once it produces a finding. */
 export interface PipelineCallout {
@@ -30,8 +32,12 @@ export interface PipelineCallout {
   lead: string
   /** Regular-weight remainder, appended after the lead */
   rest?: string
-  /** Figma Note `Type` variant. `normal` is the success-green tint. */
-  type?: 'normal' | 'error' | 'warning' | 'notice'
+  /**
+   * Figma Note `Type` variant. `normal` is the success-green tint. `info` is
+   * the brand tint for a step reporting what it found — the default, and the
+   * one variant the Figma set does not have yet.
+   */
+  type?: 'info' | 'normal' | 'error' | 'warning' | 'notice'
 }
 
 export interface PipelineStep {
@@ -71,6 +77,7 @@ interface AgentPipelineLoaderProps {
  * neutral grey — each variant is a status tint at 10% with a solid 4px accent.
  */
 const CALLOUT_TINT: Record<NonNullable<PipelineCallout['type']>, { bg: string; accent: string }> = {
+  info: { bg: 'var(--bg-tint-light)', accent: 'var(--brand)' },
   normal: { bg: 'var(--success-bg)', accent: 'var(--success)' },
   error: { bg: 'var(--error-bg)', accent: 'var(--error)' },
   warning: { bg: 'var(--warning-bg)', accent: 'var(--warning)' },
@@ -105,7 +112,8 @@ export function AgentPipelineLoader({
 
   return (
     <div className={['flex flex-col w-full', className].filter(Boolean).join(' ')}>
-      {!isError && <ProgressRail value={progress} />}
+      {/* 3px rail flush along the top edge — the one ProgressBar, in its rail shape. */}
+      {!isError && <ProgressBar variant="rail" value={progress} label="Pipeline progress" />}
 
       {header != null && <div className="w-full px-l pt-l">{header}</div>}
 
@@ -161,27 +169,6 @@ export function AgentPipelineLoader({
   )
 }
 
-/** 3px rail flush along the top edge — track + brand fill. */
-function ProgressRail({ value }: { value: number }) {
-  return (
-    <div
-      className="w-full h-[3px] shrink-0 overflow-hidden"
-      style={{ backgroundColor: 'var(--border-subtle)' }}
-      role="progressbar"
-      aria-valuenow={value}
-      aria-valuemin={0}
-      aria-valuemax={100}
-    >
-      {/* Scaled rather than width-animated — keeps the fill on the compositor
-          and off the layout path, which a `width` transition here is not. */}
-      <div
-        className="h-full w-full origin-left transition-transform duration-500 ease-out"
-        style={{ transform: `scaleX(${value / 100})`, backgroundColor: 'var(--brand)' }}
-      />
-    </div>
-  )
-}
-
 function StepRow({
   step,
   status,
@@ -207,7 +194,9 @@ function StepRow({
 
   return (
     <li
-      className="flex gap-s items-stretch w-full"
+      /* Rows are keyed by title and revealed one at a time, so the entrance
+         plays once per row, on the render that adds it. */
+      className="pipeline-step-enter flex gap-s items-stretch w-full"
       aria-current={status === 'active' ? 'step' : undefined}
     >
       {/* Status rail — 20px column, indicator + connector */}
@@ -260,9 +249,14 @@ function StepRow({
   )
 }
 
-/** Tinted note with a 4px left accent bar (Figma renders this as an inner shadow). */
+/**
+ * Tinted note with a 4px left accent bar (Figma renders this as an inner shadow).
+ * An untyped callout is informational — a step reporting what it found — so it
+ * takes the brand tint. It used to default to warning, which painted "58
+ * sessions found" amber as if something had gone wrong.
+ */
 function CalloutNote({ callout }: { callout: PipelineCallout }) {
-  const tint = CALLOUT_TINT[callout.type ?? 'warning']
+  const tint = CALLOUT_TINT[callout.type ?? 'info']
   return (
     <div
       className="flex flex-col gap-xxs w-full rounded-xs mt-xxs"
@@ -323,19 +317,7 @@ function StatusIndicator({ status }: { status: StepStatus }) {
         style={{ width: 16, height: 16 }}
         aria-hidden
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" className="pipeline-spinner">
-          <circle cx="8" cy="8" r="7" fill="none" stroke="var(--border-default)" strokeWidth="1" />
-          <circle
-            className="pipeline-spinner-arc"
-            cx="8"
-            cy="8"
-            r="7"
-            fill="none"
-            stroke="var(--text-primary)"
-            strokeWidth="1"
-            strokeLinecap="round"
-          />
-        </svg>
+        <Spinner size={16} tone="brand" />
       </span>
     )
   }

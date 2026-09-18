@@ -11,6 +11,7 @@
  */
 
 import { ProgressBar } from '../atoms/ProgressBar'
+import { Spinner } from '../atoms/Spinner'
 import { CheckIcon } from '../icons/CheckIcon'
 
 export interface AnalysisProgressCardProps {
@@ -80,7 +81,9 @@ export function AnalysisProgressCard({
                   <CheckIcon size={12} />
                 </span>
               ) : state === 'busy' ? (
-                <span className="testing-spinner-sm shrink-0" aria-hidden />
+                <span className="flex items-center justify-center shrink-0 w-[14px] h-[14px]" aria-hidden>
+                  <Spinner size={12} tone="brand" />
+                </span>
               ) : (
                 <span
                   className="shrink-0 w-[14px] h-[14px] rounded-round"
