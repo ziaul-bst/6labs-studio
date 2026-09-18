@@ -2,15 +2,22 @@
  * VideoLibraryCard — media card for a single uploaded gameplay video in the
  * Gameplay Library.
  *
- * Status model: 'uploading' → 'ready' | 'failed'
- *   - uploading: progress bar + % (transfer in flight)
- *   - ready:     duration + play affordance, clickable. NO badge — nothing
- *                works on a library clip after upload, so "ready" is simply
- *                the resting state and a badge on every card said nothing.
- *   - failed:    error message + Retry (re-runs the upload)
+ * Status model: 'uploading' → 'processing' → 'ready' | 'failed'
+ *   - uploading:  progress bar + % (transfer in flight). Nothing about the
+ *                 clip is knowable yet, so the card is dimmed and inert.
+ *   - processing: the FILE has arrived — it plays, it has a duration, it can
+ *                 be tagged — but 6labs has not analysed it yet, so no test
+ *                 can reference it. Badge plus one line saying when.
+ *   - ready:      duration + play affordance, clickable. NO badge — it is the
+ *                 resting state, and a badge on every card says nothing.
+ *   - failed:     error message + Retry (re-runs the upload)
  *
- * There is no analysing state (removed 2026-09-10): no AI runs over library
- * footage, so a clip is either still arriving or it is here.
+ * Processing is NOT a second kind of uploading, and the card must not treat it
+ * as one. Analysis runs on a cron, roughly once a day, so the wait is measured
+ * in hours: a spinner would promise seconds and a progress bar would invent a
+ * position. What the wait actually raises is one question — *when* — so the
+ * card answers that and otherwise gets out of the way. Everything the file
+ * itself can give you, you get now.
  *
  * The body is deliberately thin — title, date, tags — so a grid of forty clips
  * stays scannable.
@@ -45,7 +52,7 @@ import { ClampTags } from './ClampTags'
 import { partitionTags, toLibraryTags, type LibraryTag } from '../../lib/libraryTags'
 import type { VideoUploadSource } from '../../lib/librarySource'
 
-export type VideoStatus = 'uploading' | 'ready' | 'failed'
+export type VideoStatus = 'uploading' | 'processing' | 'ready' | 'failed'
 
 export interface VideoLibraryCardProps {
   /** grid = vertical media card; list = horizontal row for dense scanning */
@@ -74,6 +81,11 @@ export interface VideoLibraryCardProps {
   gradient?: string
   status: VideoStatus
   progress: number
+  /**
+   * When this clip gets analysed, for the `processing` state. Defaults to the
+   * daily-run phrasing; pass a real schedule where one is known.
+   */
+  processingLabel?: string
   /**
    * The clip's tags. `LibraryTag[]` carries origin — system tags (batch, stage,
    * test type) render outlined with their facet, user tags render as filled
@@ -119,12 +131,26 @@ export interface VideoLibraryCardProps {
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg, #1770EF 0%, #7B4CFF 100%)'
 
-/* Only the two states worth announcing. Ready is the resting state and carries
-   no badge — see the status model above. */
+/* The three states worth announcing. Ready is the resting state and carries no
+   badge — see the status model above.
+
+   Processing takes the neutral ink on purpose. Brand is for work in flight
+   right now, and a second brand chip beside UPLOADING would say the two are
+   the same kind of wait when one is seconds and the other is hours. Nothing is
+   wrong either, so it is not the warning colour. It is simply queued. */
 const STATUS_META: Partial<Record<VideoStatus, { color: string; label: string }>> = {
   uploading: { color: 'var(--brand)', label: 'UPLOADING' },
+  processing: { color: 'var(--text-secondary)', label: 'PROCESSING' },
   failed: { color: 'var(--error)', label: 'FAILED' },
 }
+
+/**
+ * Said once per card, where an uploading card puts its progress bar. Analysis
+ * is a daily cron, so this is the honest unit — not a percentage, not a
+ * countdown. `processingLabel` overrides it once there is a real schedule to
+ * quote ("Analysed at ~02:00").
+ */
+const PROCESSING_DEFAULT = 'Analysed in the next daily run'
 
 function StatusBadge({ status }: { status: VideoStatus }) {
   const s = STATUS_META[status]
@@ -159,6 +185,7 @@ export function VideoLibraryCard({
   gradient = DEFAULT_GRADIENT,
   status,
   progress,
+  processingLabel,
   tags = [],
   errorMessage,
   selected = false,
@@ -183,6 +210,11 @@ export function VideoLibraryCard({
   const isReady = status === 'ready'
   const isFailed = status === 'failed'
   const isUploading = status === 'uploading'
+  const isProcessing = status === 'processing'
+  /* The line that matters for the MEDIA: once the transfer is done the file
+     exists, so it plays, it has a length and it has a frame — whether or not
+     6labs has read it yet. Only `isReady` still gates what a TEST can use. */
+  const hasFile = isReady || isProcessing
 
   /* Source is on the badge when we have the real facet; the meta line only
      falls back to free text for callers with their own source vocabulary. */
@@ -217,7 +249,7 @@ export function VideoLibraryCard({
         <div
           className="relative shrink-0 w-[168px] self-stretch min-h-[94px] overflow-hidden cursor-pointer"
           onClick={onOpen}
-          title={isReady ? undefined : 'Available once the upload finishes'}
+          title={hasFile ? undefined : 'Available once the upload finishes'}
         >
           {/* Same treatment as the grid card — see the note there. */}
           <RecordingWell
@@ -228,9 +260,11 @@ export function VideoLibraryCard({
             fill
           />
           <div className="absolute inset-0 video-lib-thumb-texture" aria-hidden />
-          {!isReady && <div className="absolute inset-0 video-lib-dim" aria-hidden />}
+          {!hasFile && <div className="absolute inset-0 video-lib-dim" aria-hidden />}
 
-          {isReady && (
+          {/* It plays as soon as the file is here — analysis is what is
+              pending, not the recording. */}
+          {hasFile && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <span className="video-lib-play video-lib-play-sm text-white">
                 <PlayGlyph />
@@ -245,7 +279,7 @@ export function VideoLibraryCard({
             </span>
           </div>
 
-          {isReady && durationLabel && (
+          {hasFile && durationLabel && (
             <span className="video-lib-duration absolute bottom-xs right-xs px-xs py-xxxs rounded-xs font-display text-2xs font-semibold text-white">
               {durationLabel}
             </span>
@@ -330,6 +364,14 @@ export function VideoLibraryCard({
                 )}
                 {metaLine}
               </span>
+              {/* In a row the 168px thumbnail has no room for a sentence, so
+                  the "when" sits under the meta line — the same place a failed
+                  row puts its reason. */}
+              {isProcessing && (
+                <span className="font-body text-2xs truncate" style={{ color: 'var(--text-secondary)' }}>
+                  {processingLabel ?? PROCESSING_DEFAULT}
+                </span>
+              )}
               {isFailed && errorMessage && (
                 <span className="font-body text-2xs truncate" style={{ color: 'var(--error)' }}>
                   {errorMessage}
@@ -389,7 +431,7 @@ export function VideoLibraryCard({
       <div
         className="relative aspect-video w-full shrink-0 overflow-hidden cursor-pointer"
         onClick={onOpen}
-        title={isReady ? undefined : 'Available once the upload finishes'}
+        title={hasFile ? undefined : 'Available once the upload finishes'}
       >
         {/* Base layer. A library holds footage from every source, so it cannot
             assume a shape — but it does not have to: a still is CONTAINED and
@@ -406,13 +448,14 @@ export function VideoLibraryCard({
         />
         {/* dot texture for depth */}
         <div className="absolute inset-0 video-lib-thumb-texture" aria-hidden />
-        {/* dim scrim for non-ready so it reads as "not yet usable" */}
-        {!isReady && <div className="absolute inset-0 video-lib-dim" aria-hidden />}
+        {/* dim scrim while the file is still arriving — a processing clip is
+            watchable, so it is not dimmed */}
+        {!hasFile && <div className="absolute inset-0 video-lib-dim" aria-hidden />}
         {/* bottom gradient for badge/duration legibility */}
         <div className="absolute inset-x-0 bottom-0 h-16 video-lib-scrim pointer-events-none" aria-hidden />
 
-        {/* center play affordance — ready only */}
-        {isReady && (
+        {/* center play affordance — as soon as the file is here */}
+        {hasFile && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <span className="video-lib-play text-white">
               <PlayGlyph />
@@ -431,8 +474,8 @@ export function VideoLibraryCard({
           </span>
         </div>
 
-        {/* status badge — top-right. Renders nothing at rest: only uploading
-            and failed have anything to say. */}
+        {/* status badge — top-right. Renders nothing at rest: only uploading,
+            processing and failed have anything to say. */}
         <div className="absolute top-s right-s">
           <StatusBadge status={status} />
         </div>
@@ -444,7 +487,7 @@ export function VideoLibraryCard({
         )}
 
         {/* duration — bottom-right, only meaningful when ready */}
-        {isReady && durationLabel && (
+        {hasFile && durationLabel && (
           <span className="video-lib-duration absolute bottom-s right-s px-xs py-xxxs rounded-xs font-display text-2xs font-semibold text-white">
             {durationLabel}
           </span>
@@ -459,6 +502,7 @@ export function VideoLibraryCard({
             <span className="font-display text-2xs font-semibold text-white tabular-nums">{progress}%</span>
           </div>
         )}
+
       </div>
 
       {/* ── Body ── */}
@@ -557,6 +601,16 @@ export function VideoLibraryCard({
               {metaLine}
             </span>
           </div>
+          {/* WHEN, not how far. There is no "how far": the clip is waiting for
+              a run that happens once a day, and a bar would have to invent a
+              position to draw. Its own line under the meta — on the meta row it
+              competes with the uploader and the date for the same width, and
+              all three lose. */}
+          {isProcessing && (
+            <span className="font-body text-2xs truncate min-w-0" style={{ color: 'var(--text-secondary)' }}>
+              {processingLabel ?? PROCESSING_DEFAULT}
+            </span>
+          )}
 
           {/* Tags — the only labels on the card. System tags (batch/stage/test)
               take their own line above

@@ -410,6 +410,24 @@
   background: rgba(3, 13, 45, 0.62);
   backdrop-filter: blur(6px);
 }
+/* The toolbar's count of clips the next run still owes you. Quiet at rest —
+   it is a fact, not an alert, and nothing is wrong — and it takes the ordinary
+   selected-filter look when it is filtering, because that is what it is. */
+.library-processing-note {
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-elements);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.library-processing-note:hover {
+  border-color: var(--border-hover);
+}
+.library-processing-note[data-on='true'] {
+  background-color: var(--bg-tint-light);
+  border-color: var(--border-tint);
+  color: var(--text-brand);
+}
 .video-lib-dot {
   width: 6px;
   height: 6px;

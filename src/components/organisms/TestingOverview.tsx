@@ -54,8 +54,8 @@ export const TESTING_ICONS: Partial<Record<NavIconKey, ComponentType<IconProps>>
 }
 
 const GROUPS: { id: 'human' | 'ai'; title: string; sub: string; ink: string }[] = [
-  { id: 'human', title: 'Human testing', sub: 'Your testers, your videos. 6labs analyses them.', ink: 'var(--brand)' },
-  { id: 'ai', title: 'AI player testing', sub: '6labs AI players, powered by the player model.', ink: 'var(--success)' },
+  { id: 'human', title: 'Human testing', sub: 'Your sessions, turned into findings.', ink: 'var(--brand)' },
+  { id: 'ai', title: 'AI player testing', sub: 'Our AI players, your build. Findings on demand.', ink: 'var(--success)' },
 ]
 
 export function TestingOverview({ onOpenTest, lockedTests = [], className }: TestingOverviewProps) {

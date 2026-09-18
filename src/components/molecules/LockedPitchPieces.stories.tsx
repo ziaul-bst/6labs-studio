@@ -72,11 +72,6 @@ export const Close: Story = {
             Contact sales
           </Button>
         }
-        secondaryAction={
-          <Button variant="secondary" size="lg">
-            See a sample report
-          </Button>
-        }
         planLine="Your plan already includes User test and AI behavioural test. Tests are added per workspace by our team."
       />
     </PitchSection>

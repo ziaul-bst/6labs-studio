@@ -19,6 +19,9 @@ import { TESTING_ACCENT_VARS, type TestingAccent } from '../../lib/studioAreas'
 
 export type PitchArtKey =
   | 'report'
+  | 'verdicts'
+  | 'findings'
+  | 'document'
   | 'clips'
   | 'compare'
   | 'ask'
@@ -67,6 +70,60 @@ export function PitchArt({ art, accent, className }: PitchArtProps) {
           <rect x="32" y="48" width="58" height="6" rx="3" fill={NEUTRAL} />
           <circle cx="24" cy="63" r="3" fill="var(--warning)" />
           <rect x="32" y="60" width="42" height="6" rx="3" fill={NEUTRAL} />
+        </>
+      )}
+
+      {/* Every case marked, and the clip sitting behind each mark. Distinct
+          from `report`, which is the document those marks end up in. */}
+      {art === 'verdicts' && (
+        <>
+          {[
+            { y: 14, bar: 52, tone: 'var(--success)' },
+            { y: 34, bar: 40, tone: 'var(--error)' },
+            { y: 54, bar: 46, tone: 'var(--warning)' },
+          ].map((row) => (
+            <g key={row.y}>
+              <rect x="8" y={row.y + 1} width={row.bar} height="8" rx="4" fill={NEUTRAL} />
+              <path d={`M${row.bar + 16} ${row.y} l7 5 -7 5 Z`} fill={ink} />
+              <rect x={row.bar + 28} y={row.y} width="34" height="10" rx="5" fill={row.tone} opacity="0.85" />
+            </g>
+          ))}
+        </>
+      )}
+
+      {/* Findings, ranked — numbered, shortening, each with what it cost. */}
+      {art === 'findings' && (
+        <>
+          {[
+            { y: 12, bar: 58, tone: 'var(--error)' },
+            { y: 34, bar: 46, tone: 'var(--warning)' },
+            { y: 56, bar: 36, tone: 'var(--text-tertiary)' },
+          ].map((row, i) => (
+            <g key={row.y}>
+              <rect x="8" y={row.y} width="14" height="14" rx="4" fill={tint} stroke={ink} strokeWidth="1.2" />
+              <rect x={12 + i * 0} y={row.y + 4} width="6" height="6" rx="1" fill={ink} opacity="0.55" />
+              <rect x="28" y={row.y + 4} width={row.bar} height="6" rx="3" fill={NEUTRAL} />
+              <circle cx="104" cy={row.y + 7} r="4.5" fill={row.tone} />
+            </g>
+          ))}
+        </>
+      )}
+
+      {/* A finished report you can open — a stack, not a single sheet. */}
+      {art === 'document' && (
+        <>
+          <rect x="30" y="4" width="72" height="66" rx="6" fill={PALE} stroke={LINE} />
+          <rect x="14" y="10" width="84" height="64" rx="6" fill={SURFACE} stroke={LINE} />
+          <rect x="14" y="10" width="84" height="18" rx="6" fill={PALE} />
+          <rect x="22" y="15" width="34" height="7" rx="3.5" fill={tint} />
+          <path d="M14 28 H98" stroke={LINE} strokeWidth="1" />
+          {[24, 42, 60, 78].map((x) => (
+            <rect key={x} x={x} y="34" width="14" height="10" rx="3" fill={PALE} stroke={LINE} />
+          ))}
+          <circle cx="27" cy="53" r="3" fill="var(--error)" />
+          <rect x="34" y="50" width="50" height="6" rx="3" fill={NEUTRAL} />
+          <circle cx="27" cy="65" r="3" fill="var(--warning)" />
+          <rect x="34" y="62" width="36" height="6" rx="3" fill={NEUTRAL} />
         </>
       )}
 
@@ -151,14 +208,18 @@ export function PitchArt({ art, accent, className }: PitchArtProps) {
       {art === 'rerun' && (
         <>
           <rect x="10" y="16" width="100" height="48" rx="8" fill={SURFACE} stroke={LINE} />
+          {/* A 300° ring with the gap at the top, and the head sitting ON the
+              end of the stroke, rotated to its tangent. The head used to be a
+              fixed triangle placed near the arc's START, which left it floating
+              off the ring at an angle the ring never travels. */}
           <path
-            d="M44 32 a12 12 0 1 0 5 -5"
+            d="M55 25.9 A14 14 0 1 1 41 25.9"
             stroke={ink}
             strokeWidth="3"
             strokeLinecap="round"
             fill="none"
           />
-          <path d="M38 24 L45 31 L38 33 Z" fill={ink} />
+          <path d="M0 -4.5 L8 0 L0 4.5 Z" fill={ink} transform="translate(41 25.9) rotate(-30)" />
           <rect x="72" y="30" width="26" height="6" rx="3" fill={NEUTRAL} />
           <rect x="72" y="44" width="18" height="6" rx="3" fill={tint} />
         </>

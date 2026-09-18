@@ -483,6 +483,14 @@ export function pickerVideosFor(state: LibraryDemoState): PickerVideo[] {
     return PICKER_VIDEOS.map((v) => ({ ...v, status: 'failed' as PickerStatus }))
   }
 
+  /* Mixed, like the library: the picker's whole job here is to show that some
+     of what you can see is not yet pickable, and why. */
+  if (state === 'processing') {
+    return PICKER_VIDEOS.map((v, i) =>
+      i % 3 === 0 ? v : { ...v, status: 'processing' as PickerStatus },
+    )
+  }
+
   /* The picker groups by tag, so a long tag lands in a GROUP HEADING here
      rather than in a pill — a different fold, same source data. */
   if (state === 'long-labels') {

@@ -21,6 +21,7 @@ export type LibraryDemoState =
   | 'many-tags'
   | 'long-labels'
   | 'uploading'
+  | 'processing'
   | 'failed'
 
 export const LIBRARY_DEMO_STATES: LibraryDemoState[] = [
@@ -29,6 +30,7 @@ export const LIBRARY_DEMO_STATES: LibraryDemoState[] = [
   'many-tags',
   'long-labels',
   'uploading',
+  'processing',
   'failed',
 ]
 
@@ -39,6 +41,7 @@ export const LIBRARY_DEMO_LABELS: Record<LibraryDemoState, string> = {
   'many-tags': 'Many tags',
   'long-labels': 'Long labels',
   uploading: 'Uploading',
+  processing: 'Processing',
   failed: 'Failed',
 }
 
@@ -50,6 +53,8 @@ export const LIBRARY_DEMO_NOTES: Record<LibraryDemoState, string> = {
   'long-labels':
     'Tags and titles as they really arrive from an import — 40+ characters with nothing to break on. Every pill folds at one measure; the full string is on hover.',
   uploading: 'Every clip mid-transfer: progress bars, no duration, nothing selectable in the picker.',
+  processing:
+    'Transferred but not analysed yet — the daily run has not reached them. They play and can be tagged; no test can reference them. The toolbar counts them.',
   failed: 'Failed uploads with the error and Retry. Retry restarts the transfer.',
 }
 

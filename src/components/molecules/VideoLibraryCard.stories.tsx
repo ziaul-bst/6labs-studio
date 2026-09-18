@@ -75,6 +75,35 @@ export const UploadingTagged: Story = {
   decorators: Ready.decorators,
 }
 
+/**
+ * Transferred, not yet analysed. The file is here — it plays, it has a length,
+ * it can be tagged — so nothing is dimmed and nothing is disabled except what
+ * genuinely depends on the analysis: no test can reference it yet. Analysis is
+ * a daily cron, so the card says WHEN rather than how far: a spinner would
+ * promise seconds and a bar would have to invent a position.
+ */
+export const Processing: Story = {
+  args: {
+    ...base,
+    title: 'ut-0911 — first session.mp4',
+    status: 'processing',
+    progress: 100,
+    durationLabel: '9:41',
+    tags: [batchTag('Build V2.2')],
+  },
+  decorators: Ready.decorators,
+}
+
+/** With a real schedule to quote, instead of the daily-run phrasing. */
+export const ProcessingWithSchedule: Story = {
+  name: 'Processing / known schedule',
+  args: {
+    ...Processing.args,
+    processingLabel: 'Analysed tonight at ~02:00',
+  },
+  decorators: Ready.decorators,
+}
+
 export const Failed: Story = {
   args: {
     ...base,
@@ -159,5 +188,22 @@ export const ListUploading: Story = {
   args: {
     ...Uploading.args,
     layout: 'list',
+  },
+}
+
+
+/** The row layout: the 168px thumbnail has no room for a sentence, so the
+ *  "when" sits under the meta line — the same place a failed row puts its
+ *  reason. */
+export const ListProcessing: Story = {
+  name: 'List / processing',
+  args: {
+    ...base,
+    layout: 'list',
+    title: 'ut-0911 — first session.mp4',
+    status: 'processing',
+    progress: 100,
+    durationLabel: '9:41',
+    tags: [batchTag('Build V2.2'), userTag('onboarding')],
   },
 }

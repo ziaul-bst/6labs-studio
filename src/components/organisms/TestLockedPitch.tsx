@@ -9,11 +9,19 @@
  *
  * Four bands, one idea each, in the order a reader actually asks them:
  *
- *   Hero            what this is — and, in the scene, what the test is made of
+ *   Hero            what this is, and what it is made of
  *   How it works    three stages — and the one that differs between human and AI
- *   What you get    three outcomes, each on its own flat drawing
- *   Finished run    the real output, full width, every row carrying its clips
- *   How to unlock   the three steps, and the button that starts them
+ *   What you get    the outcomes, each on its own flat drawing
+ *   Preview         one row offering a finished report to look at
+ *   How to unlock   the three steps, and the one button that starts them
+ *
+ * There is no inline sample run. One was drawn here and pulled: a made-up
+ * report only reads as the product for a test that produces one shape of
+ * document, and the roadmap has tests (localisation, large-scale) whose output
+ * that shape would misrepresent. The Preview row is the honest version of the
+ * same offer, and it sits where someone actually wants it — straight after the
+ * outcomes, not in the hero before the argument and not in the closing band
+ * competing with the sale.
  *
  * The ask is at the FOOT, not in the hero: a reader met the button before the
  * argument and then had nothing to press once they had finished reading. The
@@ -27,17 +35,23 @@
  */
 
 import type { ComponentType, CSSProperties } from 'react'
-import { PitchClose, PitchFlow, PitchHero, PitchOutcomes, PitchSection, type PitchFlowStep } from '../molecules/LockedPitchPieces'
+import {
+  PitchClose,
+  PitchFlow,
+  PitchHero,
+  PitchJumpLink,
+  PitchOffer,
+  PitchOutcomes,
+  PitchSection,
+  type PitchFlowStep,
+} from '../molecules/LockedPitchPieces'
 import { PitchScene } from '../molecules/PitchScene'
 import type { PitchArtKey } from '../molecules/PitchArt'
 import { SUPPORT_EMAIL } from '../molecules/ContactSalesDialog'
-import { SampleCaseReport, SampleFindingReport } from '../molecules/PitchSampleReport'
 import Button from '../ui/Button'
 import { TESTING_ICONS } from './TestingOverview'
-import { TESTING_ACCENT_VARS, type TestingTestId, type TestingTestMeta } from '../../lib/studioAreas'
+import { TESTING_ACCENT_VARS, type TestingAccent, type TestingTestId, type TestingTestMeta } from '../../lib/studioAreas'
 import type { IconProps } from '../icons/types'
-import type { CaseOutcome } from '../../lib/types/testing'
-import type { IssueSeverity } from '../../lib/types/userTest'
 
 export interface TestLockedPitchProps {
   test: TestingTestMeta
@@ -53,11 +67,17 @@ export interface TestLockedPitchProps {
 /**
  * Which drawing sits on each outcome tile. Art is presentation, not copy, so
  * it lives here rather than in the pitch data — the sentences stay the PM's.
+ *
+ * No page may use the same drawing twice: the flow's last stage is `report`
+ * and the preview row is `document`, so an outcome about results uses
+ * `verdicts` (cases, each with its clip) or `findings` (ranked by what they
+ * cost) instead. Three identical grey report drawings down one page read as a
+ * template, not as three different things.
  */
 const OUTCOME_ART: Partial<Record<TestingTestId, PitchArtKey[]>> = {
-  'user-test': ['clips', 'compare', 'ask'],
-  'functional-test': ['report', 'compare', 'search'],
-  'ai-behavioural-test': ['report', 'personas', 'ask'],
+  'user-test': ['clips', 'ask'],
+  'functional-test': ['verdicts', 'search'],
+  'ai-behavioural-test': ['findings', 'personas', 'ask'],
   'ai-functional-test': ['clock', 'rerun', 'clips'],
 }
 
@@ -108,48 +128,22 @@ function flowFor(test: TestingTestMeta): PitchFlowStep[] {
 }
 
 /**
- * The sample each test shows, in the shape of the report it writes.
- *
- * A functional test verifies CASES and leads with coverage; a user or
- * behavioural test ranks FINDINGS and leads with what the run was made of.
- * Two different documents, so two different samples — printing one table for
- * both was the pitch showing the wrong product's report.
- *
- * Sample numbers, consistent with the fixtures the real screens use, and the
- * band that holds this is labelled "Sample data".
+ * What a sample of this test's report is a report *of*. Sample copy, so it
+ * lives here beside the art map rather than in the pitch data.
  */
-const CASE_OUTCOMES: CaseOutcome[] = ['fail', 'pass', 'review']
-const FINDING_SEVERITIES: IssueSeverity[] = ['blocking', 'disruptive', 'cosmetic']
-const SAMPLE_CLIPS = [4, 2, 3]
-
-/** Coverage and the headline over it — the first question a case report answers. */
-const SAMPLE_COVERAGE: Partial<Record<TestingTestId, { headline: string; coverage: { pass: number; fail: number; review: number; notRun: number } }>> = {
-  'functional-test': {
-    headline: '62 of 96 cases verified',
-    coverage: { pass: 41, fail: 12, review: 9, notRun: 34 },
-  },
-  'ai-functional-test': {
-    headline: '24 of 24 cases verified, in 28 minutes',
-    coverage: { pass: 19, fail: 2, review: 3, notRun: 0 },
-  },
+const SAMPLE_OFFER: Partial<Record<TestingTestId, string>> = {
+  'user-test':
+    'A completed report on 10 onboarding sessions: every finding grouped by what you would fix together, each with its evidence clips and a recommendation.',
+  'functional-test':
+    'A completed report on a 96-case sheet: every case marked pass, failed or need review, each with the clip behind its result.',
+  'ai-behavioural-test':
+    'A completed report on 20 AI player sessions: every finding ranked by how many agents hit it, each with its evidence clips and a recommendation.',
+  'ai-functional-test':
+    'A completed report on a 24-case regression run: every case marked pass, failed or need review, each with the recording the agent produced.',
 }
 
-/** What the run was made of — the masthead numbers a findings report leads with. */
-const SAMPLE_TILES: Partial<Record<TestingTestId, Array<{ value: string; label: string; dot?: string }>>> = {
-  'user-test': [
-    { value: '10', label: 'sessions analysed' },
-    { value: '2h 14m', label: 'footage reviewed' },
-    { value: '3', label: 'bugs', dot: 'var(--error)' },
-    { value: '4', label: 'friction points', dot: 'var(--warning)' },
-  ],
-  'ai-behavioural-test': [
-    { value: '2', label: 'personas' },
-    { value: '20', label: 'sessions played' },
-    { value: '10h', label: 'footage reviewed' },
-    { value: '3', label: 'bugs', dot: 'var(--error)' },
-    { value: '4', label: 'friction points', dot: 'var(--warning)' },
-  ],
-}
+/** Where the hero's jump link lands. */
+const UNLOCK_ID = 'pitch-unlock'
 
 /** "User test and AI behavioural test" · "A, B and C". */
 function listOf(items: string[]): string {
@@ -167,18 +161,19 @@ export function TestLockedPitch({
 }: TestLockedPitchProps) {
   const Icon = TESTING_ICONS[test.icon] as ComponentType<IconProps> | undefined
   const pitch = test.pitch
-  /* A functional test decides cases; the other two rank findings. */
-  const verifiesCases = test.id === 'functional-test' || test.id === 'ai-functional-test'
-  const sampleRows = pitch.previewTitle ? pitch.previewRows : pitch.previewRows.slice(1)
-  const sampleTitle = pitch.previewTitle ?? pitch.previewRows[0]
-  const sampleMeta = `Sep 5 · ${test.group === 'ai' ? 'AI player sessions' : 'your recordings'}`
+  /* Drawings are keyed to the GROUP, not the test: human testing reads blue
+     and AI player testing green, the same split the sidebar captions use.
+     Functional test's own teal is kept for its identity tile alone, so the
+     page does not end up with two greens meaning two different things. */
+  const artAccent: TestingAccent = test.group === 'ai' ? test.accent : 'brand'
 
   return (
-    <div className={['flex flex-col gap-xxl2 page-measure pt-[120px] pb-xxl3', className].filter(Boolean).join(' ')}>
+    <div className={['flex flex-col gap-xxl2 page-measure pt-[120px] pb-[120px]', className].filter(Boolean).join(' ')}>
       <PitchHero
         icon={Icon ? <Icon size={32} /> : null}
-        visual={<PitchScene test={test.id} accent={TESTING_ACCENT_VARS[test.accent].ink} />}
-        accent={test.accent}
+        visual={<PitchScene test={test.id} accent={TESTING_ACCENT_VARS[artAccent].ink} />}
+        accent={artAccent}
+        iconAccent={test.accent}
         eyebrow={
           test.group === 'ai'
             ? 'AI player testing · 6labs plays your build'
@@ -186,54 +181,31 @@ export function TestLockedPitch({
         }
         title={test.label}
         description={pitch.headline}
+        secondaryAction={<PitchJumpLink targetId={UNLOCK_ID}>How to unlock it</PitchJumpLink>}
       />
 
       <PitchSection label="How it works" style={{ '--pitch-delay': '90ms' } as CSSProperties}>
-        <PitchFlow steps={flowFor(test)} accent={test.accent} />
+        <PitchFlow steps={flowFor(test)} accent={artAccent} />
       </PitchSection>
 
       <PitchSection label="What you get" style={{ '--pitch-delay': '180ms' } as CSSProperties}>
-        <PitchOutcomes outcomes={pitch.outcomes} art={OUTCOME_ART[test.id]} accent={test.accent} />
+        <PitchOutcomes outcomes={pitch.outcomes} art={OUTCOME_ART[test.id]} accent={artAccent} />
       </PitchSection>
 
-      <PitchSection
-        label="What a finished run looks like"
-        trailing={
-          <span className="font-body text-xs text-text-tertiary leading-[1.5] whitespace-nowrap">Sample data</span>
+      <PitchOffer
+        art="document"
+        accent={artAccent}
+        title="Preview a finished report"
+        body={SAMPLE_OFFER[test.id] ?? 'A completed report from a finished run, with the footage behind every result.'}
+        action={
+          <Button variant="secondary" size="lg" onClick={() => onSeeSample?.(test)}>
+            See a sample report
+          </Button>
         }
         style={{ '--pitch-delay': '270ms' } as CSSProperties}
-      >
-        {/* Full width and fully legible: this is the thing being sold, so it is
-            shown at the size the real one is read at, in the shape the real one
-            has. Nothing sits on top of it. */}
-        {verifiesCases ? (
-          <SampleCaseReport
-            title={sampleTitle}
-            meta={sampleMeta}
-            headline={SAMPLE_COVERAGE[test.id]?.headline ?? ''}
-            coverage={SAMPLE_COVERAGE[test.id]?.coverage ?? { pass: 19, fail: 2, review: 3, notRun: 0 }}
-            rows={sampleRows.map((label, i) => ({
-              label,
-              outcome: CASE_OUTCOMES[i] ?? 'pass',
-              clips: SAMPLE_CLIPS[i] ?? 3,
-            }))}
-          />
-        ) : (
-          <SampleFindingReport
-            title={sampleTitle}
-            meta={sampleMeta}
-            tiles={SAMPLE_TILES[test.id] ?? []}
-            rows={sampleRows.map((label, i) => ({
-              label,
-              severity: FINDING_SEVERITIES[i] ?? 'cosmetic',
-              reach: test.group === 'ai' ? `${16 - i * 6} / 20 agents` : `${6 - i * 2} / 10 sessions`,
-              clips: SAMPLE_CLIPS[i] ?? 3,
-            }))}
-          />
-        )}
-      </PitchSection>
+      />
 
-      <PitchSection label="How to unlock it" style={{ '--pitch-delay': '360ms' } as CSSProperties}>
+      <PitchSection id={UNLOCK_ID} label="How to unlock it" style={{ '--pitch-delay': '360ms' } as CSSProperties}>
         <PitchClose
           steps={[
             {
@@ -260,11 +232,6 @@ export function TestLockedPitch({
           action={
             <Button variant="primary" size="lg" onClick={() => onContactSales?.(test)}>
               Contact sales
-            </Button>
-          }
-          secondaryAction={
-            <Button variant="secondary" size="lg" onClick={() => onSeeSample?.(test)}>
-              See a sample report
             </Button>
           }
           planLine={

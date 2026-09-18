@@ -297,12 +297,29 @@ export type TestingTestId =
  */
 export type TestingAccent = 'teal' | 'purple' | 'brand' | 'success' | 'emerald'
 
+/** One "what you get" tile — a name for the scan, a claim for the read. */
+export interface TestingOutcome {
+  /** 3–4 words naming the thing, not a précis of `body`. */
+  title: string
+  /** The claim, as the PM wrote it. */
+  body: string
+}
+
 /** Sales copy for a test the studio hasn't bought — see TestLockedPitch. */
 export interface TestingTestPitch {
   /** One sentence under the test name on the pitch screen. */
   headline: string
-  /** Three concrete outcomes, phrased as what the studio gets. */
-  outcomes: string[]
+  /**
+   * Two or three concrete outcomes, phrased as what the studio gets.
+   *
+   * Each carries a title as well as a sentence, and they do different jobs: the
+   * TITLE names the thing you would have, in three or four words, and is what
+   * the eye lands on across a row of tiles; the SENTENCE is the claim, read
+   * once you have decided which tile you care about. A title that paraphrases
+   * its own sentence has added a line and no information — name the outcome,
+   * do not summarise the copy.
+   */
+  outcomes: TestingOutcome[]
   /**
    * Masthead of the sample report on the pitch page. Optional for the SOON
    * tests, which never render one; without it the first preview row stands in,
@@ -327,64 +344,98 @@ export interface TestingTestMeta {
 
 export const TESTING_TESTS: TestingTestMeta[] = [
   {
-    id: 'user-test', group: 'human', label: 'User test', tagline: 'Is it fun — where players struggle', icon: 'user-test', accent: 'brand',
+    id: 'user-test', group: 'human', label: 'User test', tagline: 'Find the friction. Then ask the footage.', icon: 'user-test', accent: 'brand',
     pitch: {
       headline: 'Find where real players struggle in recorded sessions, ranked by how many testers hit each issue.',
-      outcomes: ['Bugs and friction points by game step, each backed by clips.', 'Comparison against the previous build: new, still open and fixed.', 'Ask the run questions and get answers grounded in the recordings.'],
+      outcomes: [
+        { title: 'Findings by step', body: 'Bugs and friction points by game step, each backed by clips.' },
+        { title: 'Answers from the footage', body: 'Ask the run questions and get answers grounded in the recordings.' },
+      ],
       previewTitle: 'Onboarding flow v3 · 10 sessions',
       previewRows: ['“Upgrade Furnace” button unresponsive after tutorial hint', 'Repeated taps on locked Hero Recruit', 'Daily reward dialog overlaps chapter-complete popup'],
     },
   },
   {
-    id: 'functional-test', group: 'human', label: 'Functional test', tagline: 'Did it work — verified against your test cases', icon: 'functional-test', accent: 'teal',
+    id: 'functional-test', group: 'human', label: 'Functional test', tagline: 'Your test cases, verified against video.', icon: 'functional-test', accent: 'teal',
     pitch: {
       headline: 'Verify the tests your team already ran against the footage, case by case, without re-running anything.',
-      outcomes: ['Every test case marked passed, failed or not verifiable, with the clip behind each result.', 'Regressions surfaced against the previous build, so new failures stand out from known ones.', 'Recordings become searchable by case, module and outcome.'],
+      outcomes: [
+        { title: 'A verdict per case', body: 'Every test case marked passed, failed or not verifiable, with the clip behind each result.' },
+        { title: 'Footage you can search', body: 'Recordings become searchable by case, module and outcome.' },
+      ],
       previewTitle: 'Release candidate 4.2 · 96 cases',
       previewRows: ['Furnace upgrade from tutorial hint', 'Purchase restore after reinstall', 'Complete the tutorial on a fresh install'],
     },
   },
   {
-    id: 'agency-test', group: 'human', label: 'External agency test', tagline: 'Same analysis across every agency session', icon: 'agency-test', accent: 'purple', soon: true,
+    id: 'agency-test', group: 'human', label: 'External agency test', tagline: 'Every agency, held to one standard.', icon: 'agency-test', accent: 'purple', soon: true,
     pitch: {
       headline: 'Run the same objective analysis across every session your QA agency delivers, and hold them to comparable results.',
-      outcomes: ['Independent verification of every case the agency was asked to execute.', 'Behavioural findings from the same sessions, included at no extra step.', 'Batch-over-batch comparison so agency quality is measured, not assumed.'],
+      outcomes: [
+        { title: 'Independent verification', body: 'Independent verification of every case the agency was asked to execute.' },
+        { title: 'Findings in the same pass', body: 'Behavioural findings from the same sessions, included at no extra step.' },
+        { title: 'Agency quality, measured', body: 'Batch-over-batch comparison so agency quality is measured, not assumed.' },
+      ],
       previewRows: ['Agency batch — 24 sessions verified', 'Store grid after an offer expires', 'Leave alliance during rally', 'Repeated taps on locked Hero Recruit'],
     },
   },
   {
-    id: 'beta-test', group: 'human', label: 'Beta · CBT / OBT', tagline: 'The why behind the KPIs, via SDK', icon: 'beta-test', accent: 'brand', soon: true,
-    pitch: { headline: 'Behavioural analysis of live beta sessions captured through the SDK.', outcomes: ['Why a KPI moved, not just that it did.', 'Cohort-level friction across CBT and OBT.', 'Session evidence attached to every finding.'], previewRows: ['Day-1 retention drop — tutorial step 4', 'Store hesitation among returning players', 'Alliance join abandonment', 'Event shop confusion'] },
+    id: 'beta-test', group: 'human', label: 'Beta · CBT / OBT', tagline: 'The why behind your beta KPIs.', icon: 'beta-test', accent: 'brand', soon: true,
+    pitch: { headline: 'Behavioural analysis of live beta sessions captured through the SDK.', outcomes: [
+        { title: 'The why behind a KPI', body: 'Why a KPI moved, not just that it did.' },
+        { title: 'Friction by cohort', body: 'Cohort-level friction across CBT and OBT.' },
+        { title: 'Evidence on every finding', body: 'Session evidence attached to every finding.' },
+      ], previewRows: ['Day-1 retention drop — tutorial step 4', 'Store hesitation among returning players', 'Alliance join abandonment', 'Event shop confusion'] },
   },
   {
-    id: 'ai-behavioural-test', group: 'ai', label: 'AI behavioural test', tagline: 'Plays like new player, core, whale, lapsed', icon: 'ai-behavioural-test', accent: 'success',
+    id: 'ai-behavioural-test', group: 'ai', label: 'AI behavioural test', tagline: 'AI plays as any persona, flags the friction', icon: 'ai-behavioural-test', accent: 'success',
     pitch: {
       headline: 'AI players play your build as real personas, and 6labs analyses the sessions exactly as it does human ones.',
-      outcomes: ['Behavioural and UX findings before a single human tester is booked.', 'Personas derived from the player model, sharpened by every human session you add.', 'The same report and Q&A you get from a user test.'],
+      outcomes: [
+        { title: 'Findings before testers', body: 'Behavioural and UX findings before a single human tester is booked.' },
+        { title: 'Personas from your players', body: 'Personas derived from the player model, sharpened by every human session you add.' },
+        { title: 'One report, either way', body: 'The same report and Q&A you get from a user test.' },
+      ],
       previewTitle: 'Frost Festival — new player & whale · 20 sessions',
       previewRows: ['Whales skip the battle pass upgrade path', 'New players stall at Research screen', 'Event shop not discovered by day 3'],
     },
   },
   {
-    id: 'ai-functional-test', group: 'ai', label: 'AI functional test', tagline: 'Regression and release validation across builds', icon: 'ai-functional-test', accent: 'emerald',
+    id: 'ai-functional-test', group: 'ai', label: 'AI functional test', tagline: 'AI executes your test cases, flags every failure', icon: 'ai-functional-test', accent: 'emerald',
     pitch: {
       headline: 'AI players execute your test cases on any build and report what passed, failed or could not be reached, with video.',
-      outcomes: ['A full regression pass in about 30 minutes, without a tester in the loop.', 'Re-run any earlier build to confirm when a failure was introduced.', 'Every outcome carries the recording the agent produced.'],
+      outcomes: [
+        { title: 'A full pass in 30 minutes', body: 'A full regression pass in about 30 minutes, without a tester in the loop.' },
+        { title: 'Re-run any build', body: 'Re-run any earlier build to confirm when a failure was introduced.' },
+        { title: 'Video on every outcome', body: 'Every outcome carries the recording the agent produced.' },
+      ],
       previewTitle: 'Season 9 — core loop · 24 cases',
       previewRows: ['Battle Pass premium purchase', 'Chapter 2 unlock after Chapter 1 stars', 'Daily quest reset at 00:00 UTC'],
     },
   },
   {
-    id: 'ai-scale-test', group: 'ai', label: 'AI large-scale test', tagline: 'Economy, balance, progression at scale', icon: 'ai-scale-test', accent: 'success', soon: true,
-    pitch: { headline: 'Thousands of AI sessions to stress economy, balance and progression.', outcomes: ['Progression curves across persona mixes.', 'Economy sinks and sources under load.', 'Balance outliers before players find them.'], previewRows: ['Progression stall at chapter 12', 'Gold inflation after day 20', 'Hero tier gap widens at level 40', 'PvP matchmaking imbalance'] },
+    id: 'ai-scale-test', group: 'ai', label: 'AI large-scale test', tagline: 'AI players swarm your economy to find breaks', icon: 'ai-scale-test', accent: 'success', soon: true,
+    pitch: { headline: 'Thousands of AI sessions to stress economy, balance and progression.', outcomes: [
+        { title: 'Curves per persona mix', body: 'Progression curves across persona mixes.' },
+        { title: 'Sinks and sources', body: 'Economy sinks and sources under load.' },
+        { title: 'Outliers before players', body: 'Balance outliers before players find them.' },
+      ], previewRows: ['Progression stall at chapter 12', 'Gold inflation after day 20', 'Hero tier gap widens at level 40', 'PvP matchmaking imbalance'] },
   },
   {
-    id: 'test-case-gen', group: 'ai', label: 'Test case generation', tagline: 'Suites from game understanding, every build', icon: 'test-case-gen', accent: 'success', soon: true,
-    pitch: { headline: 'Test suites generated from what 6labs already understands about your game.', outcomes: ['Cases regenerated for every build.', 'Coverage mapped to game steps.', 'Exports to TestRail and spreadsheets.'], previewRows: ['Onboarding · 12 cases', 'Store and purchases · 9 cases', 'Progression · 7 cases', 'Alliance and social · 6 cases'] },
+    id: 'test-case-gen', group: 'ai', label: 'Test case generation', tagline: 'Test cases from your build and requirements', icon: 'test-case-gen', accent: 'success', soon: true,
+    pitch: { headline: 'Test suites generated from what 6labs already understands about your game.', outcomes: [
+        { title: 'Cases per build', body: 'Cases regenerated for every build.' },
+        { title: 'Coverage by step', body: 'Coverage mapped to game steps.' },
+        { title: 'Exports where you work', body: 'Exports to TestRail and spreadsheets.' },
+      ], previewRows: ['Onboarding · 12 cases', 'Store and purchases · 9 cases', 'Progression · 7 cases', 'Alliance and social · 6 cases'] },
   },
   {
-    id: 'lqa', group: 'ai', label: 'L-QA · localization', tagline: 'Every language and region', icon: 'lqa', accent: 'success', soon: true,
-    pitch: { headline: 'Localisation QA across every language and region your game ships in.', outcomes: ['Truncation and overflow caught per locale.', 'Untranslated and mis-translated strings flagged in context.', 'Screenshots per language for sign-off.'], previewRows: ['Korean — 14 truncations', 'German — 6 overflow labels', 'Japanese — 3 untranslated strings', 'Arabic — RTL alignment issues'] },
+    id: 'lqa', group: 'ai', label: 'L-QA · localization', tagline: 'AI plays every locale, flags broken text', icon: 'lqa', accent: 'success', soon: true,
+    pitch: { headline: 'Localisation QA across every language and region your game ships in.', outcomes: [
+        { title: 'Truncation per locale', body: 'Truncation and overflow caught per locale.' },
+        { title: 'Bad strings in context', body: 'Untranslated and mis-translated strings flagged in context.' },
+        { title: 'Screenshots for sign-off', body: 'Screenshots per language for sign-off.' },
+      ], previewRows: ['Korean — 14 truncations', 'German — 6 overflow labels', 'Japanese — 3 untranslated strings', 'Arabic — RTL alignment issues'] },
   },
 ]
 

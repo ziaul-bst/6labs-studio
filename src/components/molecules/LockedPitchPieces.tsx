@@ -6,9 +6,9 @@
  * with a single idea in it:
  *
  *   1. What is this, and can I have it?      → PitchHero
- *   2. What would it do for me?              → PitchSection "What you get"
- *   3. What does it actually produce?        → PitchSection "…a finished run"
- *   4. How do I get it?                      → UnlockSteps
+ *   2. How does it work?                     → PitchFlow
+ *   3. What would it do for me?              → PitchOutcomes
+ *   4. How do I get it?                      → PitchClose
  *
  * The version this replaced put all four in three boxes of equal weight — a
  * grey "not included" strip, a bullet card and a faded preview — so nothing
@@ -23,7 +23,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { LockBadge } from '../atoms/LockBadge'
 import { PitchArt, type PitchArtKey } from './PitchArt'
-import { TESTING_ACCENT_VARS, type TestingAccent } from '../../lib/studioAreas'
+import { TESTING_ACCENT_VARS, type TestingAccent, type TestingOutcome } from '../../lib/studioAreas'
 
 export interface PitchHeroProps {
   /** The test's or area's own glyph, sized 32. */
@@ -36,7 +36,17 @@ export interface PitchHeroProps {
    * picture (the area-level pitch).
    */
   visual?: ReactNode
+  /**
+   * The GROUP's colour — blue for human testing, green for AI — which is what
+   * the eyebrow, the wash and every drawing on the page are keyed to.
+   */
   accent: TestingAccent
+  /**
+   * The TEST's own colour, for the 64px identity tile alone. That tile is the
+   * badge the sidebar row and the Overview tile also wear, so it stays the
+   * test's; everything around it speaks about the group.
+   */
+  iconAccent?: TestingAccent
   /**
    * Which kind of test this is and where its footage comes from — "AI player
    * testing · 6labs plays your build". Two tests that end in the same report
@@ -47,10 +57,14 @@ export interface PitchHeroProps {
   /** One sentence: what this does. The largest body type on the page. */
   description: string
   /**
-   * Optional, and normally omitted: the ask lives in `PitchClose` at the foot
-   * of the page, after the argument that earns it.
+   * Normally omitted: the ASK lives in `PitchClose` at the foot of the page,
+   * after the argument that earns it.
    */
   action?: ReactNode
+  /**
+   * A quieter offer that is not the ask — "View a sample report". It belongs
+   * up here precisely because the closing band is reserved for sales.
+   */
   secondaryAction?: ReactNode
   planLine?: string
   className?: string
@@ -67,6 +81,7 @@ export function PitchHero({
   watermark,
   visual,
   accent,
+  iconAccent,
   eyebrow,
   title,
   description,
@@ -76,6 +91,7 @@ export function PitchHero({
   className,
 }: PitchHeroProps) {
   const vars = TESTING_ACCENT_VARS[accent]
+  const badge = TESTING_ACCENT_VARS[iconAccent ?? accent]
   return (
     <section
       className={['pitch-band relative overflow-hidden rounded-4xl px-xxl2 py-xxl2', className].filter(Boolean).join(' ')}
@@ -121,7 +137,7 @@ export function PitchHero({
       <div className="relative flex flex-col gap-m max-w-[62ch]">
         <span
           className="flex items-center justify-center shrink-0 w-[64px] h-[64px] rounded-2xl text-white"
-          style={{ background: vars.gradient, boxShadow: `0 8px 24px ${vars.bg}` }}
+          style={{ background: badge.gradient, boxShadow: `0 8px 24px ${badge.bg}` }}
           aria-hidden
         >
           {icon}
@@ -160,7 +176,40 @@ export function PitchHero({
   )
 }
 
+/**
+ * PitchJumpLink — the way down to the ask from the top of the page.
+ *
+ * The one primary lives at the foot, after the argument that earns it, which
+ * leaves a reader who has already decided with a page to scroll. This is the
+ * shortcut, and it is deliberately a link rather than a button: a second
+ * button in the hero would be a second ask.
+ *
+ * Not an `<a href="#…">` — the studio is hash-routed, so a fragment href would
+ * be read as a route and navigate away.
+ */
+export function PitchJumpLink({ targetId, children }: { targetId: string; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const el = document.getElementById(targetId)
+        if (!el) return
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+      }}
+      className="inline-flex items-center gap-xxs font-body text-s font-semibold text-text-brand leading-[1.5] hover:underline"
+    >
+      {children}
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <path d="M8 3.5v9M4.5 9 8 12.5 11.5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  )
+}
+
 export interface PitchSectionProps {
+  /** Anchor for the hero's jump link. Carries its own scroll-margin. */
+  id?: string
   /** Small-caps label — the question this band answers. */
   label: string
   /** Right-aligned mark, e.g. a "Sample data" chip. */
@@ -172,9 +221,13 @@ export interface PitchSectionProps {
 }
 
 /** A labelled band. The label is furniture; the content below it is the point. */
-export function PitchSection({ label, trailing, children, className, style }: PitchSectionProps) {
+export function PitchSection({ id, label, trailing, children, className, style }: PitchSectionProps) {
   return (
-    <section className={['pitch-band flex flex-col gap-m', className].filter(Boolean).join(' ')} style={style}>
+    <section
+      id={id}
+      className={['pitch-band flex flex-col gap-m', className].filter(Boolean).join(' ')}
+      style={{ scrollMarginTop: 24, ...style }}
+    >
       <div className="flex items-center gap-s">
         <h2 className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-text-tertiary leading-[1.5] m-0">
           {label}
@@ -188,8 +241,8 @@ export function PitchSection({ label, trailing, children, className, style }: Pi
 }
 
 export interface PitchOutcomesProps {
-  /** Three concrete things the studio gets, phrased as outcomes. */
-  outcomes: string[]
+  /** Three concrete things the studio gets — see TestingOutcome. */
+  outcomes: TestingOutcome[]
   /** One illustration per outcome, in order. Falls back to the report drawing. */
   art?: PitchArtKey[]
   accent: TestingAccent
@@ -205,8 +258,19 @@ export interface PitchOutcomesProps {
  * sentences of equal weight in a row is a paragraph pretending to be a layout;
  * the drawing is what makes the three of them scannable, and it carries the
  * only accent colour in the band.
+ *
+ * Under the drawing the tile names itself before it argues. The title is what
+ * carries across a row — three or four words you can compare tile to tile —
+ * and the sentence is what you read once one of them has caught you. Without
+ * it the band asked the reader to parse three full claims to find out what the
+ * three tiles even were.
  */
 export function PitchOutcomes({ outcomes, art, accent, className }: PitchOutcomesProps) {
+  /* Three outcomes stack drawing-over-sentence and fill the measure. Two would
+     each be half the page wide, which turns the well into a field of nothing
+     around a small drawing — so a short row turns on its side instead. */
+  const wide = outcomes.length < 3
+
   return (
     <div
       className={['grid gap-m items-stretch', className].filter(Boolean).join(' ')}
@@ -214,20 +278,87 @@ export function PitchOutcomes({ outcomes, art, accent, className }: PitchOutcome
     >
       {outcomes.map((outcome, i) => (
         <div
-          key={outcome}
-          className="flex flex-col gap-m rounded-3xl p-m"
+          key={outcome.title}
+          className={[
+            'rounded-3xl p-m',
+            wide ? 'flex items-center gap-l' : 'flex flex-col gap-m',
+          ].join(' ')}
           style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
         >
           <span
-            className="flex items-center justify-center rounded-2xl px-l py-m"
+            className={[
+              'flex items-center justify-center rounded-2xl',
+              wide ? 'shrink-0 w-[196px] px-m py-m' : 'px-l py-m',
+            ].join(' ')}
             style={{ backgroundColor: 'var(--bg-page-pale)' }}
           >
             <PitchArt art={art?.[i] ?? 'report'} accent={accent} className="max-w-[190px]" />
           </span>
-          <p className="font-body text-s text-text-primary leading-[1.65] m-0 px-xs pb-xs">{outcome}</p>
+          <div
+            className={[
+              'flex flex-col gap-xxs min-w-0',
+              wide ? 'flex-1 pr-xs' : 'px-xs pb-xs',
+            ].join(' ')}
+          >
+            <span className="font-display text-m font-semibold text-text-primary leading-[1.35] wrap-anywhere">
+              {outcome.title}
+            </span>
+            {/* Secondary ink under the title: two lines of primary stacked on
+                each other is two headlines, and the one that matters is the
+                one you can compare across the row. */}
+            <p className="font-body text-s text-text-secondary leading-[1.65] m-0">{outcome.body}</p>
+          </div>
         </div>
       ))}
     </div>
+  )
+}
+
+export interface PitchOfferProps {
+  /** The drawing for the thing being offered — the report, usually. */
+  art: PitchArtKey
+  accent: TestingAccent
+  title: string
+  body: string
+  /** One secondary control. This band is an offer, not the ask. */
+  action: ReactNode
+  className?: string
+  /** Carries `--pitch-delay`, so this row joins the page's stagger. */
+  style?: CSSProperties
+}
+
+/**
+ * PitchOffer — one thing the reader can do before buying, on its own row.
+ *
+ * It exists because the sample report needed a home that was neither the hero
+ * nor the closing band. In the hero it met the reader before the argument; in
+ * the closing band it sat beside "Contact sales" and made the ask ambiguous.
+ * Here it lands straight after "What you get", which is exactly the moment
+ * someone wants to see the thing rather than read about it.
+ *
+ * Laid out sideways — drawing, then the offer, then the control — so it reads
+ * as an aside between two bands rather than as a fifth section.
+ *
+ * Code-first prototype — no Figma source yet.
+ */
+export function PitchOffer({ art, accent, title, body, action, className, style }: PitchOfferProps) {
+  return (
+    <section
+      className={['pitch-band flex items-center gap-l rounded-3xl p-m', className].filter(Boolean).join(' ')}
+      style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)', ...style }}
+    >
+      <span
+        className="flex items-center justify-center shrink-0 w-[168px] rounded-2xl px-m py-m"
+        style={{ backgroundColor: 'var(--bg-page-pale)' }}
+      >
+        <PitchArt art={art} accent={accent} className="max-w-[140px]" />
+      </span>
+      <span className="flex flex-col gap-xxs flex-1 min-w-0">
+        <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">{title}</span>
+        <span className="font-body text-s text-text-secondary leading-[1.6]">{body}</span>
+      </span>
+      <span className="shrink-0 pr-xs">{action}</span>
+    </section>
   )
 }
 
@@ -307,22 +438,33 @@ export interface UnlockStepsProps {
 export function UnlockSteps({ steps, className }: UnlockStepsProps) {
   return (
     <ol
-      className={['grid gap-m list-none m-0 p-0 items-stretch', className].filter(Boolean).join(' ')}
+      className={['grid gap-m list-none m-0 p-0 items-start', className].filter(Boolean).join(' ')}
       style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
     >
       {steps.map((step, i) => (
-        <li key={step.title} className="flex flex-col gap-xs">
-          <span className="flex items-center gap-xs">
+        <li key={step.title} className="relative flex flex-col gap-s">
+          {/* The rail to the next step, drawn from this numeral's edge across
+              the grid gap. It sits on the numeral's own line, which is why the
+              numeral has a line to itself — run inline with the title and the
+              rail strikes straight through the words. */}
+          {i < steps.length - 1 && (
             <span
-              className="flex items-center justify-center shrink-0 w-6 h-6 rounded-round font-display text-2xs font-bold tabular-nums"
-              style={{ backgroundColor: 'var(--bg-tint)', color: 'var(--text-brand)' }}
+              className="absolute hidden md:block"
+              style={{ left: 36, right: -16, top: 13, height: 1, backgroundColor: 'var(--border-tint)' }}
               aria-hidden
-            >
-              {i + 1}
-            </span>
-            <span className="font-display text-s font-semibold text-text-primary leading-[1.4]">{step.title}</span>
+            />
+          )}
+          <span
+            className="relative flex items-center justify-center shrink-0 w-7 h-7 rounded-round font-display text-xs font-bold tabular-nums"
+            style={{ backgroundColor: 'var(--bg-tint)', color: 'var(--text-brand)' }}
+            aria-hidden
+          >
+            {i + 1}
           </span>
-          <p className="font-body text-s text-text-secondary leading-[1.6] m-0">{step.body}</p>
+          <span className="flex flex-col gap-xxs">
+            <span className="font-display text-s font-semibold text-text-primary leading-[1.4]">{step.title}</span>
+            <span className="font-body text-s text-text-secondary leading-[1.6]">{step.body}</span>
+          </span>
         </li>
       ))}
     </ol>
@@ -331,9 +473,8 @@ export function UnlockSteps({ steps, className }: UnlockStepsProps) {
 
 export interface PitchCloseProps {
   steps: UnlockStep[]
-  /** The page's one primary. */
+  /** The page's one primary — and the only control in this band. */
   action: ReactNode
-  secondaryAction?: ReactNode
   /** What the plan *does* include — so the close is not only about the gap. */
   planLine?: string
   className?: string
@@ -346,25 +487,28 @@ export interface PitchCloseProps {
  * the argument and found nothing to press once they had finished reading. The
  * steps and the button belong to each other — step one *is* pressing it — so
  * they are one card, brand-tinted, and it is the last thing on the page.
+ *
+ * Exactly one control lives here. Anything a reader might do that is not
+ * "start buying this" — viewing a sample, say — belongs further up the page,
+ * or the band stops reading as the ask.
  */
-export function PitchClose({ steps, action, secondaryAction, planLine, className }: PitchCloseProps) {
+export function PitchClose({ steps, action, planLine, className }: PitchCloseProps) {
   return (
     <div
       className={['flex flex-col rounded-4xl overflow-hidden', className].filter(Boolean).join(' ')}
       style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-tint)', boxShadow: 'var(--shadow-sm)' }}
     >
-      <div className="px-xl pt-xl pb-l">
+      <div className="px-xxl pt-xl pb-xl">
         <UnlockSteps steps={steps} />
       </div>
       <div
-        className="flex items-center gap-m flex-wrap px-xl py-l"
+        className="flex items-center gap-m flex-wrap px-xxl py-l"
         style={{
           borderTop: '1px solid var(--border-tint)',
           background: 'linear-gradient(90deg, var(--bg-tint) 0%, var(--bg-tint-light) 100%)',
         }}
       >
         {action}
-        {secondaryAction}
         {planLine && (
           <p className="font-body text-s text-text-secondary leading-[1.6] m-0 flex-1 min-w-[280px]">{planLine}</p>
         )}

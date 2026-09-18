@@ -216,10 +216,14 @@ export type PickerSource = 'recorder' | 'direct' | 'cli'
 
 /**
  * Mirrors VideoStatus on VideoLibraryCard. Declared here rather than imported
- * so lib/types stays free of component imports; keep the two in step. There is
- * no analysing state — nothing runs over library footage.
+ * so lib/types stays free of component imports; keep the two in step.
+ *
+ * `processing` is transferred-but-not-yet-analysed (the daily cron has not
+ * read it). It is unpickable for the same reason `uploading` is — a run has
+ * nothing to read — but for a different reason the picker has to state, since
+ * the clip plainly exists and plays.
  */
-export type PickerStatus = 'uploading' | 'ready' | 'failed'
+export type PickerStatus = 'uploading' | 'processing' | 'ready' | 'failed'
 
 export interface PickerVideo {
   id: string

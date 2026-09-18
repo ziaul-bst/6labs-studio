@@ -55,7 +55,7 @@ export function AreaLockedPitch({ area, carriesOver, onContact }: AreaLockedPitc
   const rows = rowsFor(area)
 
   return (
-    <div className="flex flex-col gap-xxl2 page-measure pt-[120px] pb-xxl3">
+    <div className="flex flex-col gap-xxl2 page-measure pt-[120px] pb-[120px]">
       <PitchHero
         icon={<AreaIcon size={32} />}
         watermark={<AreaIcon size={128} />}
