@@ -43,7 +43,7 @@ export interface TestingHomeEmptyProps {
 }
 
 export function TestingHomeEmpty({
-  title = 'Add recordings to run your first test',
+  title = 'Add sessions to run your first test',
   description = 'Upload footage you have, or record new sessions with the Recorder app.',
   icon = <TestRunIcon size={32} />,
   libraryVideoCount = 0,

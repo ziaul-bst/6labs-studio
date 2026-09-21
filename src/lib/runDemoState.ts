@@ -7,9 +7,13 @@
  * in-progress thread is a sixteen-second window you have to catch, and the
  * report is only reachable by sitting through it.
  *
- * Each test view maps these onto its own screens — User Test has a thread step
- * between the composer and the report, the others go straight to the report —
- * so `RUN_DEMO_STATES_NO_THREAD` is the shorter list for those.
+ * Each test view maps these onto its own screens — every test now lands on its
+ * own run page when a run is submitted, so `queued` is shared, and only User
+ * Test has a question answer to hold open.
+ *
+ * Every state here is a DESTINATION: picking one is a request to go to that
+ * screen. Loading is not — it is a phase every screen passes through, so it is
+ * its own row and navigates nowhere. See lib/loadingDemoState.
  *
  * Review chrome, not product.
  *
@@ -20,10 +24,11 @@ import { useSyncExternalStore } from 'react'
 
 export type RunDemoState =
   | 'composer'
+  | 'queued'
   | 'running'
   | 'no-sessions'
   | 'analysing'
-  | 'thread'
+  | 'question'
   | 'summary'
   | 'asking'
   | 'report'
@@ -32,15 +37,16 @@ export type RunDemoState =
  * The screens a test can be held on, per test — they no longer share one list,
  * because they no longer have the same screens.
  *
- * None of the human tests keep `running`. A new run lands on its History tab as
- * a row in progress and the detail page is disabled until it finishes, so a
- * preset for a run in flight would hold open a page nothing routes to.
+ * None of the human tests keep `running`: their run page is the report, which
+ * narrates its own progress. They do keep `queued` — submitting now opens that
+ * page, and the first thing it says is that the run is in line.
  */
 
-/** User Test: a thread (an opened question), the run page, and the report. */
+/** User Test: an opened question, the run page, and the report. */
 export const RUN_DEMO_STATES_USER_TEST: RunDemoState[] = [
   'composer',
-  'thread',
+  'queued',
+  'question',
   'summary',
   /* The follow-up loader is only up for ANSWER_DELAY_MS — too short to review
      without a preset holding it. */
@@ -54,7 +60,7 @@ export const RUN_DEMO_STATES_USER_TEST: RunDemoState[] = [
  * its dock advertised "No videos yet" and "Analysing", two screens it does not
  * have, on a row nothing was listening to.
  */
-export const RUN_DEMO_STATES_FUNCTIONAL: RunDemoState[] = ['composer', 'report']
+export const RUN_DEMO_STATES_FUNCTIONAL: RunDemoState[] = ['composer', 'queued', 'report']
 
 /**
  * AI behavioural keeps `running` and the two states either side of it. Theirs
@@ -64,6 +70,7 @@ export const RUN_DEMO_STATES_FUNCTIONAL: RunDemoState[] = ['composer', 'report']
  */
 export const RUN_DEMO_STATES_AI_BEHAVIOURAL: RunDemoState[] = [
   'composer',
+  'queued',
   'no-sessions',
   'running',
   'analysing',
@@ -72,24 +79,26 @@ export const RUN_DEMO_STATES_AI_BEHAVIOURAL: RunDemoState[] = [
 
 export const RUN_DEMO_LABELS: Record<RunDemoState, string> = {
   composer: 'Composer',
+  queued: 'Queued',
   running: 'Running',
   analysing: 'Analysing',
   'no-sessions': 'No videos yet',
-  thread: 'Thread',
-  summary: 'Run summary',
+  question: 'Question answer',
+  summary: 'Run page',
   asking: 'Follow-up loading',
   report: 'Report',
 }
 
 export const RUN_DEMO_NOTES: Record<RunDemoState, string> = {
-  composer: 'Before a run — pick footage, add context, name it.',
+  composer: 'Before a run — pick the sessions, add context, name it.',
+  queued: 'Submitted and not started. The run page you are dropped on the moment you press the button.',
   running: 'A run in flight. Normally a 16-second window; this holds it open.',
   analysing:
     'Every agent has stopped and the report is being written — the sessions are all watchable, the report is not there yet.',
-  thread: 'The finished run thread, with the answer and the follow-up dock.',
+  question: 'A question opened from history — the answer sheet and the follow-up composer.',
   'no-sessions':
     'A run that has started and recorded nothing yet. Opens on Videos — the tab the first session will arrive in — with the illustrated empty state.',
-  summary: 'The run page a finished report opens on — what it found, and how big.',
+  summary: 'The run page — what the run found, and how big it was.',
   asking: 'A follow-up asked and still being answered — the pending answer sheet, held open.',
   report: 'The full report: issues ranked by testers affected, with clips.',
 }

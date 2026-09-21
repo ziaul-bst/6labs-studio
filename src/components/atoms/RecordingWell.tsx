@@ -8,23 +8,24 @@
  * Videos grid. This is the one answer.
  *
  * What it does with the shape:
- *   - The pane holds the footage at its own aspect and is centred, never
- *     stretched. A 9:19.5 capture in a landscape box is the normal case, not a
- *     failure, so it is designed for rather than worked around.
- *   - The room left over beside the pane gets an AMBIENT fill: the same frame,
- *     blown up, blurred and dimmed. Letterboxing then reads as part of the
- *     picture instead of as two empty slabs of whatever colour the frame
- *     happened to start with — which is what a flat fill behind a portrait
- *     clip actually looks like.
- *   - A hairline and a drop shadow edge the pane, so the boundary between
- *     footage and ambience is legible rather than a smear.
+ *   - Left to itself, the well IS the footage's shape — 9:19.5 for a phone
+ *     capture, 16:9 for a landscape one — so the surface that owns the
+ *     recording (the session viewer's hero) shows it whole, with no bars at
+ *     all in either orientation.
+ *   - Where a surface has its own reason to be a fixed box — a card in a grid,
+ *     a filmstrip tile — it passes `fill`, and the footage is contained and
+ *     centred inside it. The room left over is BLACK, which is what a player
+ *     puts behind a picture. A hairline and a drop shadow edge the pane there,
+ *     so the boundary between footage and bar is a decision rather than a
+ *     smear.
  *
  * What it does with the wait:
  *   A live session reaches a screen a beat before 6labs has the picture of it,
  *   and some screens never get one. With no frame the well shows its waiting
- *   treatment — matte, device outline, a slow sweep — and says so. It never
- *   shows an empty box (reads as broken) and never holds the previous screen's
- *   frame (reads as a wrong answer, which is worse than no answer).
+ *   treatment — a capture reticle, one slow pulse, a line saying what is
+ *   coming. It never shows an empty box (reads as broken) and never holds the
+ *   previous screen's frame (reads as a wrong answer, which is worse than no
+ *   answer).
  *
  * Code-first prototype — no Figma source yet.
  */
@@ -35,10 +36,9 @@ import type { RecordingOrientation } from '../../lib/types/testing'
 export interface RecordingWellProps {
   /**
    * A real still. Preferred over `scene` when there is one: an image has an
-   * intrinsic shape, so the well does not have to be told the orientation —
-   * the picture is contained and centred, and the ambience is the same file
-   * covering the box behind it. This is how a library of mixed footage works,
-   * where nothing knows a clip's shape until its still arrives.
+   * intrinsic shape, so it is contained and centred and needs no orientation
+   * told to it. This is how a library of mixed footage works, where nothing
+   * knows a clip's shape until its still arrives.
    */
   src?: string
   /**
@@ -106,25 +106,17 @@ export function RecordingWell({
     >
       {pending && (
         <div className="recording-well-waiting">
-          <div className="recording-well-waiting-device" aria-hidden />
+          <div className="recording-well-waiting-frame" aria-hidden>
+            <span className="recording-well-waiting-pulse" />
+          </div>
           {pendingLabel && !compact && <span className="recording-well-waiting-label">{pendingLabel}</span>}
         </div>
       )}
-      {/* Ambience first, footage over it — both read the same frame, so they
-          can never disagree about what is being shown. */}
-      {!pending && src && (
-        <>
-          <img className="recording-well-ambient" src={src} alt="" aria-hidden />
-          <img className="recording-well-fit" src={src} alt="" />
-        </>
-      )}
+      {!pending && src && <img className="recording-well-fit" src={src} alt="" />}
       {!pending && !src && scene && (
-        <>
-          <div className="recording-well-ambient" style={{ background: scene }} aria-hidden />
-          <div className="recording-well-pane" style={{ background: scene }}>
-            {pane}
-          </div>
-        </>
+        <div className="recording-well-pane" style={{ background: scene }}>
+          {pane}
+        </div>
       )}
       {children}
     </div>

@@ -111,6 +111,22 @@ import {
   type RunDemoState,
 } from '../lib/runDemoState'
 import {
+  SESSION_TEXT_DEMO_LABELS,
+  SESSION_TEXT_DEMO_NOTES,
+  SESSION_TEXT_DEMO_STATES,
+  setSessionTextDemoState,
+  useSessionTextDemoState,
+  type SessionTextDemoState,
+} from '../lib/sessionTextDemoState'
+import {
+  LOADING_DEMO_LABELS,
+  LOADING_DEMO_NOTES,
+  LOADING_DEMO_STATES,
+  setLoadingDemoState,
+  useLoadingDemoState,
+  type LoadingDemoState,
+} from '../lib/loadingDemoState'
+import {
   CASE_DEPTH_DEMO_LABELS,
   CASE_DEPTH_DEMO_NOTES,
   CASE_DEPTH_DEMO_STATES,
@@ -483,6 +499,8 @@ export function HomePage() {
   const connectorsDemoState = useConnectorsDemoState()
   const uploadsDemoState = useUploadsDemoState()
   const runDemoState = useRunDemoState()
+  const loadingDemoState = useLoadingDemoState()
+  const sessionTextDemoState = useSessionTextDemoState()
   const caseDepthDemoState = useCaseDepthDemoState()
   const caseLayoutDemoState = useCaseLayoutDemoState()
   const buildsDemoState = useBuildsDemoState()
@@ -517,7 +535,7 @@ export function HomePage() {
    */
   const [userTestScreen, setUserTestScreen] = useState<UserTestScreen>('home')
   /** Same idea for the other tests — 'home' paints the gradient, anything else is a run. */
-  const [testingSubScreen, setTestingSubScreen] = useState<'home' | 'report' | 'thread' | 'run' | 'session'>('home')
+  const [testingSubScreen, setTestingSubScreen] = useState<'home' | 'report' | 'run' | 'session'>('home')
 
   /* Only on the composer screen does the tab exist. Inside a run the tab bar is
      gone, so the run is what the dock should describe, whatever the last tab was. */
@@ -1598,6 +1616,26 @@ export function HomePage() {
           tab. The dock renders nothing when no row applies. */}
       <StateMachineDock
         rows={[
+          /* Loading first, and on every Testing screen — it is the one row that
+             applies to whatever is in view rather than to a particular screen,
+             and the only one that does not navigate. Each screen renders its
+             own skeleton; this holds it open. */
+          ...(area === 'testing'
+            ? [
+                {
+                  id: 'loading',
+                  label: 'Loading',
+                  value: loadingDemoState,
+                  options: LOADING_DEMO_STATES.map((key) => ({
+                    key,
+                    label: LOADING_DEMO_LABELS[key],
+                    note: LOADING_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => setLoadingDemoState(key as LoadingDemoState),
+                  defaultKey: 'loaded',
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
           ...(area === 'testing'
             ? [
                 {
@@ -1710,6 +1748,24 @@ export function HomePage() {
           /* Run while composing or inside a run; History on the history tab.
              Being inside a run outranks the tab: the tab bar is not even on
              screen there, so the last tab value says nothing about the view. */
+          /* How much the agent wrote about each screen — only inside a session,
+             which is the one place that text is read. */
+          ...(activeNav === 'ai-behavioural-test' && testingSubScreen === 'session'
+            ? [
+                {
+                  id: 'reasoning',
+                  label: 'Reasoning',
+                  value: sessionTextDemoState,
+                  options: SESSION_TEXT_DEMO_STATES.map((key) => ({
+                    key,
+                    label: SESSION_TEXT_DEMO_LABELS[key],
+                    note: SESSION_TEXT_DEMO_NOTES[key],
+                  })),
+                  onChange: (key: string) => setSessionTextDemoState(key as SessionTextDemoState),
+                  defaultKey: 'standard',
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
           /* The AI tests' build picker — every state a build passes through. */
           ...((activeNav === 'ai-functional-test' || activeNav === 'ai-behavioural-test') && onTestHomeScreen && testingTab === 'new'
             ? [

@@ -6,7 +6,7 @@
  * a fact rather than an assertion, and they were previously reachable only by
  * leaving for the full report — which costs the reader the list they were
  * scanning. So the evidence comes to them: the link opens the clips in place,
- * each row naming who recorded it, on what device, and when in their session.
+ * each row naming who recorded it and when in their session.
  *
  * It is a popover rather than a panel because it answers a question asked in
  * passing ("which sessions?") and is dismissed the same way.
@@ -157,8 +157,12 @@ export function FindingClipsPopover({
               <span className="font-display text-xs font-semibold text-text-primary leading-[1.45]">
                 {clip.note}
               </span>
+              {/* Tester and time range. The device used to sit between them,
+                   and 6labs does not get one from the Recorder app — it was a
+                   fact invented per clip, in the one line a reader uses to find
+                   the moment again. */}
               <span className="font-code text-2xs text-text-tertiary leading-[1.5]">
-                {clip.timeRange} · {clip.device} · {clip.tester}
+                {clip.timeRange} · {clip.tester}
               </span>
             </span>
           </button>

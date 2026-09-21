@@ -22,6 +22,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { runDateLabel } from '../../lib/runDate'
 import { TestingPageHeader } from '../molecules/TestingPageHeader'
+import { TestingBodySkeleton, TestingPageSkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
 import { InstructionsField, SetupNote } from '../molecules/TestingSetupPieces'
@@ -110,6 +112,9 @@ const SIMULATED_RUN_MS = 16000
  */
 const SIMULATED_ANALYSIS_MS = 6000
 
+/** How long a submitted run waits for devices before the first agent starts. */
+const SIMULATED_QUEUE_MS = 4000
+
 export function AIBehaviouralTestView({
   onScreenChange,
   initialTab = 'new',
@@ -120,7 +125,11 @@ export function AIBehaviouralTestView({
   useEffect(() => {
     onTabChange?.(tab)
   }, [tab, onTabChange])
-  const [build, setBuild] = useState<string | null>('v2.3.1')
+  /* Empty, not pre-filled with the newest build. A composer that arrives with
+     a build already chosen is a composer that will be submitted without anyone
+     reading which one — and "which build was that run against" is the first
+     question asked of every behavioural report. The picker is one click. */
+  const [build, setBuild] = useState<string | null>(null)
   const [runName, setRunName] = useState('')
   /* Agents are asked per persona — "twelve new players, eight whales" is how a
      run is thought about — and the total is derived and shown, never typed.
@@ -130,10 +139,12 @@ export function AIBehaviouralTestView({
   const [counts, setCounts] = useState<Record<string, number>>({})
   const countOf = (id: string) => counts[id] ?? DEFAULT_AGENT_COUNT
   const setCount = (id: string, n: number) => setCounts((c) => ({ ...c, [id]: Math.min(100, Math.max(1, n)) }))
-  /* Generic, not a persona pair: the default run plays the build as it is, and
-     asking for a New player and a Whale is a decision the composer should not
-     be making on the reader's behalf. */
-  const [personaIds, setPersonaIds] = useState<string[]>(['generic'])
+  /* Empty, for the same reason the build is: which personas played is the
+     dimension every finding in the report is broken down by, so it is not a
+     thing to inherit from a default. Generic is offered first in the picker,
+     which is where "play it as it is" belongs — as the easy choice, not as
+     the one already made. */
+  const [personaIds, setPersonaIds] = useState<string[]>([])
   const [length, setLength] = useState<SessionLength>('15')
   const [customLength, setCustomLength] = useState('45')
   const [instructions, setInstructions] = useState('')
@@ -148,6 +159,9 @@ export function AIBehaviouralTestView({
   /* How far the live sessions have got — ticks up while a run is in flight. */
   const [liveReached, setLiveReached] = useState(4)
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  /* The home's own beat, restarted on a tab change. The run screen and the
+     session viewer each have their own. */
+  const loadPhase = usePageLoading(tab)
   const timers = useRef<number[]>([])
 
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), [])
@@ -171,6 +185,16 @@ export function AIBehaviouralTestView({
       return
     }
     const base = AI_BEHAVIOURAL_HISTORY[0]
+    if (state === 'queued') {
+      /* Nothing recorded and nothing started — the page you are dropped on the
+         moment Submit is pressed. Report, not Videos: the Videos tab of a
+         queued run is an empty grid, and the Report tab is where the run says
+         what it is waiting for. */
+      setOpenRun({ ...base, id: 'demo-queued', state: 'queued', result: undefined, when: runDateLabel() })
+      setLiveReached(0)
+      setRunTab('report')
+      return
+    }
     if (state === 'no-sessions') {
       /* A run that has started and recorded nothing. The session builder always
          produces one row per agent, so the only honest way to reach this state
@@ -220,7 +244,9 @@ export function AIBehaviouralTestView({
   }, [activeRun, liveReached])
   const sessions = useMemo(() => {
     if (!activeRun || !activeMeta) return []
-    /* Nothing recorded yet — see the 'no-sessions' preset. */
+    /* Nothing recorded yet — a queued run by definition, and a live one that
+       has not produced its first screen (see the 'no-sessions' preset). */
+    if (activeRun.state === 'queued') return []
     if (liveReached === 0 && activeRun.state === 'progress') return []
     const built = buildAgentSessions(activeRun.id, activeMeta, liveReached)
     return activeRun.state === 'failed' ? built.slice(0, activeMeta.finished) : built
@@ -261,18 +287,38 @@ export function AIBehaviouralTestView({
          truncating a name mid-word — the same Tag column every other history
          table has. `meta` stays as the plain-text fallback. */
       tags: personas.map((p) => `${p.label} ×${countOf(p.id)}`),
-      state: 'progress',
+      /* Submitted, waiting for devices. Agents do not start the instant the
+         button is pressed, and a run that claims to be playing before one has
+         picked up the build makes the first empty Videos tab look broken. */
+      state: 'queued',
       when: runDateLabel(),
     }
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)
     setRunName('')
-    setTab('history')
-    /* Two beats, not one: the agents stop playing, then the analysis reads what
-       they recorded. */
-    timers.current.push(window.setTimeout(() => analyseRun(run.id), SIMULATED_RUN_MS))
+    /* Straight to the run's own page, on its Report tab — the tab that says
+       what the run is waiting for, and the one that fills in when it lands. */
+    setOpenSession(null)
+    setLiveReached(0)
+    setRunTab('report')
+    setRunVideosStatus('all')
+    setOpenRun(run)
+    /* Three beats: the run waits for devices, the agents play, then the
+       analysis reads what they recorded. */
     timers.current.push(
-      window.setTimeout(() => finishRun(run.id), SIMULATED_RUN_MS + SIMULATED_ANALYSIS_MS),
+      window.setTimeout(() => {
+        setRuns((prev) => prev.map((r) => (r.id === run.id ? { ...r, state: 'progress' } : r)))
+        setLiveReached(1)
+      }, SIMULATED_QUEUE_MS),
+    )
+    timers.current.push(
+      window.setTimeout(() => analyseRun(run.id), SIMULATED_QUEUE_MS + SIMULATED_RUN_MS),
+    )
+    timers.current.push(
+      window.setTimeout(
+        () => finishRun(run.id),
+        SIMULATED_QUEUE_MS + SIMULATED_RUN_MS + SIMULATED_ANALYSIS_MS,
+      ),
     )
   }
 
@@ -324,6 +370,17 @@ export function AIBehaviouralTestView({
     )
   }
 
+  /* Below the run branch: each screen owns its own loading state. */
+  /* Arriving draws the whole screen; refreshing draws only the panel under the
+     tabs. The header and the tab bar do not change when the tab does — and the
+     tab the reader just pressed must not vanish under the cursor, nor take the
+     active-tab marker with it. */
+  const skeletonBody = tab === 'history' ? 'list' : 'card'
+  if (loadPhase === 'initial')
+    return (
+      <TestingPageSkeleton body={skeletonBody} label="Loading AI behavioural test" className={className} />
+    )
+
   return (
     <div className={['flex flex-col gap-l page-measure pt-[120px] pb-xxl3', className].filter(Boolean).join(' ')}>
       <TestingPageHeader
@@ -343,7 +400,9 @@ export function AIBehaviouralTestView({
         ]}
       />
 
-      {tab === 'new' ? (
+      {loadPhase === 'refresh' ? (
+        <TestingBodySkeleton body={skeletonBody} />
+      ) : tab === 'new' ? (
         <div className="flex flex-col gap-m w-full">
           <div
             className="flex flex-col w-full rounded-4xl px-xl pt-l pb-m"
@@ -353,14 +412,17 @@ export function AIBehaviouralTestView({
               boxShadow: '0 10px 40px var(--bg-tint-light)',
             }}
           >
+            {/* The heading alone. "Personas are derived from the player model and
+                improve with every human session added" is a claim about the
+                product, not an instruction for this form — it is made on the
+                Overview, where someone is deciding whether to use the test, and
+                here it sat in the one line a reader skims on the way to the
+                first field. */}
             <div
               className="flex items-center gap-m pb-m mb-s"
               style={{ borderBottom: '1px solid var(--border-subtle)' }}
             >
               <span className="font-display text-m font-semibold text-text-primary">Set up a session</span>
-              <span className="font-body text-s text-text-tertiary leading-[1.5]">
-                Personas are derived from the player model and improve with every human session added.
-              </span>
             </div>
 
             <Row label="Run name">
@@ -468,14 +530,26 @@ export function AIBehaviouralTestView({
               className="flex items-center justify-end gap-s pt-m mt-s"
               style={{ borderTop: '1px solid var(--border-subtle)' }}
             >
-              <Button variant="primary" size="lg" disabled={personas.length === 0} onClick={submit}>
+              {/* Both are required and neither is seeded any more, so the
+                  button says which one is still missing rather than sitting
+                  dead with no explanation. */}
+              {(personas.length === 0 || !build) && (
+                <span className="font-body text-s text-text-tertiary leading-[1.5] mr-auto">
+                  {!build && personas.length === 0
+                    ? 'Choose a build and at least one persona to run.'
+                    : !build
+                      ? 'Choose a build to run.'
+                      : 'Choose at least one persona to run.'}
+                </span>
+              )}
+              <Button variant="primary" size="lg" disabled={personas.length === 0 || !build} onClick={submit}>
                 Submit
               </Button>
             </div>
           </div>
 
           <SetupNote>
-            6labs produces a behavioural and UX report from the recordings, and you can query them exactly
+            6labs produces a behavioural and UX report from the sessions, and you can query them exactly
             as you would human sessions. The agents play in the background — a run takes about as long as
             the session length you set, and the report lands in Run history when the last agent finishes.
           </SetupNote>
@@ -492,6 +566,8 @@ export function AIBehaviouralTestView({
              yet, so it lands on the live sessions instead. */
           onOpen={(run) => {
             setOpenSession(null)
+            /* A run in flight lands on the live sessions; a queued one has none
+               yet, so it lands on the Report tab that explains the wait. */
             setRunTab(run.state === 'progress' ? 'videos' : 'report')
             /* Opening the run is a request for the run, not for what is live in
                it — only "Watch live" narrows the list. */

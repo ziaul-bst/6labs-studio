@@ -44,6 +44,16 @@ function clipSeconds(text: string, index: number): number {
   return m * 60 + s
 }
 
+/** An empty frame with a slash through it — no recording exists for this case. */
+function NoFootageGlyph() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M4 4l16 16" />
+    </svg>
+  )
+}
+
 /** Paired with the DS PlayIcon on the poster — there is no PauseIcon in the set. */
 function PauseGlyph() {
   return (
@@ -237,7 +247,42 @@ export function TestCaseDetailModal({
   const stepOffset = (at: string) =>
     Math.max(0, Math.min(clipTotal, clipSeconds(at, 0) - clipStart))
 
-  const clipFigure = (
+  /* Not verified means the moment never happened — the case was never reached,
+     so there is no clip to park a playhead on. The player used to render
+     anyway: a poster, a play button and a 0:00 / 0:01 scrubber over footage
+     that does not exist, which reads as evidence that failed to load rather
+     than as evidence that was never produced. The slot keeps its size and says
+     which it is, so the comparison beside it stays where a reader expects it.
+
+     It is not an error state. A run that reaches 64% of a suite leaves a third
+     of it here by design, and the way to fill this box is to cover the case in
+     the next run, not to retry this one. */
+  const noFootage = testCase.outcome === 'blocked'
+  const emptyFigure = (
+    <figure className="case-figure flex flex-col gap-xs m-0">
+      <div
+        className="case-clip flex flex-col items-center justify-center gap-xs w-full rounded-xl px-l text-center"
+        style={{ backgroundColor: 'var(--bg-page-pale)', border: '1px dashed var(--border-default)' }}
+      >
+        <span className="text-text-tertiary" aria-hidden>
+          <NoFootageGlyph />
+        </span>
+        <span className="font-display text-s font-semibold text-text-primary leading-[1.45]">
+          No footage for this case
+        </span>
+        <span className="font-body text-xs text-text-tertiary leading-[1.6] max-w-[38ch]">
+          {aiGenerated
+            ? 'The AI players never reached this case, so nothing was recorded against it.'
+            : 'None of the sessions in this run reached this case, so there is nothing to verify it against.'}
+        </span>
+      </div>
+      <figcaption className="flex flex-wrap items-center gap-s font-code text-xs text-text-tertiary leading-[1.5]">
+        <span>Not reached</span>
+      </figcaption>
+    </figure>
+  )
+
+  const clipFigure = noFootage ? emptyFigure : (
     <figure className="case-figure flex flex-col gap-xs m-0">
       {aiGenerated && (
         /* Above the frame, at the head of the column the frame is in — this

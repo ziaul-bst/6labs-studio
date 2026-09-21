@@ -190,6 +190,12 @@ export function RunHistoryList({
       )}
 
       {visible.map((run, i) => {
+        /* Submitted, not started. It shares the pending tint and the spinner
+           tile with a run in flight — from the list's point of view both are
+           "nothing to read yet" — but its own row says which of the two it is,
+           because "Queued" and "In progress" answer different questions about
+           whether anything is wrong. */
+        const queued = run.state === 'queued'
         const inProgress = run.state === 'progress'
         /* The evidence exists and the report does not. Unlike 'progress' this
            row always opens: every session is finished and watchable, so the
@@ -197,8 +203,14 @@ export function RunHistoryList({
            being written — which is exactly where someone waiting on it wants
            to be. */
         const analysing = run.state === 'analysing'
-        const pending = inProgress || analysing
+        /* Work is under way right now — agents playing, footage being read. */
+        const running = inProgress || analysing
+        const pending = queued || running
         const failed = run.state === 'failed'
+        /* A failure 6labs could not attribute has no details page to offer —
+           the row already carries everything that is known. Sending a reader
+           to an empty screen is worse than not offering the trip. */
+        const failedWithoutReason = failed && !run.failure
         const kind: TestRunKind = run.kind ?? 'report'
         const isQuestion = kind === 'question'
         const last = i === visible.length - 1 && !paged
@@ -206,7 +218,9 @@ export function RunHistoryList({
            would be a progress bar, which this row already is. The tests whose
            agents can be watched play live pass `onWatchLive` and keep their way
            in; everything else is inert until the run has something to show. */
-        const openable = !inProgress || Boolean(onWatchLive)
+        /* Queued opens: the run page is where a submitted run reports itself,
+           and it is the page the reader was just on. */
+        const openable = (!inProgress && !failedWithoutReason) || Boolean(onWatchLive)
         return (
           <div
             key={run.id}
@@ -235,8 +249,23 @@ export function RunHistoryList({
                  clips, so a tinted last row can't square its corner. */
               borderBottomLeftRadius: last ? 15 : undefined,
               borderBottomRightRadius: last ? 15 : undefined,
-              backgroundColor:
-                run.id === highlightId ? 'var(--bg-tint-light)' : pending ? 'var(--bg-page-pale)' : undefined,
+              /* Ground by how much is actually happening, strongest first.
+                 A run in flight takes the brand tint, because it is the row
+                 whose numbers are still moving and the one a reader scanning
+                 the list is looking for. Queued takes the neutral pale: it has
+                 been accepted and nothing is happening to it, which is a
+                 different fact and should not compete.
+
+                 The two used to share one ground — a queued run and a running
+                 one were the same rectangle, and on the presets that highlight
+                 a fresh row they were indistinguishable. */
+              backgroundColor: running
+                ? 'var(--bg-tint-light)'
+                : queued
+                  ? 'var(--bg-page-pale)'
+                  : run.id === highlightId
+                    ? 'var(--bg-tint-light)'
+                    : undefined,
             }}
           >
             <span
@@ -244,19 +273,45 @@ export function RunHistoryList({
               /* The tile is the only place the kind is said. A question is a
                  lighter act than a run, and its tile says so before the name
                  is read. */
+              /* Neutral for a queued run, the same neutral its pill wears. It
+                 used to take the brand tile every report row gets, so the one
+                 state that is deliberately quiet was announcing itself in the
+                 column that reads first. */
               style={
                 failed
                   ? { backgroundColor: 'var(--error-bg)', color: 'var(--error)' }
-                  : isQuestion
+                  : queued || isQuestion
                     ? { backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }
                     : { backgroundColor: 'var(--bg-tint-light)', color: 'var(--text-brand)' }
               }
               role="img"
               aria-label={
-                inProgress ? 'In progress' : analysing ? 'Analysing' : failed ? 'Failed' : isQuestion ? 'Question' : 'Report'
+                queued
+                  ? 'Queued'
+                  : inProgress
+                    ? 'In progress'
+                    : analysing
+                      ? 'Analysing'
+                      : failed
+                        ? 'Failed'
+                        : isQuestion
+                          ? 'Question'
+                          : 'Report'
               }
             >
-              {pending ? <Spinner size={18} tone="current" /> : failed ? <FailedGlyph size={18} /> : isQuestion ? <QuestionGlyph /> : <ReportGlyph />}
+              {/* Queued is a wait with nothing turning in it — a spinner there
+                  claims work is under way that has not started. */}
+              {queued ? (
+                <QueuedGlyph />
+              ) : pending ? (
+                <Spinner size={18} tone="current" />
+              ) : failed ? (
+                <FailedGlyph size={18} />
+              ) : isQuestion ? (
+                <QuestionGlyph />
+              ) : (
+                <ReportGlyph />
+              )}
             </span>
 
             <span className="flex flex-col gap-xxxs min-w-0">
@@ -287,7 +342,18 @@ export function RunHistoryList({
                 spelled out somewhere — and a run still playing is opened for a
                 different reason than a finished one. */}
             <span className="flex items-center justify-end">
-              {inProgress && onWatchLive ? (
+              {queued ? (
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onOpen?.(run)
+                  }}
+                >
+                  View run
+                </Button>
+              ) : inProgress && onWatchLive ? (
                 <Button
                   variant="secondary"
                   size="md"
@@ -322,7 +388,7 @@ export function RunHistoryList({
                 <Button variant="secondary" size="md" disabled>
                   Analysing…
                 </Button>
-              ) : run.state === 'never' ? null : (
+              ) : run.state === 'never' || failedWithoutReason ? null : (
                 <Button
                   variant="secondary"
                   size="md"
@@ -446,6 +512,12 @@ function MetaCell({ run }: { run: TestRunHistoryItem }) {
 
 function ResultCell({ kind, run }: { kind: TestRunKind; run: TestRunHistoryItem }) {
   const { state, result } = run
+  /* Neutral, not brand: brand on this column means "something is happening".
+     A queued run is accepted and idle, and colouring it like a live one makes
+     every submission look like it started instantly. */
+  if (state === 'queued') {
+    return <Pill bg="var(--bg-subtle)" ink="var(--text-secondary)">Queued</Pill>
+  }
   if (state === 'progress') {
     return <Pill bg="var(--bg-tint)" ink="var(--text-brand)">In progress</Pill>
   }
@@ -574,6 +646,16 @@ function ReportGlyph() {
       <path d="M7 3h7l5 5v13H7z" />
       <path d="M14 3v5h5" />
       <path d="M10 13h6M10 17h6" />
+    </svg>
+  )
+}
+
+/** Small "queued" glyph — a clock, for a run that is in line and not yet running. */
+function QueuedGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
     </svg>
   )
 }

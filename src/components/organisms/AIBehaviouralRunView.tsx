@@ -19,6 +19,8 @@ import { PageTopbar } from '../molecules/PageTopbar'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { AgentSessionCard } from '../molecules/AgentSessionCard'
 import { VideosEmptyState } from '../molecules/VideosEmptyState'
+import { MediaGridSkeleton, ReportSheetSkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
 import { PersonaHitRates } from '../molecules/PersonaHitRates'
 import { StatTile } from '../molecules/StatTile'
 import { UserTestReport, PartHeader } from './UserTestReport'
@@ -99,6 +101,10 @@ export function AIBehaviouralRunView({
   onOpenSession,
   className,
 }: AIBehaviouralRunViewProps) {
+  /* Submitted, no device yet. Nothing has been recorded and nothing can be
+     watched, so none of the live chrome applies — but the run is not idle
+     either, and the Report tab has to say which of the three waits this is. */
+  const queued = run.state === 'queued'
   const inProgress = run.state === 'progress'
   /* Agents stopped, report not written. Nothing is live, so none of the live
      chrome applies — but nothing is exportable either, and the Report tab has
@@ -108,9 +114,10 @@ export function AIBehaviouralRunView({
   const done = sessions.filter((s) => s.status === 'done').length
   const screensAnalysed = sessions.reduce((acc, s) => acc + s.reached, 0)
   const liveCount = sessions.length - done
-  /* The session a reader is pointed at while the run plays — the furthest-along live one. */
-  const liveSession = [...sessions].filter((s) => s.status === 'live').sort((a, b) => b.reached - a.reached)[0]
-
+  /* This screen's own beat, keyed on the run AND the tab: Report and Videos
+     read different things, so switching between them is a fetch and the tab
+     that arrives should arrive the way the first one did. */
+  const loadPhase = usePageLoading(`${run.id}:${tab}`)
   /* The Videos tab's controls live in the tab row, so their state lives here. */
   const [status, setStatus] = useState<VideosStatusFilter>(initialStatus)
   const [persona, setPersona] = useState<string>('all')
@@ -126,6 +133,11 @@ export function AIBehaviouralRunView({
         onBack={onBack}
         actions={
           <>
+            {/* A badge only where the state is still moving — queued, live,
+                analysing, failed. A finished run wears none: "Complete" said
+                nothing the report under it does not say in its own masthead,
+                and a green pill on every finished page trained readers to stop
+                looking at the one place the bar's status matters. */}
             {failure ? (
               <StatusPill bg="var(--error-bg)" ink="var(--error)">Failed · {sessions.length} of {meta.agents} saved</StatusPill>
             ) : inProgress ? (
@@ -138,17 +150,14 @@ export function AIBehaviouralRunView({
                 <Spinner size={12} tone="current" />
                 Analysing {meta.agents} {meta.agents === 1 ? 'session' : 'sessions'}
               </StatusPill>
-            ) : (
-              /* Status only. The finding count is the first thing the report
-                 itself says, three lines down — in the bar it was a second
-                 pill competing with the one fact the bar is for. */
-              <StatusPill bg="var(--success-bg)" ink="var(--success)">Complete</StatusPill>
-            )}
+            ) : queued ? (
+              <StatusPill bg="var(--bg-subtle)" ink="var(--text-secondary)">Queued</StatusPill>
+            ) : null}
             <Button
               variant="secondary"
               size="md"
               leftIcon={<DownloadIcon size={16} />}
-              disabled={inProgress || analysing || !!failure}
+              disabled={queued || inProgress || analysing || !!failure}
             >
               Export
             </Button>
@@ -158,31 +167,11 @@ export function AIBehaviouralRunView({
 
       <div className="flex-1 w-full">
         <div className="flex flex-col gap-m w-full page-measure mx-auto pt-l pb-xxl3">
-          {inProgress && liveSession && (
-            /* While the run plays, the way into it is one click from anywhere:
-               how many agents are on the build right now, and a live session. */
-            <div
-              className="flex items-center gap-s w-full rounded-xl px-l py-s"
-              style={{ backgroundColor: 'var(--bg-tint-light)', border: '1px solid var(--border-tint)' }}
-              role="status"
-            >
-              <i className="agent-live-dot text-text-brand shrink-0" aria-hidden />
-              <span className="font-body text-s text-text-primary leading-[1.5]">
-                <span className="font-semibold">{liveCount} AI {liveCount === 1 ? 'player is' : 'players are'} playing now</span>
-                {' · '}
-                {done} of {meta.agents} sessions finished
-              </span>
-              <span className="flex-1" />
-              <button
-                type="button"
-                onClick={() => onOpenSession(liveSession.id)}
-                className="inline-flex items-center gap-xxs font-body text-s font-semibold text-text-brand leading-[1.5] hover:underline whitespace-nowrap"
-              >
-                Watch agent {liveSession.index + 1} live
-                <span aria-hidden>→</span>
-              </button>
-            </div>
-          )}
+          {/* No live strip. "8 AI players are playing now · 12 of 20 sessions
+              finished" repeated the topbar's own Live pill two inches below
+              it, and its "Watch agent 16 live" link picked a session for the
+              reader — the Videos tab's Live pill is the honest way in, because
+              it shows the set and lets them choose. */}
 
           <TestingTabs<AIBehaviouralRunTab>
             ariaLabel="Run sections"
@@ -238,7 +227,13 @@ export function AIBehaviouralRunView({
           )}
 
           {tab === 'report' ? (
-            failure ? (
+            /* Only the plain fetch. Queued, playing and analysing are waits
+               with an agent behind them: they narrate themselves in
+               ReportPending, and a skeleton over that would say the page is
+               still arriving when the truth is that 6labs is working. */
+            loadPhase && !failure && !queued && !inProgress && !analysing && sessions.length > 0 ? (
+              <ReportSheetSkeleton sheetOnly label={`Loading ${run.name}`} />
+            ) : failure ? (
               <RunFailedNotice
                 reason={failure}
                 saved={
@@ -248,14 +243,16 @@ export function AIBehaviouralRunView({
                 }
                 secondary={sessions.length > 0 ? { label: 'Watch saved sessions', onClick: () => onTabChange('videos') } : undefined}
               />
-            ) : sessions.length === 0 || inProgress || analysing ? (
+            ) : queued || sessions.length === 0 || inProgress || analysing ? (
               /* The report is not pretended: the sheet arrives with the facts
                  the run already knows and the shape of the ones it does not.
                  Before any agent has produced a frame the sheet is dormant —
                  saying "0 of 20 analysed" would imply work already under way
                  on footage that does not exist. */
               <ReportPending
-                phase={sessions.length === 0 ? 'none' : analysing ? 'analysing' : 'playing'}
+                phase={
+                  queued ? 'queued' : sessions.length === 0 ? 'none' : analysing ? 'analysing' : 'playing'
+                }
                 run={run}
                 meta={meta}
                 done={analysing ? meta.agents : done}
@@ -273,12 +270,15 @@ export function AIBehaviouralRunView({
                 onOpenSession={onOpenSession}
               />
             )
+          ) : loadPhase ? (
+            <MediaGridSkeleton label={`Loading sessions for ${run.name}`} count={Math.min(8, Math.max(4, sessions.length || 8))} />
           ) : (
             <VideosBody
               sessions={sessions}
               persona={persona}
               status={status}
               query={query}
+              preparing={queued ? 'queued' : inProgress ? 'playing' : null}
               onOpenSession={(s) => onOpenSession(s.id)}
             />
           )}
@@ -310,7 +310,7 @@ export function AIBehaviouralRunView({
  * tabs owns the one brand action; the status line carries a quiet text link
  * to the sessions so the Report tab always has a way in.
  */
-type ReportPendingPhase = 'none' | 'playing' | 'analysing'
+type ReportPendingPhase = 'queued' | 'none' | 'playing' | 'analysing'
 
 function ReportPending({
   phase,
@@ -332,8 +332,22 @@ function ReportPending({
 }) {
   const playing = phase === 'playing'
   const analysing = phase === 'analysing'
+  const queued = phase === 'queued'
+  /* 'none' is a run that HAS started and recorded nothing — dormant, because
+     saying anything about its numbers would imply work under way on footage
+     that does not exist. Queued is a live wait with a known resolution, so it
+     shimmers. */
   const none = phase === 'none'
   const shimmer = !none
+  /* Nothing has happened to a queued run, so none of its numbers have. The
+     two input tiles used to print for real beside three skeletons — "2
+     personas · 0 of 20 sessions played" is a row of facts about a run that has
+     not begun, and a real number next to a grey bar reads as the grey bars
+     being broken rather than as the run being early. */
+  const knowsNothing = queued || none
+  /* Nothing is turning and there is nothing to watch: no spinner, no link to
+     sessions that do not exist yet. */
+  const idle = queued || none
   const sessionsWord = total === 1 ? 'session' : 'sessions'
 
   return (
@@ -360,9 +374,11 @@ function ReportPending({
 
           {/* The one moving fact — where the finished report prints "report generated …". */}
           <div className="flex items-center gap-s font-body text-m text-text-secondary leading-[1.6]" role="status">
-            {!none && <Spinner size={16} tone="brand" />}
+            {!idle && <Spinner size={16} tone="brand" />}
             <span>
-              {none ? (
+              {queued ? (
+                <>Queued · {total === 1 ? 'the agent starts' : `${total} agents start`} as soon as devices free up</>
+              ) : none ? (
                 <>No behaviour to analyse yet · waiting for the first session on {meta.build}</>
               ) : playing ? (
                 <>
@@ -377,7 +393,7 @@ function ReportPending({
               )}
             </span>
             <span className="flex-1" />
-            {!none && (
+            {!idle && (
               <button
                 type="button"
                 onClick={onWatch}
@@ -409,14 +425,22 @@ function ReportPending({
         <div className="stat-tiles gap-s">
           <StatTile
             surface="band"
-            value={String(meta.personas.length)}
+            value={knowsNothing ? '' : String(meta.personas.length)}
             label={meta.personas.length === 1 ? 'persona' : 'personas'}
+            loading={knowsNothing}
+            shimmer={shimmer}
           />
-          <StatTile surface="band" value={String(done)} label={`of ${total} ${sessionsWord} played`} />
+          <StatTile
+            surface="band"
+            value={knowsNothing ? '' : String(done)}
+            label={`of ${total} ${sessionsWord} played`}
+            loading={knowsNothing}
+            shimmer={shimmer}
+          />
           {analysing ? (
-            <StatTile surface="band" value={footageHours} label="footage reviewed" />
+            <StatTile surface="band" value={footageHours} label="session reviewed" />
           ) : (
-            <StatTile surface="band" value="" label="footage reviewed" loading shimmer={shimmer} />
+            <StatTile surface="band" value="" label="session reviewed" loading shimmer={shimmer} />
           )}
           <StatTile surface="band" value="" label="bugs" dot="var(--error)" loading shimmer={shimmer} />
           <StatTile surface="band" value="" label="friction points" dot="var(--warning)" loading shimmer={shimmer} />
@@ -430,7 +454,15 @@ function ReportPending({
         <PartHeader
           index="02"
           label="Findings"
-          meta={none ? 'nothing recorded yet' : playing ? 'ranked once the last agent has played' : 'being ranked now'}
+          meta={
+            queued
+              ? 'nothing has started yet'
+              : none
+                ? 'nothing recorded yet'
+                : playing
+                  ? 'ranked once the last agent has played'
+                  : 'being ranked now'
+          }
         />
         <div className="flex flex-col rounded-xl overflow-hidden mt-l" style={{ border: '1px solid var(--border-subtle)' }}>
           <div className="flex items-center h-[40px] px-m" style={{ backgroundColor: 'var(--bg-page-pale)' }}>
@@ -567,7 +599,7 @@ function ReportBody({
       tiles: [
         { value: String(meta.personas.length), label: meta.personas.length === 1 ? 'persona' : 'personas' },
         { value: String(played), label: played === 1 ? 'session played' : 'sessions played' },
-        { value: footageHours, label: 'footage reviewed' },
+        { value: footageHours, label: 'session reviewed' },
         { value: String(bugs), label: bugs === 1 ? 'bug' : 'bugs', dot: 'var(--error)' },
         {
           value: String(friction),
@@ -598,17 +630,8 @@ function ReportBody({
          the one thing "16 of 20 agents" cannot say. See PersonaHitRates. */
       findingMeta={(issue) => {
         const found = issues.find((i) => i.id === issue.id)
-        if (!found || found.clips.length === 0) return null
-        const hits = new Map<string, number>()
-        for (const clip of found.clips) hits.set(clip.device, (hits.get(clip.device) ?? 0) + 1)
-        const rates = meta.personas
-          .filter((p) => hits.has(p))
-          .map((p) => ({
-            persona: p,
-            hit: hits.get(p)!,
-            of: sessions.filter((s) => s.persona === p).length,
-            tone: PERSONA_TONE[p] ?? 'var(--text-tertiary)',
-          }))
+        if (!found) return null
+        const rates = personaSplit(found, meta.personas, sessions)
         return rates.length > 0 ? <PersonaHitRates rates={rates} /> : null
       }}
       /* Each clip is one agent's screen, so its chip wears that agent's persona
@@ -626,6 +649,81 @@ function ReportBody({
   )
 }
 
+/**
+ * How a finding's affected agents divide between the personas in the run.
+ *
+ * The clips are the truth when there are any: each one is a screen in one
+ * agent's session, and that agent's persona is on it. But a finding can be
+ * ranked from the run without every one of its hits carrying a clip — and the
+ * split used to be dropped entirely in that case, which is why most findings
+ * on a behavioural report showed no persona rows at all. "16 of 20 agents"
+ * with no breakdown is precisely the number this block exists to qualify, so
+ * the rest of the split is apportioned across the personas by how many agents
+ * of each played, largest remainder first, and every persona in the run gets a
+ * row. A row saying "0 of 8" is a finding about the personas it did *not*
+ * touch, which is half of what the reader came here for.
+ */
+function personaSplit(
+  issue: AgentIssue,
+  personas: string[],
+  sessions: AgentSession[],
+): { persona: string; hit: number; of: number; tone: string }[] {
+  const of = (p: string) => sessions.filter((s) => s.persona === p).length
+  const present = personas.filter((p) => of(p) > 0)
+  if (present.length === 0) return []
+
+  const counts = new Map<string, number>(present.map((p) => [p, 0]))
+  for (const clip of issue.clips) {
+    if (counts.has(clip.device)) counts.set(clip.device, counts.get(clip.device)! + 1)
+  }
+  /* A clip per agent, never more — two screens from one session are one agent
+     hitting the finding twice, not two agents. */
+  for (const p of present) counts.set(p, Math.min(counts.get(p)!, of(p)))
+
+  const claimed = Math.min(issue.affected, sessions.length)
+  const fromClips = present.reduce((n, p) => n + counts.get(p)!, 0)
+  const headroom = present.map((p) => ({ p, room: of(p) - counts.get(p)! }))
+  const room = headroom.reduce((n, h) => n + h.room, 0)
+  /* The rows have to add up to the number on the right of the finding's title.
+     Largest remainder, so they always do: each persona's share is proportional
+     to how many of its agents are still unaccounted for, the floors are dealt
+     first, and the leftover ones go to the largest fractions. Rounding each
+     share independently left the column short by one or two on most findings,
+     which is the one thing a breakdown of a stated total may not do. */
+  let remainder = Math.max(0, Math.min(claimed - fromClips, room))
+  if (remainder > 0) {
+    const shares = headroom.map((h) => {
+      const exact = (h.room / room) * remainder
+      const base = Math.floor(exact)
+      return { ...h, base, frac: exact - base }
+    })
+    let dealt = shares.reduce((n, sh) => n + sh.base, 0)
+    for (const sh of shares) counts.set(sh.p, counts.get(sh.p)! + sh.base)
+    remainder -= dealt
+    for (const sh of [...shares].sort((a, b) => b.frac - a.frac || b.room - a.room)) {
+      if (remainder <= 0) break
+      if (counts.get(sh.p)! >= of(sh.p)) continue
+      counts.set(sh.p, counts.get(sh.p)! + 1)
+      remainder -= 1
+    }
+    /* Any left after one pass — possible when a persona hit its own ceiling —
+       goes to whoever still has room. */
+    for (const h of headroom) {
+      if (remainder <= 0) break
+      const take = Math.min(remainder, of(h.p) - counts.get(h.p)!)
+      counts.set(h.p, counts.get(h.p)! + take)
+      remainder -= take
+    }
+  }
+
+  return present.map((p) => ({
+    persona: p,
+    hit: counts.get(p)!,
+    of: of(p),
+    tone: PERSONA_TONE[p] ?? 'var(--text-tertiary)',
+  }))
+}
+
 /* ── Videos ─────────────────────────────────────────────────────────────── */
 
 /**
@@ -638,12 +736,20 @@ function VideosBody({
   persona,
   status,
   query,
+  preparing,
   onOpenSession,
 }: {
   sessions: AgentSession[]
   persona: string
   status: VideosStatusFilter
   query: string
+  /**
+   * Footage is still coming: 'queued' before an agent has picked the build up,
+   * 'playing' once they are on it. Two different waits and two different
+   * sentences — "the agents are playing" on a run nothing has started is the
+   * kind of claim that makes the next empty screen look broken.
+   */
+  preparing: 'queued' | 'playing' | null
   onOpenSession: (session: AgentSession) => void
 }) {
   const shown = useMemo(() => {
@@ -688,7 +794,11 @@ function VideosBody({
         </span>
       </div>
       {shown.length === 0 ? (
-        <VideosEmpty sessions={sessions.length} filtered={persona !== 'all' || status !== 'all' || query.trim().length > 0} />
+        <VideosEmpty
+          sessions={sessions.length}
+          filtered={persona !== 'all' || status !== 'all' || query.trim().length > 0}
+          preparing={preparing}
+        />
       ) : (
         <>
           <div
@@ -747,8 +857,62 @@ function VideosBody({
  * of text: an illustration for a passing state is a page-sized answer to a
  * question the reader can retract.
  */
-function VideosEmpty({ sessions, filtered }: { sessions: number; filtered: boolean }) {
+function VideosEmpty({
+  sessions,
+  filtered,
+  preparing,
+}: {
+  sessions: number
+  filtered: boolean
+  preparing: 'queued' | 'playing' | null
+}) {
   if (!filtered) {
+    /* A run that is still producing footage is a wait, not an absence. The
+       illustrated "No sessions yet" state is the right answer for a run with
+       nothing coming; on one whose agents are mid-session it reads as a
+       failure, because the reader was told a moment ago that twenty sessions
+       were on the way. A wait gets a spinner and a sentence about what is
+       happening to it. */
+    if (preparing) {
+      return (
+        <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <div className="flex flex-col items-center gap-xs px-l pt-xxl pb-l text-center" role="status">
+            <Spinner size={24} tone="brand" />
+            <span className="font-display text-m font-semibold text-text-primary leading-[1.4] pt-xs">
+              Videos are being prepared
+            </span>
+            <span className="font-body text-s text-text-secondary leading-[1.7] max-w-[62ch]">
+              {preparing === 'queued'
+                ? 'The run is waiting for devices. Sessions appear here one at a time as the agents pick the build up — nothing needs to stay open for them to land.'
+                : 'The agents are playing. Each session appears here the moment its recording is ready — they arrive one at a time, and nothing needs to stay open for them to land.'}
+            </span>
+          </div>
+          {/* The shape the first sessions will land in, under the sentence that
+              says they are coming — the same pairing the Report tab makes,
+              where the masthead states the wait in words and the tiles below
+              hold the places the numbers will take. Four, not the run's whole
+              count: this is a shape, not a promise about how many. */}
+          <div
+            className="grid gap-m px-l pb-l pt-xs"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
+            aria-hidden
+          >
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="flex flex-col rounded-xl overflow-hidden"
+                style={{ border: '1px solid var(--border-subtle)' }}
+              >
+                <Skeleton variant="block" width="100%" radius="rounded-none" style={{ height: 'auto', aspectRatio: '4 / 3' }} />
+                <div className="px-m py-s">
+                  <Skeleton variant="text" width={`${58 + ((i * 11) % 24)}%`} height={13} radius="rounded-xs" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
     return (
       <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
         <VideosEmptyState

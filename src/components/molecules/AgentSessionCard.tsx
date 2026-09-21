@@ -61,7 +61,12 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
         orientation={orientation}
         compact
         className="w-full"
-        style={{ aspectRatio: orientation === 'portrait' ? '4 / 3' : '16 / 10' }}
+        /* One shape for every card, whatever the capture is. The tile used to
+           take 4:3 for a portrait session and 16:10 for a landscape one, so a
+           run with both produced a grid whose rows were different heights and
+           whose cards did not line up — the letterboxing the well exists to do
+           is precisely what removes the need for that. */
+        style={{ aspectRatio: '4 / 3' }}
         pane={
           <span className="absolute left-xxs top-xxs flex gap-xxxs" aria-hidden>
             <i className="block w-[24px] h-[6px] rounded-xs" style={{ backgroundColor: 'rgba(255,220,130,0.5)' }} />

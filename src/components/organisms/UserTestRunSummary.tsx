@@ -15,6 +15,15 @@
  * Everything that qualifies a finding rather than states it — clips, per-tester
  * tables, the comparison — lives in the full report, one click down.
  *
+ * It is also the only screen an opened run has. The thread view this used to
+ * share the job with — a run rendered as a chat transcript you scrolled — is
+ * gone: it answered "what happened in this run" with a conversation nobody had
+ * had, and a run in flight, a finished run and an answered question each
+ * landed on a different one of the two screens for reasons no reader could
+ * predict. Everything a run can be is a state of this page now: queued while
+ * it waits, analysing while it reads, the summary when it lands, and a single
+ * answer sheet when the "run" was a question.
+ *
  * Code-first prototype — from the reference flow (user-test-agent-flow v128).
  */
 
@@ -27,7 +36,10 @@ import { ReportCtaBand } from '../molecules/ReportCtaBand'
 import { StatTile } from '../molecules/StatTile'
 import { FindingsByCategoryTable, categoryRowsFor } from '../molecules/FindingsByCategoryTable'
 import { ClipLightbox } from '../molecules/ClipLightbox'
-import { ANSWER_DELAY_MS, UserTestAskPanel, answerFor } from './UserTestAskPanel'
+import { Spinner } from '../atoms/Spinner'
+import { RunPageSkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
+import { UserTestAskPanel, askQuestion } from './UserTestAskPanel'
 import Button from '../ui/Button'
 import InputFieldConsole from '../ui/InputFieldConsole'
 import { DownloadIcon } from '../icons/DownloadIcon'
@@ -47,8 +59,10 @@ import type {
  * everything known about a run is a header nobody reads.
  */
 export interface RunSummaryFacts {
-  /** "10 videos · tag Build V2.1" */
+  /** "10 sessions · tag Build V2.1" */
   videos: string
+  /** The library tag(s) the batch was picked by — "Build V2.1". */
+  tag: string
   /** Game understanding document, or null when the run had none. */
   context: string | null
 }
@@ -56,6 +70,19 @@ export interface RunSummaryFacts {
 export interface UserTestRunSummaryProps {
   runName: string
   issues: UserTestIssue[]
+  /**
+   * The run has not produced its summary yet. 'queued' is submitted and not
+   * started; 'analysing' is reading the sessions. Either way the page is the
+   * same page — same bar, same request message, same composer — with the
+   * agent's reply not yet written, so nothing moves when it arrives.
+   */
+  pending?: 'queued' | 'analysing'
+  /**
+   * This page is an answered question rather than a run. The agent's reply is
+   * then the answer sheet alone: no stat tiles, no findings, no report CTA,
+   * because a question produced none of them.
+   */
+  question?: string
   /** How many of the ranked findings to show before the "see all" row. */
   previewCount?: number
   facts?: RunSummaryFacts
@@ -98,7 +125,8 @@ export interface UserTestRunSummaryProps {
 }
 
 const DEFAULT_FACTS: RunSummaryFacts = {
-  videos: '10 videos · tag Build V2.1',
+  videos: '10 sessions · tag Build V2.1',
+  tag: 'Build V2.1',
   context: 'Onboarding flow v3',
 }
 
@@ -115,10 +143,12 @@ const DEFAULT_HEADLINE =
 export function UserTestRunSummary({
   runName,
   issues,
+  pending,
+  question,
   previewCount = 4,
   facts = DEFAULT_FACTS,
   request,
-  agentName = 'User Test',
+  agentName = 'User Test Agent',
   agentIcon = <MembersIcon size={20} />,
   sessionCount = 10,
   analysedCount,
@@ -135,6 +165,10 @@ export function UserTestRunSummary({
   onHandoffToOracle,
   className,
 }: UserTestRunSummaryProps) {
+  /* This screen's own beat, keyed on the run. `pending` opts out: a queued or
+     analysing run is a wait with the agent behind it and says so in words —
+     a skeleton there would claim the page is still arriving. */
+  const loadPhase = usePageLoading(runName)
   const bugs = issues.filter((i) => i.kind === 'bug').length
   const friction = issues.filter((i) => i.kind === 'friction').length
   const categoryRows = useMemo(() => categoryRowsFor(issues, categories), [issues, categories])
@@ -151,21 +185,17 @@ export function UserTestRunSummary({
   const [openClip, setOpenClip] = useState<{ issue: UserTestIssue; index: number } | null>(null)
   const activeClip = openClip ? openClip.issue.clips[openClip.index] ?? null : null
 
+  /* The turns arrive controlled from the host, so `setTurns` takes a value
+     rather than an updater — the ref is what lets the shared helper work in
+     updater form here too. */
   const ask = (question: string) => {
-    const trimmed = question.trim()
-    if (!trimmed) return
-    const id = `${Date.now()}`
-    setTurns([...turnsRef.current, { id, question: trimmed, answer: null }])
-    setDraft('')
-    window.setTimeout(() => {
-      setTurns(turnsRef.current.map((t) => (t.id === id ? { ...t, answer: answerFor(trimmed) } : t)))
-    }, ANSWER_DELAY_MS)
+    if (askQuestion(question, (update) => setTurns(update(turnsRef.current)))) setDraft('')
   }
 
-  /* Signs every answer sheet, the way the run's own message is signed. Built
-     once here so a follow-up and the run message name the same agent and expand
-     onto the same footage. */
-  const answerAgentHeader = (
+  /* Who answered, of what — the block that opens every sheet on this page:
+     the run's own reply, the wait before it, and each follow-up. Built once so
+     they cannot name different agents or expand onto different footage. */
+  const agentBlock = (
     <>
       <div className="flex items-center gap-s px-l pt-l pb-m">
         <span
@@ -179,7 +209,6 @@ export function UserTestRunSummary({
           <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">{agentName}</span>
           <span className="font-body text-s text-text-secondary leading-[1.5]">
             Read {sessionCount} sessions
-            {facts.context ? ` · ${facts.context}` : ' · no game context'}
           </span>
         </span>
       </div>
@@ -201,33 +230,68 @@ export function UserTestRunSummary({
     </>
   )
 
+  /* What was asked for, and of what. The second line keeps the tag and the
+     context; what it no longer claims is "· no previous analysis" — a fact
+     about a build-over-build comparison that was never offered. */
   const opening = request ?? {
-    headline: `Analyse ${sessionCount} sessions`,
-    detail: `${facts.videos}${facts.context ? ` · context: ${facts.context}` : ' · no game context'} · no previous analysis`,
+    headline: question ?? `Create report by analyzing ${sessionCount} sessions`,
+    /* The tag and the context, not the session count — the headline directly
+       above already says how many. */
+    detail: `tagged ${facts.tag}${facts.context ? ` · context: ${facts.context}` : ' · no game context'}`,
   }
+
+  /* A question still being answered is already showing its own wait — the
+     pending line under the prompt. Stacking a page skeleton in front of it
+     makes one question look like two loads, and the skeleton would be drawing
+     a run report's shape (tiles, findings, the report CTA) on a page that is
+     only ever going to hold an answer sheet. */
+  const answering = turns.some((t) => t.answer === null)
+  const skeleton = Boolean(loadPhase) && !pending && !answering
+
+  /* The run names itself once, in the bar, with the test as its parent. Built
+     once and handed to both the skeleton and the page: the bar is the way back
+     out and it is known the instant a history row is clicked, so it is never
+     drawn as grey bars — see TestingSkeletons.
+
+     One action, and it is Export: the page you are looking at *is* the
+     finished run, so a "Complete" pill only repeats it, and sharing a run
+     means sending the report — which is what Export produces. */
+  const topbar = (
+    <PageTopbar
+      title={runName}
+      trail={[{ label: 'User Test Agent' }]}
+      onBack={() => onBack?.()}
+      actions={
+        /* Nothing to export until there is something to export. */
+        <Button
+          variant="secondary"
+          size="md"
+          leftIcon={<DownloadIcon size={16} />}
+          disabled={Boolean(pending) || skeleton}
+        >
+          Export
+        </Button>
+      }
+    />
+  )
+
+  if (skeleton)
+    return <RunPageSkeleton topbar={topbar} label={`Loading ${runName || 'run'}`} className={className} />
 
   return (
     <div className={['flex flex-col w-full min-h-full', className].filter(Boolean).join(' ')}>
-      {/* The run names itself once, in the bar, with the test as its parent.
-          One action, and it is Export: the page you are looking at *is* the
-          finished run, so a "Complete" pill only repeats it, and sharing a run
-          means sending the report — which is what Export produces. */}
-      <PageTopbar
-        title={runName}
-        trail={[{ label: 'User Test' }]}
-        onBack={() => onBack?.()}
-        actions={
-          <Button variant="secondary" size="md" leftIcon={<DownloadIcon size={16} />}>
-            Export
-          </Button>
-        }
-      />
+      {topbar}
 
       {/* Grows to fill the screen so the composer below sits at the viewport
           bottom even when the thread is short. */}
       <div className="flex-1 w-full">
         <div className="flex flex-col gap-l page-measure pt-l pb-m">
-          {/* The request — right-aligned, brand fill, the way a sent message reads. */}
+          {/* The request — right-aligned, brand fill, the way a sent message
+              reads. Suppressed on a question page: the question is already the
+              first turn's own prompt bubble a few pixels below, and printing
+              it twice made the page look like the question had been asked
+              twice. */}
+          {!question && (
           <div className="flex justify-end w-full">
             <div
               className="flex flex-col gap-xxxs max-w-[78%] rounded-2xl px-l py-m text-white"
@@ -236,15 +300,56 @@ export function UserTestRunSummary({
               <span className="font-display text-s font-semibold leading-[1.45]">
                 {opening.headline}
               </span>
-              <span className="font-body text-xs leading-[1.5]" style={{ opacity: 0.85 }}>
-                {opening.detail}
-              </span>
+              {opening.detail && (
+                <span className="font-body text-xs leading-[1.5]" style={{ opacity: 0.85 }}>
+                  {opening.detail}
+                </span>
+              )}
             </div>
           </div>
+          )}
+
+          {/* The wait, where there is one. The same message container the
+              reply will arrive in, signed by the same agent, so the sheet does
+              not appear from nowhere when it lands — but no tiles and no
+              headings, because a skeleton of a summary is a promise about a
+              shape the answer may not take. */}
+          {pending && (
+            <div className="flex flex-col gap-xs w-full">
+              <Panel>
+                {agentBlock}
+                <div className="flex flex-col gap-xs px-l py-xl" role="status">
+                  {pending === 'queued' ? (
+                    <>
+                      <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
+                        Queued
+                      </span>
+                      <span className="font-body text-s text-text-secondary leading-[1.7] max-w-[72ch]">
+                        The run is in line. 6labs starts reading the sessions as soon as a slot frees up —
+                        nothing here needs to stay open, and this page becomes the report when it is done.
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="inline-flex items-center gap-xs font-display text-m font-semibold text-text-primary leading-[1.4]">
+                        <Spinner size={16} tone="brand" />
+                        Reading the sessions
+                      </span>
+                      <span className="font-body text-s text-text-secondary leading-[1.7] max-w-[72ch]">
+                        Every finding has to trace back to a frame, so the agent watches the whole batch
+                        before it ranks anything. The report lands on this page.
+                      </span>
+                    </>
+                  )}
+                </div>
+              </Panel>
+            </div>
+          )}
 
           {/* The answer — one message, posted by the agent. No name label above
               the card: the card's own header says who answered, and the same
               name twice, eight pixels apart, is not attribution. */}
+          {!pending && !question && (
           <div className="flex flex-col gap-xs w-full">
             <Panel>
               {/* Who answered, of what, and what the numbers have to be read
@@ -261,11 +366,12 @@ export function UserTestRunSummary({
                   <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
                     {agentName}
                   </span>
+                  {/* What the agent read. The context used to trail it — and
+                      it is already on the request message directly above, so
+                      the reply was answering with the same clause it had just
+                      been given. */}
                   <span className="font-body text-s text-text-secondary leading-[1.5]">
                     Analysed {sessionCount} tester sessions
-                    {facts.context
-                      ? ` · ${facts.context}`
-                      : ' · no game context — findings are per video'}
                   </span>
                 </span>
               </div>
@@ -308,7 +414,7 @@ export function UserTestRunSummary({
                   ) : (
                     <StatTile value={String(sessionCount)} label="sessions" />
                   )}
-                  <StatTile value={footageLabel} label="footage reviewed" />
+                  <StatTile value={footageLabel} label="session reviewed" />
                   <StatTile value={String(bugs)} label="bugs" dot="var(--error)" />
                   <StatTile value={String(friction)} label="friction points" dot="var(--warning)" />
                 </div>
@@ -363,22 +469,22 @@ export function UserTestRunSummary({
               <ReportCtaBand findingCount={issues.length} onOpenReport={onOpenReport} />
             </Panel>
           </div>
+          )}
 
-          {/* Follow-ups — answered by this agent from this run's recordings, in
-              the same thread, above the composer they were typed into. */}
+          {/* The answer, and anything asked after it — same sheet either way.
+              On a question page the first turn *is* the page's reason for
+              existing; on a run page these are follow-ups under the report. */}
           <UserTestAskPanel
             hideHeading
             bare
             hideComposer
-            hideSuggestions
             /* The same sheet an opened question gets — agent block, 01 Summary,
                02 Details. A follow-up is the same kind of answer drawn from the
                same recordings, so it had no business rendering as a chat bubble
                with an avatar while the identical question asked from the home
                screen rendered as a document. */
             answerLayout="document"
-            answerHeader={answerAgentHeader}
-            onAsk={ask}
+            answerHeader={agentBlock}
             sessionCount={sessionCount}
             turns={turns}
             onTurnsChange={setTurns}

@@ -109,7 +109,7 @@ export function UserTestAskDock({
             Ask User Test
           </span>
           <span className="font-body text-xs text-text-tertiary leading-[1.5] truncate">
-            {runName ? `${runName} · ${sessionCount} recordings` : `${sessionCount} recordings`}
+            {runName ? `${runName} · ${sessionCount} sessions` : `${sessionCount} sessions`}
           </span>
         </div>
         <Button

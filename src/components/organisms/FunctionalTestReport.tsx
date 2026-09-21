@@ -29,6 +29,8 @@ import { SearchIcon } from '../icons/SearchIcon'
 import { ChevronIcon } from '../icons/ChevronIcon'
 import { DownloadIcon } from '../icons/DownloadIcon'
 import { VerificationSummary } from '../molecules/VerificationSummary'
+import { VerifiedReportSkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
 import { casesToCsv, csvFileName, downloadCsv } from '../../lib/testCaseCsv'
 import { CASE_DEPTH_FIXTURES, useCaseDepthDemoState } from '../../lib/caseDepthDemoState'
 import { useCaseLayoutDemoState } from '../../lib/caseLayoutDemoState'
@@ -49,6 +51,13 @@ export interface FunctionalTestReportProps {
   subtitle: string
   mode: FunctionalReportMode
   /**
+   * The build the AI players ran against. Coverage is denominated in it —
+   * "64% reached in v2.3.1" — because an AI run produces its own footage and a
+   * recording count says nothing a reader can compare between runs. Omitted on
+   * a human run, where the footage someone uploaded *is* the scope.
+   */
+  buildLabel?: string
+  /**
    * The run also carried a behavioural pass. Kept on the API — the history row
    * it came from still says "functional + UX" — but no longer drawn here: this
    * report answers "did each case happen", and two friction findings bolted to
@@ -56,6 +65,13 @@ export interface FunctionalTestReportProps {
    * other five or their clips. The behavioural pass has its own screen.
    */
   withUx?: boolean
+  /**
+   * The run has been submitted and nothing has started on it. This is the
+   * first screen a reader sees after pressing the button, so it has to say
+   * that the submission worked and that the wait is normal — a progress bar at
+   * 0% says neither, and an empty report says the run failed.
+   */
+  queued?: boolean
   /** Start on the progress card and reveal the report when the ticks finish. */
   inProgress?: boolean
   /** The run stopped — show why instead of a report. */
@@ -91,6 +107,8 @@ const TICK_MS = 1300
 export function FunctionalTestReport({
   title,
   mode,
+  buildLabel,
+  queued = false,
   inProgress = false,
   failure,
   onDone,
@@ -119,15 +137,18 @@ export function FunctionalTestReport({
         : ['Mapping cases to videos', 'Launch · first run', 'Combat · skills and encounters', 'Store · purchases', 'Alliance · join and rally', 'Progression · daily systems'],
     [mode],
   )
-  const [step, setStep] = useState(inProgress ? 0 : progressItems.length)
+  const [step, setStep] = useState(inProgress || queued ? 0 : progressItems.length)
   const running = step < progressItems.length
   const doneRef = useRef(false)
 
   useEffect(() => {
-    if (!running) return
+    /* The ticks belong to the analysis, not to the queue. A run waiting to
+       start must not tick through "Mapping cases to videos" — that is a claim
+       about work nobody has begun. */
+    if (!running || queued) return
     const t = window.setTimeout(() => setStep((s) => s + 1), TICK_MS)
     return () => window.clearTimeout(t)
-  }, [running, step])
+  }, [running, step, queued])
 
   useEffect(() => {
     if (!running && inProgress && !doneRef.current) {
@@ -136,6 +157,10 @@ export function FunctionalTestReport({
     }
   }, [running, inProgress, onDone])
 
+  /* This screen's own beat, keyed on the run — opening a different report is
+     a different fetch. A run that is queued or still analysing is NOT this:
+     those have something to say about themselves and say it in words, below. */
+  const loadPhase = usePageLoading(title)
   const [filter, setFilter] = useState<Filter>('all')
   const [category, setCategory] = useState(ALL_CATEGORIES)
   const [search, setSearch] = useState('')
@@ -182,12 +207,19 @@ export function FunctionalTestReport({
   const openCase = openId ? (visible.find((c) => c.id === openId) ?? null) : null
   const paged = pageCount > 1
 
-  return (
-    <div className={['flex flex-col w-full min-h-full', className].filter(Boolean).join(' ')}>
-      <PageTopbar
-        title={title}
-        trail={[{ label: mode === 'ai' ? 'AI functional test' : 'Functional test' }]}
-        onBack={onBack}
+  /* Only the plain fetch. A queued or running report is a wait with an agent
+     behind it and narrates itself; a skeleton over that would say the page is
+     still arriving when the truth is that 6labs is working. */
+  const skeleton = Boolean(loadPhase) && !queued && !running && !failure
+
+  /* Built once and handed to both the skeleton and the report. The bar is the
+     way back out of this screen and it is known the instant a history row is
+     clicked, so it is never drawn as grey bars — see TestingSkeletons. */
+  const topbar = (
+    <PageTopbar
+      title={title}
+      trail={[{ label: mode === 'ai' ? 'AI functional test' : 'Functional test' }]}
+      onBack={onBack}
         /* Export only. A report is a record of one run — "Run again" from
            inside it starts a *different* run, and the reader is here to read
            this one. It survives on the failed-run notice, where re-running is
@@ -197,18 +229,26 @@ export function FunctionalTestReport({
            is in the page chrome, above and outside the toolbar, and a control
            up there that silently obeys a filter three sections down is how
            someone mails a partial report believing it is the whole one. */
-        actions={
-          <Button
-            variant="secondary"
-            size="md"
-            leftIcon={<DownloadIcon size={16} />}
-            disabled={running || !!failure}
-            onClick={() => downloadCsv(csvFileName(title), casesToCsv(cases))}
-          >
-            Export CSV
-          </Button>
-        }
-      />
+      actions={
+        <Button
+          variant="secondary"
+          size="md"
+          leftIcon={<DownloadIcon size={16} />}
+          disabled={running || skeleton || !!failure}
+          onClick={() => downloadCsv(csvFileName(title), casesToCsv(cases))}
+        >
+          Export CSV
+        </Button>
+      }
+    />
+  )
+
+  if (skeleton)
+    return <VerifiedReportSkeleton topbar={topbar} label={`Loading ${title}`} className={className} />
+
+  return (
+    <div className={['flex flex-col w-full min-h-full', className].filter(Boolean).join(' ')}>
+      {topbar}
 
       <div className="flex flex-col gap-m page-measure pt-l pb-xxl3">
         {failure ? (
@@ -217,13 +257,15 @@ export function FunctionalTestReport({
             saved={
               mode === 'ai'
                 ? 'The cases the players reached before the crash were kept — nothing else was recorded.'
-                : 'The recordings are untouched in the Gameplay Library.'
+                : 'The sessions are untouched in the Gameplay Library.'
             }
             onRunAgain={onRunAgain}
           />
+        ) : queued ? (
+          <QueuedNotice mode={mode} />
         ) : running ? (
           <AnalysisProgressCard
-            label={mode === 'ai' ? 'AI players executing…' : 'Verifying cases against videos…'}
+            label={mode === 'ai' ? 'AI players executing…' : 'Verifying cases against sessions…'}
             percent={3 + (step / progressItems.length) * 97}
             eta={`~${Math.max(1, progressItems.length - step)} min`}
             items={progressItems}
@@ -240,6 +282,7 @@ export function FunctionalTestReport({
                 title outside it does not travel. */}
             <VerificationSummary
               totals={totals}
+              scope={buildLabel ? { kind: 'build', label: buildLabel } : { kind: 'sessions' }}
               masthead={
                 <>
                   <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
@@ -438,6 +481,47 @@ export function FunctionalTestReport({
  *
  * A row, not a line of metadata — the whole point is that it is fetchable.
  */
+/**
+ * A submitted run, before anything has started on it.
+ *
+ * Deliberately not a progress card. A bar at 0% with a spinner claims work is
+ * under way; what is true is that the run is accepted, in line, and will start
+ * without anyone watching. So: the fact, why the wait exists, and an explicit
+ * statement that the page does not have to be held open — which is the one
+ * thing a reader who has just pressed a button wants to know.
+ */
+function QueuedNotice({ mode }: { mode: FunctionalReportMode }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-xs w-full rounded-2xl px-xl py-xxl3 text-center"
+      style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
+      role="status"
+    >
+      <span
+        className="flex items-center justify-center w-[44px] h-[44px] rounded-xl mb-xs"
+        style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
+        aria-hidden
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      </span>
+      <span className="font-display text-l font-semibold text-text-primary leading-[1.35]">
+        Queued
+      </span>
+      <span className="font-body text-s text-text-secondary leading-[1.7] max-w-[56ch]">
+        {mode === 'ai'
+          ? 'The run is in line for a device. It starts on its own once one frees up — nothing here needs to stay open.'
+          : 'The run is in line. 6labs starts reading the sessions against your cases as soon as a slot frees up — nothing here needs to stay open.'}
+      </span>
+      <span className="font-body text-xs text-text-tertiary leading-[1.6] pt-xs">
+        This page becomes the report when it is done. It is also in Run history.
+      </span>
+    </div>
+  )
+}
+
 function CaseFileBar({ files }: { files: TestCaseFile[] }) {
   return (
     <div

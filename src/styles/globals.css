@@ -2462,11 +2462,9 @@ textarea { resize: none; font-family: var(--font-body); }
 .issue-amber-ink { color: #8A6300; }
 .dark .issue-amber-ink { color: var(--warning); }
 
-.user-test-ask-chip,
 .user-test-evidence {
   transition: border-color 120ms ease, color 120ms ease;
 }
-.user-test-ask-chip:hover,
 .user-test-evidence:hover {
   border-color: var(--border-brand-hover);
   color: var(--text-brand);
@@ -3090,13 +3088,17 @@ textarea { resize: none; font-family: var(--font-body); }
    that would have been wasted goes to the reading beside it, which is the
    other thing on this screen that was short of room. One measurement, two
    problems. */
-.agent-session-layout {
+/* One split, because there is one player. The recording takes a fixed share
+   and the reading takes the rest — around 600px on a full-width page, which is
+   a real reading column rather than the 380px strip a landscape session used
+   to leave. The agent's reasoning is the longest thing on this screen and the
+   only one that varies, so it is the half that gets the slack. */
+.agent-session-layout,
+.agent-session-layout[data-media='portrait'],
+.agent-session-layout[data-media='landscape'] {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
   align-items: stretch;
-}
-.agent-session-layout[data-media='portrait'] {
-  grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 640px) minmax(0, 1fr);
 }
 .agent-screen-panel {
   border-left: 1px solid var(--border-subtle);
@@ -3249,34 +3251,32 @@ textarea { resize: none; font-family: var(--font-body); }
    (rgba(15,27,51,…) on the time and status badges), and it has no business in
    the Apparatus surface scale. Declared once, here. */
 .recording-well {
-  --recording-matte: #0f1b33;
-  --recording-matte-lift: #1b2745;
+  /* Black behind the footage, everywhere. The bars used to be an enlarged,
+     blurred copy of the frame — handsome on a still, but it tinted the picture
+     it framed, cost a 36px blur per tile, and on a grid of twenty sessions it
+     was twenty different colours doing the same job. Black is what a player
+     puts behind a picture. */
+  --recording-matte: #000;
+  --recording-matte-lift: #10151f;
   position: relative;
   display: block;
   overflow: hidden;
   background-color: var(--recording-matte);
 }
-/* Landscape: the footage IS the well. */
+/* ONE box, whatever the capture is, and it is landscape.
+   A well that took the footage's shape gave the two orientations two different
+   players: a landscape session pushed the reading into a 380px strip, a
+   portrait one left it 1000px, and the same screen was two layouts depending
+   on how the phone was held. 16:9 is the shape that has to fit — a landscape
+   capture fills it exactly — and a portrait capture is pillarboxed in the same
+   box against black, which is what a player does.
+
+   Sizing the box rather than the footage is also what keeps the reading column
+   fixed: an agent's reasoning runs to a paragraph or to a page, and the width
+   it is read at cannot depend on the recording beside it. */
+.recording-well[data-orientation='portrait'],
 .recording-well[data-orientation='landscape'] {
   aspect-ratio: 16 / 9;
-}
-/* Portrait: a well a little taller than square, capped so the card cannot
-   outgrow a laptop viewport, with the phone-shaped pane centred in it. */
-.recording-well[data-orientation='portrait'] {
-  aspect-ratio: 5 / 7;
-  max-height: 560px;
-}
-.recording-well-ambient {
-  position: absolute;
-  inset: -10%;
-  width: 120%;
-  height: 120%;
-  object-fit: cover;
-  background-size: cover !important;
-  background-position: center !important;
-  filter: blur(36px) saturate(1.5) brightness(0.62);
-  transform: scale(1.08);
-  pointer-events: none;
 }
 /* A real still needs no orientation told to it: contained, it keeps its own
    shape and centres itself, and portrait and landscape both come out right
@@ -3288,28 +3288,36 @@ textarea { resize: none; font-family: var(--font-body); }
   height: 100%;
   object-fit: contain;
 }
+/* Contained and centred, always — the footage keeps its own shape and the
+   well's spare room, if it has any, stays black. One rule for both
+   orientations: the aspect comes from the orientation, the fitting from
+   max-width/max-height. */
 .recording-well-pane {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  aspect-ratio: 9 / 19.5;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
   background-size: cover !important;
   background-position: center !important;
-  /* A hairline and a lift, so the edge of the footage is a decision rather
-     than the point where the blur happens to stop. */
+}
+.recording-well[data-orientation='portrait'] .recording-well-pane {
+  height: 100%;
+  aspect-ratio: 9 / 19.5;
+}
+.recording-well[data-orientation='landscape'] .recording-well-pane {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+/* Wherever there are bars, the footage needs an edge — otherwise a dark frame
+   and the black beside it are one shape. A landscape capture fills its box
+   exactly and needs none. */
+.recording-well[data-orientation='portrait'] .recording-well-pane,
+.recording-well-fill .recording-well-pane {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.12),
     0 18px 48px rgba(0, 0, 0, 0.4);
-}
-.recording-well[data-orientation='landscape'] .recording-well-pane {
-  left: 0;
-  right: 0;
-  transform: none;
-  width: 100%;
-  aspect-ratio: auto;
-  box-shadow: none;
 }
 /* Fills a box somebody else sized. Declared after the orientation rules so it
    wins the aspect-ratio on source order — the surface that set the box has
@@ -3321,18 +3329,26 @@ textarea { resize: none; font-family: var(--font-body); }
   max-height: none;
 }
 
-/* Thumbnails: the same anatomy, cheaper — a 104px frame cannot afford a 36px
-   blur radius forty times over, and a shadow at that size is just mud. */
-.recording-well-compact .recording-well-ambient {
-  filter: blur(12px) saturate(1.5) brightness(0.62);
-}
+/* Thumbnails: the same anatomy, cheaper — a shadow at 104px is just mud. */
 .recording-well-compact .recording-well-pane {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
 
-/* Waiting for the frame — a live session reaches a screen before the picture
-   of it arrives. A device outline and a slow sweep: enough to read as "coming"
-   rather than "broken", quiet enough that it is not mistaken for footage. */
+/* Waiting for the frame.
+ *
+ * A live session reaches a screen a beat before 6labs has the picture of it,
+ * and some screens never get one. This is that beat, and it has one job: read
+ * as "the picture is coming" rather than as "the picture failed".
+ *
+ * A capture reticle rather than a phone outline. The outline drew a device,
+ * which is a picture of the thing being recorded — on a landscape capture it
+ * was the wrong device, and at thumbnail size it was a grey rounded rectangle
+ * on a black one. Four corner brackets read as framing-a-shot at any size and
+ * in any orientation, and the pulse inside them is the only thing moving, so
+ * the eye has somewhere to rest while it waits.
+ *
+ * All of it is faint. It sits where footage will be, and anything with weight
+ * here gets mistaken for the footage itself. */
 .recording-well-waiting {
   position: absolute;
   inset: 0;
@@ -3340,44 +3356,80 @@ textarea { resize: none; font-family: var(--font-body); }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  background: linear-gradient(160deg, var(--recording-matte-lift), var(--recording-matte));
+  gap: 14px;
+  padding: 12px;
+  background: radial-gradient(120% 90% at 50% 40%, var(--recording-matte-lift), var(--recording-matte) 70%);
 }
 .recording-well-waiting::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.07) 50%, transparent 80%);
+  background: linear-gradient(100deg, transparent 22%, rgba(255, 255, 255, 0.05) 50%, transparent 78%);
   background-size: 260% 100%;
-  animation: recording-well-sweep 2.4s ease-in-out infinite;
+  animation: recording-well-sweep 2.8s ease-in-out infinite;
+  pointer-events: none;
 }
-.recording-well-waiting-device {
-  width: 22%;
-  max-width: 96px;
-  aspect-ratio: 9 / 19.5;
-  border-radius: 12px;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
-  background-color: rgba(255, 255, 255, 0.04);
+/* Corner brackets, drawn as eight gradient slivers pinned to the four
+   corners — no extra elements, and the bracket length stays constant as the
+   frame scales, which is what makes it read as a reticle rather than as a
+   box with the middle rubbed out. */
+.recording-well-waiting-frame {
+  --bracket: rgba(255, 255, 255, 0.34);
+  --bracket-len: 18px;
+  --bracket-weight: 2px;
+  position: relative;
+  z-index: 1;
+  width: 46%;
+  max-width: 120px;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-image:
+    linear-gradient(var(--bracket), var(--bracket)), linear-gradient(var(--bracket), var(--bracket)),
+    linear-gradient(var(--bracket), var(--bracket)), linear-gradient(var(--bracket), var(--bracket)),
+    linear-gradient(var(--bracket), var(--bracket)), linear-gradient(var(--bracket), var(--bracket)),
+    linear-gradient(var(--bracket), var(--bracket)), linear-gradient(var(--bracket), var(--bracket));
+  background-size:
+    var(--bracket-len) var(--bracket-weight), var(--bracket-weight) var(--bracket-len),
+    var(--bracket-len) var(--bracket-weight), var(--bracket-weight) var(--bracket-len),
+    var(--bracket-len) var(--bracket-weight), var(--bracket-weight) var(--bracket-len),
+    var(--bracket-len) var(--bracket-weight), var(--bracket-weight) var(--bracket-len);
+  background-position:
+    top left, top left,
+    top right, top right,
+    bottom left, bottom left,
+    bottom right, bottom right;
+  background-repeat: no-repeat;
 }
-.recording-well[data-orientation='landscape'] .recording-well-waiting-device {
-  width: 26%;
-  max-width: 140px;
-  aspect-ratio: 19.5 / 9;
+/* The one moving thing. Slow enough to read as a heartbeat rather than as a
+   spinner — nothing here is making progress that could be counted. */
+.recording-well-waiting-pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.75);
+  animation: recording-well-pulse 1.8s ease-in-out infinite;
 }
-.recording-well-compact .recording-well-waiting-device {
-  width: 34%;
-  border-radius: 4px;
-  border-width: 1px;
+.recording-well-compact .recording-well-waiting-frame {
+  width: 54%;
+  --bracket-len: 9px;
+  --bracket-weight: 1.5px;
+}
+.recording-well-compact .recording-well-waiting-pulse {
+  width: 6px;
+  height: 6px;
 }
 .recording-well-waiting-label {
   position: relative;
   z-index: 1;
-  max-width: 80%;
+  max-width: 34ch;
   text-align: center;
+  text-wrap: balance;
   font-family: var(--font-body);
   font-size: 12px;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.66);
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.62);
 }
 @keyframes recording-well-sweep {
   0% {
@@ -3387,8 +3439,13 @@ textarea { resize: none; font-family: var(--font-body); }
     background-position: -40% 0;
   }
 }
+@keyframes recording-well-pulse {
+  0%, 100% { transform: scale(0.7); opacity: 0.35; }
+  50%      { transform: scale(1); opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .recording-well-waiting::after {
+  .recording-well-waiting::after,
+  .recording-well-waiting-pulse {
     animation: none;
   }
 }

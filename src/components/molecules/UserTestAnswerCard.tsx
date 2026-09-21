@@ -1,17 +1,18 @@
 /**
  * UserTestAnswerCard — one answer from the User Test agent about its own run.
  *
- * Two things make this different from a general chat answer, and both are
- * deliberate:
+ * Every answer ends in references back into the report. A User Test claim that
+ * cannot be traced to a frame is not a finding, and the same rule applies when
+ * the claim arrives as an answer rather than as a row.
  *
- * 1. The scope line comes *first*. Before the answer, the card says what was
- *    read to produce it — ten recordings, seven findings, twenty-one clips.
- *    A reader can then judge the answer against its evidence base instead of
- *    discovering the base afterwards, or never.
- *
- * 2. Every answer ends in references back into the report. A User Test claim
- *    that cannot be traced to a frame is not a finding, and the same rule
- *    applies when the claim arrives as an answer rather than as a row.
+ * On a document answer those references are the *only* provenance shown. The
+ * sheet used to open with a scope line — "Read 10 recordings · 7 findings · 21
+ * clips · onboarding flow v3" — which was wrong as often as it was right: it
+ * was written per canned answer, so a six-video run printed a line claiming
+ * ten, and it was the one line on the sheet a reader had no way to check.
+ * Worse, an answer carrying that line and no playable clip looked backed by
+ * evidence nobody could open. The clips are the provenance, so the clips are
+ * what the sheet shows: tester and time range, each one playable.
  *
  * When the question needs data the run does not hold, the card does not guess.
  * It states the limit and offers the handoff — see `outOfScope`.
@@ -150,11 +151,14 @@ export function UserTestAnswerCard({
      the answer is, 02 carries what it rests on. The scope rides on the first
      heading rather than above it, the way the report's own part meta does. */
   if (layout === 'document') {
-    /* The evidence chips are not repeated on the sheet. On a document the
-       Details table already names the tester, the timestamp and the finding
-       for every row it lists, so a rail of clip pills under it was the same
-       set of sessions printed a second time in a shorter form. */
     const hasDetail = Boolean(answer.table) || Boolean(answer.detail)
+    /* The clips the answer rests on, under the summary it backs. They are the
+       sheet's provenance now that the scope line is gone: a claim about what
+       ten sessions did is worth exactly as much as the ten seconds you can
+       press to check it. Only the playable ones — a finding or a step
+       reference is a pointer into the report, which the Details table below
+       already names in full. */
+    const citations = answer.evidence.filter((ref) => ref.kind === 'clip')
     return (
       <article
         className={['flex flex-col w-full rounded-2xl overflow-hidden', className]
@@ -165,7 +169,7 @@ export function UserTestAnswerCard({
         {header}
 
         <section className="flex flex-col gap-m px-l py-l">
-          <SectionHeading index="01" title="Summary" meta={answer.scope} />
+          <SectionHeading index="01" title="Summary" />
           <div className="flex flex-col gap-s">
             {answer.body.map((para) => (
               <p
@@ -176,6 +180,29 @@ export function UserTestAnswerCard({
               </p>
             ))}
             {outOfScope}
+            {citations.length > 0 && (
+              <div className="flex flex-wrap items-center gap-xs pt-xs">
+                <span className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-text-tertiary leading-[1.5]">
+                  Clips
+                </span>
+                {citations.map((ref) => (
+                  <button
+                    key={`${ref.kind}-${ref.label}`}
+                    type="button"
+                    onClick={() => onOpenEvidence?.(ref)}
+                    className="user-test-evidence inline-flex items-center gap-xxs rounded-round px-s py-xxs font-body text-xs leading-[1.5]"
+                    style={{
+                      backgroundColor: 'var(--bg-elements)',
+                      border: '1px solid var(--border-default)',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <PlayIcon size={12} />
+                    {ref.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
@@ -215,11 +242,9 @@ export function UserTestAnswerCard({
       </span>
 
       <div className="flex flex-col gap-s flex-1 min-w-0">
-        {/* What was read — before the answer, so the answer can be weighed. */}
-        <span className="font-body text-xs text-text-tertiary leading-[1.5]">
-          {answer.scope}
-        </span>
-
+        {/* No scope line here either — same reason as the document sheet. The
+            evidence chips at the foot are what a reader checks the answer
+            against, and they are the ones that open. */}
         {answer.body.map((para) => (
           <p key={para.slice(0, 40)} className="font-body text-s text-text-secondary leading-[1.7]">
             {para}

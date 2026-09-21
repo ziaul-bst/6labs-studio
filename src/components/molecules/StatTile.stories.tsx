@@ -36,12 +36,12 @@ export const WithDot: Story = {
 
 /** Values are not always numbers — footage is a duration, reach is a fraction. */
 export const NonNumericValue: Story = {
-  args: { value: '2h 14m', label: 'footage reviewed' },
+  args: { value: '2h 14m', label: 'session reviewed' },
 }
 
 /** The number is not known yet — same geometry, the value drawn as a skeleton bar. */
 export const Loading: Story = {
-  args: { value: '', label: 'footage reviewed', loading: true, surface: 'band' },
+  args: { value: '', label: 'session reviewed', loading: true, surface: 'band' },
   decorators: [
     (Story) => (
       <div className="p-l rounded-xl" style={{ backgroundColor: 'var(--bg-subtle)' }}>
@@ -68,7 +68,7 @@ export const Row: Story = {
   render: () => (
     <div className="grid grid-cols-4 gap-s">
       <StatTile value="9 / 10" label="sessions analysed" />
-      <StatTile value="2h 14m" label="footage reviewed" />
+      <StatTile value="2h 14m" label="session reviewed" />
       <StatTile value="3" label="bugs" dot="var(--error)" />
       <StatTile value="4" label="friction points" dot="var(--warning)" />
     </div>

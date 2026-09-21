@@ -360,11 +360,17 @@ export const PICKER_VIDEOS: PickerVideo[] = [
   { id: 'ut-0845', title: 'ut-0845 — chat.mp4', duration: '4:05', meta: '95 MB · Aug 26', tag: 'Chat', status: 'ready', source: 'recorder', recent: false, gradient: GRADIENTS.c },
 ]
 
+/* The date a document was added, and nothing else. The meta line used to
+   summarise each file — "12 intended steps", "Full design spec" — and neither
+   is something 6labs knows: a step count is only true of a document that lists
+   a single linear flow, and most of these do not. A picker that claims to have
+   counted the steps in a GDD invites the reader to trust a grouping the run
+   cannot actually make. */
 export const GAME_CONTEXT_DOCS: GameContextDoc[] = [
-  { id: 'onboarding-v3', name: 'Whiteout Survival — onboarding flow v3.pdf', fileType: 'pdf', meta: '12 intended steps · Aug 20' },
-  { id: 'gdd-v4', name: 'Whiteout Survival — GDD v4.docx', fileType: 'docx', meta: 'Full design spec · Jul 2' },
-  { id: 'alliance-spec', name: 'Alliance & rally spec.pdf', fileType: 'pdf', meta: 'Join flow and rally rules · Aug 11' },
-  { id: 'frost-festival', name: 'New event — Frost Festival spec.docx', fileType: 'docx', meta: 'Event flow and rewards · Aug 28' },
+  { id: 'onboarding-v3', name: 'Whiteout Survival — onboarding flow v3.pdf', fileType: 'pdf', meta: 'Added Aug 20' },
+  { id: 'gdd-v4', name: 'Whiteout Survival — GDD v4.docx', fileType: 'docx', meta: 'Added Jul 2' },
+  { id: 'alliance-spec', name: 'Alliance & rally spec.pdf', fileType: 'pdf', meta: 'Added Aug 11' },
+  { id: 'frost-festival', name: 'New event — Frost Festival spec.docx', fileType: 'docx', meta: 'Added Aug 28' },
 ]
 
 export const PICKER_SOURCE_LABELS: Record<PickerVideo['source'], string> = {
@@ -379,49 +385,24 @@ export const PICKER_SOURCE_LABELS: Record<PickerVideo['source'], string> = {
    one that matters most to the design: a question this run cannot answer,
    answered by saying so. */
 
-export const USER_TEST_ASK_SUGGESTIONS = [
-  'Which device saw the most bugs?',
-  'Show me every clip where a tester quit',
-  'Why is issue 4 medium confidence?',
-  'Is the Furnace tap issue visible in live player data?',
-]
-
-const READ_SCOPE = 'Read 10 recordings · 7 findings · 21 clips · onboarding flow v3'
+const READ_SCOPE = 'Read 10 sessions · 7 findings · 21 clips · onboarding flow v3'
 
 export const USER_TEST_ASK_ANSWERS: Record<string, UserTestAskAnswer> = {
-  'Which device saw the most bugs?': {
-    scope: READ_SCOPE,
-    body: [
-      'Galaxy S23. All three S23 testers hit at least one verified bug, and all three quit before finishing onboarding — the only device where that is true of every tester in the batch.',
-      'Device is confounded with screen ratio here: issue 3 only reproduces on 18:9, which covers the S23 and the iPhone 13 but not the Pixel 7. Three testers per device is too few to separate the two.',
-    ],
-    table: {
-      head: ['Device', 'Testers', 'Hit ≥1 bug', 'Completed'],
-      rows: [
-        ['Galaxy S23', '3', '3', '0'],
-        ['iPhone 13', '3', '3', '2'],
-        ['Pixel 7', '4', '4', '4'],
-      ],
-    },
-    evidence: [
-      { kind: 'tester', label: 'T06' },
-      { kind: 'tester', label: 'T08' },
-      { kind: 'tester', label: 'T10' },
-      { kind: 'issue', label: 'Issue 3', issueId: 'daily-reward' },
-    ],
-  },
   'Show me every clip where a tester quit': {
-    scope: 'Read 10 recordings · 4 sessions ended before onboarding completed',
+    scope: 'Read 10 sessions · 4 ended before onboarding completed',
     body: [
       'Four testers quit. Three of the four were on the Furnace upgrade or the Chapter 1 completion dialog when they stopped — the two steps carrying the batch’s new bugs.',
     ],
     table: {
       head: ['Tester', 'Quit at', 'Step', 'Last issue hit'],
+      /* Tester and time, no device. A row reading "T06 · Galaxy S23" invited
+         the reader to group the quits by hardware, which is a claim this run
+         cannot support — the device never came with the recording. */
       rows: [
-        ['T02 · iPhone 13', '11:40', 'Chapter 1 › Completion', 'Issue 3'],
-        ['T06 · Galaxy S23', '03:57', 'Tutorial › Furnace upgrade', 'Issue 1'],
-        ['T08 · Galaxy S23', '09:20', 'Post-tutorial › Research', 'Issue 6'],
-        ['T10 · Galaxy S23', '07:44', 'Chapter 1 › Completion', 'Issue 3'],
+        ['T02', '11:40', 'Chapter 1 › Completion', 'Issue 3'],
+        ['T06', '03:57', 'Tutorial › Furnace upgrade', 'Issue 1'],
+        ['T08', '09:20', 'Post-tutorial › Research', 'Issue 6'],
+        ['T10', '07:44', 'Chapter 1 › Completion', 'Issue 3'],
       ],
     },
     evidence: [
@@ -436,12 +417,14 @@ export const USER_TEST_ASK_ANSWERS: Record<string, UserTestAskAnswer> = {
       'The claim that they were looking for the Join button is an inference. Nothing in the footage shows what they were searching for, and no tester was asked. A verified label is reserved for things visible in the clip, so this one stays at medium until an interview or an instrumented build confirms it.',
     ],
     evidence: [
+      { kind: 'clip', label: 'T01 · 15:02 – 16:22', issueId: 'alliance-backtrack' },
+      { kind: 'clip', label: 'T03 · 14:10 – 15:38', issueId: 'alliance-backtrack' },
       { kind: 'issue', label: 'Issue 4', issueId: 'alliance-backtrack' },
       { kind: 'step', label: 'Post-tutorial › Alliance' },
     ],
   },
   'Is the Furnace tap issue visible in live player data?': {
-    scope: 'Read 10 recordings · tester batch only',
+    scope: 'Read 10 sessions · tester batch only',
     body: [
       'This run cannot answer that. It reads ten tester recordings from a controlled batch — it has no view of live players, and ten sessions could not tell you a live rate even if it did.',
     ],
@@ -458,11 +441,11 @@ export const USER_TEST_ASK_ANSWERS: Record<string, UserTestAskAnswer> = {
 export const USER_TEST_ASK_FALLBACK: UserTestAskAnswer = {
   scope: READ_SCOPE,
   body: [
-    'Nothing in this run answers that directly. Every claim User Test can make has to trace to a frame in one of these ten recordings, and this question does not have one behind it.',
+    'Nothing in this run answers that directly. Every claim User Test can make has to trace to a frame in one of these ten sessions, and this question does not have one behind it.',
     'Try one of the suggested questions, or open the full report and ask about a specific finding.',
   ],
   detail:
-    'Nothing to show. The run holds ten recordings, seven findings and twenty-one clips, and none of them carry a frame this question could be answered from — so there is no table under this answer rather than an empty one.',
+    'Nothing to show. The run holds ten sessions, seven findings and twenty-one clips, and none of them carry a frame this question could be answered from — so there is no table under this answer rather than an empty one.',
   evidence: [],
 }
 

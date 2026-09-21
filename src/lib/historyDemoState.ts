@@ -19,16 +19,32 @@ import type { TestRunHistoryItem } from './types/testing'
 export type HistoryDemoState =
   | 'seeded'
   | 'empty'
+  | 'queued'
   | 'progress'
   | 'analysing'
   | 'failed'
   | 'many'
   | 'reports'
 
-export const HISTORY_DEMO_STATES: HistoryDemoState[] = ['seeded', 'empty', 'progress', 'failed', 'many', 'reports']
+export const HISTORY_DEMO_STATES: HistoryDemoState[] = [
+  'seeded',
+  'empty',
+  'queued',
+  'progress',
+  'failed',
+  'many',
+  'reports',
+]
 
 /** Only User Test lists questions, so only it has a "reports only" state. */
-export const HISTORY_DEMO_STATES_REPORTS_ONLY: HistoryDemoState[] = ['seeded', 'empty', 'progress', 'failed', 'many']
+export const HISTORY_DEMO_STATES_REPORTS_ONLY: HistoryDemoState[] = [
+  'seeded',
+  'empty',
+  'queued',
+  'progress',
+  'failed',
+  'many',
+]
 
 /**
  * Only the AI behavioural test has an analysing row. Its runs *record* first and
@@ -38,6 +54,7 @@ export const HISTORY_DEMO_STATES_REPORTS_ONLY: HistoryDemoState[] = ['seeded', '
 export const HISTORY_DEMO_STATES_AI_BEHAVIOURAL: HistoryDemoState[] = [
   'seeded',
   'empty',
+  'queued',
   'progress',
   'analysing',
   'failed',
@@ -48,6 +65,7 @@ export const HISTORY_DEMO_STATES_AI_BEHAVIOURAL: HistoryDemoState[] = [
 export const HISTORY_DEMO_LABELS: Record<HistoryDemoState, string> = {
   seeded: 'Seeded',
   empty: 'No history',
+  queued: 'Queued',
   progress: 'In progress',
   analysing: 'Analysing',
   failed: 'Failed run',
@@ -59,6 +77,8 @@ export const HISTORY_DEMO_LABELS: Record<HistoryDemoState, string> = {
 export const HISTORY_DEMO_NOTES: Record<HistoryDemoState, string> = {
   seeded: 'The seeded history — a few finished runs.',
   empty: 'Nothing has run yet: the tab shows its empty copy.',
+  queued:
+    'A submitted run over a running one, so the two waits can be compared: queued is neutral and idle, in progress takes the brand ground because its numbers are still moving.',
   progress: 'A run just started sits on top, tinted and spinning, with In progress as its result.',
   analysing:
     'Every agent has finished and the report is being written. The row still spins, but it opens — the sessions are all watchable.',
@@ -90,12 +110,26 @@ export function seedHistory(
         kind: 'report',
         state: 'failed',
         result: undefined,
-        failure: /sessions|cases/.test(first.detail)
+        failure: /cases/.test(first.detail)
           ? 'Build crashed on launch — the players could not get past the splash screen.'
-          : 'Analysis stopped — 3 recordings could not be decoded.',
+          : 'Analysis stopped — 3 sessions could not be decoded.',
         when: 'Sep 9',
       }
-      return { runs: [failed, ...base], highlightId: null }
+      /* The other kind of failure: the run stopped and 6labs could not say why.
+         It carries no reason, so it gets no "View details" — there is no
+         details page behind it, and one that opened onto an empty screen was
+         worse than not offering the trip. The row still says Failed, which is
+         the fact that matters, and the next move is to run it again. */
+      const unexplained: TestRunHistoryItem = {
+        ...first,
+        id: 'demo-failed-unexplained',
+        kind: 'report',
+        state: 'failed',
+        result: undefined,
+        failure: undefined,
+        when: 'Sep 9',
+      }
+      return { runs: [failed, unexplained, ...base], highlightId: null }
     }
     case 'many': {
       /* Only finished reports are worth forty-two of — a never-run file is not history. */
@@ -124,6 +158,26 @@ export function seedHistory(
         ? { ...first, id: 'demo-analysing', kind: 'report', state: 'analysing', result: undefined, when: runDateLabel() }
         : { id: 'demo-analysing', name: 'Run', detail: '—', meta: '—', state: 'analysing', when: runDateLabel() }
       return { runs: [reading, ...base], highlightId: reading.id }
+    }
+    /* Submitted and not started. Every run passes through this state and it is
+       gone in a few seconds, so the list's version of it was unreviewable —
+       submitting navigates to the run's own page, and by the time anyone came
+       back to the history the row had already moved on. */
+    case 'queued': {
+      const first = base.find((r) => (r.kind ?? 'report') === 'report') ?? base[0]
+      const from = (id: string, state: TestRunHistoryItem['state']): TestRunHistoryItem =>
+        first
+          ? { ...first, id, kind: 'report', state, result: undefined, when: runDateLabel() }
+          : { id, name: 'Run', detail: '—', meta: '—', state, when: runDateLabel() }
+      /* Both waits, stacked, because the thing worth reviewing here is the
+         difference between them: a queued run is accepted and idle and wears
+         the neutral ground, a running one is working and takes the brand tint.
+         Seeded one at a time they were two screenshots nobody could hold side
+         by side, which is how they ended up sharing a ground. */
+      return {
+        runs: [from('demo-queued', 'queued'), from('demo-queued-running', 'progress'), ...base],
+        highlightId: null,
+      }
     }
     case 'progress': {
       const first = base.find((r) => (r.kind ?? 'report') === 'report') ?? base[0]

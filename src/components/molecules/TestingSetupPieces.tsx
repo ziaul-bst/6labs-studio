@@ -22,6 +22,7 @@
 
 import type { CSSProperties, ReactNode } from 'react'
 import { TESTING_ACCENT_VARS, type TestingAccent } from '../../lib/studioAreas'
+import { Spinner } from '../atoms/Spinner'
 import { FileDocIcon } from '../icons/FileDocIcon'
 import { InfoFilledIcon } from '../icons/InfoFilledIcon'
 import type { TestCaseFile } from '../../lib/types/testing'
@@ -282,93 +283,133 @@ export function ZoneFooter({ children }: { children: ReactNode }) {
 
 // ── ZoneFileList ──────────────────────────────────────────────────────────────
 
-/** "48 cases" → 48; files whose meta has no count contribute nothing. */
-function casesIn(meta: string): number {
-  const m = meta.match(/(\d+)\s+cases?/i)
-  return m ? Number(m[1]) : 0
-}
-
 /**
  * The attached test-case files inside a filled zone. One compact row per file
- * (tile · name · meta · remove), a summary line above so the total is readable
- * without adding rows up, and past three files the list scrolls inside a fixed
- * height so the zone never grows taller than its neighbour. "Add another file"
- * stays pinned below the list, with `trailing` opposite it — one ruled row at
- * the foot of the zone rather than two stacked links, which read as a short
- * list of actions where they are two unrelated ones.
+ * (tile · name · remove), a count of files above, and past three files the list
+ * scrolls inside a fixed height so the zone never grows taller than its
+ * neighbour. "Add another file" stays pinned below the list, with `trailing`
+ * opposite it — one ruled row at the foot of the zone rather than two stacked
+ * links, which read as a short list of actions where they are two unrelated
+ * ones.
+ *
+ * No case totals, on the summary line or on the row. 6labs does not know how
+ * many cases a sheet holds until it has parsed it, so "48 cases" beside a file
+ * the second it was attached was a number invented at upload time — and it
+ * survived into the report, where it set the denominator every coverage
+ * figure is read against. The count belongs to the run that read the file.
+ *
+ * A file still arriving gets an `uploading` row: the same row, greyed, with a
+ * spinner where the document tile goes and no remove control, because there is
+ * nothing finished to remove yet.
  */
 export function ZoneFileList({
   files,
   onRemove,
   onAdd,
   addLabel = 'Add another file',
+  limit,
+  limitReason,
   trailing,
 }: {
   files: TestCaseFile[]
   onRemove: (file: TestCaseFile) => void
   onAdd?: () => void
   addLabel?: string
+  /** Most files one run may carry. At the cap the add link is replaced by its reason. */
+  limit?: number
+  /**
+   * Why the cap exists. A control that simply stops working is read as a bug,
+   * and a reader has no way to guess that the limit is per run rather than
+   * per account.
+   */
+  limitReason?: string
   /** Right-hand end of the footer row — a link about the files, not about this list. */
   trailing?: ReactNode
 }) {
-  const total = files.reduce((n, f) => n + casesIn(f.meta), 0)
+  const atLimit = limit !== undefined && files.length >= limit
   return (
     <div className="flex flex-col gap-xs w-full min-h-0 flex-1">
-      <div className="flex items-center gap-xs">
+      <div className="flex items-baseline gap-xs">
         <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
           {files.length} file{files.length === 1 ? '' : 's'}
         </span>
-        {total > 0 && (
-          <span className="font-body text-s text-text-tertiary leading-[1.5]">· {total} cases</span>
+        {limit !== undefined && (
+          <span className="font-body text-s text-text-tertiary leading-[1.5]">of {limit}</span>
         )}
       </div>
       <ul
         className="flex flex-col list-none m-0 p-0 rounded-xl overflow-y-auto"
         style={{ border: '1px solid var(--border-subtle)', maxHeight: 3 * 48 + 2 }}
       >
-        {files.map((f, i) => (
-          <li
-            key={f.name}
-            className="flex items-center gap-s h-[48px] px-s shrink-0"
-            style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)' }}
-          >
-            {/* A document, not a tick. The tick said "attached", which the row's
-                own presence already says — and the build zone's own header
-                carries a tick, so the two uploads wore one glyph. */}
-            <span
-              className="flex items-center justify-center shrink-0 w-[28px] h-[28px] rounded-m"
-              style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success)' }}
-              aria-hidden
+        {files.map((f, i) => {
+          const uploading = f.status === 'uploading'
+          return (
+            <li
+              key={f.name}
+              className="flex items-center gap-s h-[48px] px-s shrink-0"
+              style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)' }}
             >
-              <FileDocIcon size={16} />
-            </span>
-            <span className="flex flex-1 items-baseline gap-xs min-w-0">
-              {/* The name gives way last — both halves were equally shrinkable,
-                  so a long meta ate the file name the row exists to say. It
-                  still caps at 60% so a long name cannot swallow the meta. */}
-              <span className="font-display text-s font-semibold text-text-primary leading-[1.45] shrink-0 max-w-[60%] truncate">
-                {f.name}
+              {/* A document, not a tick. The tick said "attached", which the
+                  row's own presence already says — and the build zone's header
+                  carries a tick, so the two uploads wore one glyph. A file
+                  still arriving is not attached yet, so it wears the wait. */}
+              <span
+                className="flex items-center justify-center shrink-0 w-[28px] h-[28px] rounded-m"
+                style={
+                  uploading
+                    ? { backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }
+                    : { backgroundColor: 'var(--success-bg)', color: 'var(--success)' }
+                }
+                aria-hidden
+              >
+                {uploading ? <Spinner size={16} tone="current" /> : <FileDocIcon size={16} />}
               </span>
-              <span className="font-body text-xs text-text-tertiary leading-[1.5] min-w-0 truncate">{f.meta}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => onRemove(f)}
-              aria-label={`Remove ${f.name}`}
-              className="shrink-0 w-6 h-6 rounded-round text-text-tertiary testing-ink-hover font-display text-m leading-none"
-            >
-              ×
-            </button>
-          </li>
-        ))}
+              <span className="flex flex-1 items-baseline gap-xs min-w-0">
+                {/* The name gives way last — both halves were equally
+                    shrinkable, so a long meta ate the file name the row exists
+                    to say. It still caps at 60%. */}
+                <span
+                  className="font-display text-s font-semibold leading-[1.45] shrink-0 max-w-[60%] truncate"
+                  style={{ color: uploading ? 'var(--text-secondary)' : 'var(--text-primary)' }}
+                >
+                  {f.name}
+                </span>
+                <span className="font-body text-xs text-text-tertiary leading-[1.5] min-w-0 truncate">
+                  {uploading ? 'Uploading…' : f.meta}
+                </span>
+              </span>
+              {/* Nothing to remove until it has arrived: a remove control on a
+                  row still transferring offers to undo a thing that has not
+                  happened yet. */}
+              {!uploading && (
+                <button
+                  type="button"
+                  onClick={() => onRemove(f)}
+                  aria-label={`Remove ${f.name}`}
+                  className="shrink-0 w-6 h-6 rounded-round text-text-tertiary testing-ink-hover font-display text-m leading-none"
+                >
+                  ×
+                </button>
+              )}
+            </li>
+          )
+        })}
       </ul>
       {(onAdd || trailing) && (
         <ZoneFooter>
-          {onAdd && (
-            <button type="button" onClick={onAdd} className="font-semibold text-text-brand hover:underline">
-              + {addLabel}
-            </button>
-          )}
+          {onAdd &&
+            (atLimit ? (
+              /* The reason takes the link's place rather than sitting under a
+                 greyed one: at the cap there is nothing to press, and a dead
+                 control plus an explanation is two things where one will do. */
+              <span className="font-body text-xs text-text-tertiary leading-[1.5]">
+                {limitReason ?? `Up to ${limit} files per run.`}
+              </span>
+            ) : (
+              <button type="button" onClick={onAdd} className="font-semibold text-text-brand hover:underline">
+                + {addLabel}
+              </button>
+            ))}
           <span className="flex-1" />
           {trailing}
         </ZoneFooter>
@@ -386,7 +427,13 @@ export function SetupCard({
   footer,
   className,
 }: {
-  title: string
+  /**
+   * Optional. The naming card on the functional composers carries no heading
+   * any more: "Name this run" sat directly above a field already labelled RUN
+   * NAME, and its hint explained why naming things is useful — two lines of
+   * chrome for one optional text input.
+   */
+  title?: string
   hint?: string
   children: ReactNode
   /** A SetupFooter — the card that carries the primary action is the last one on the screen. */
@@ -398,10 +445,14 @@ export function SetupCard({
       className={['flex flex-col gap-m rounded-3xl px-xl py-l w-full', className].filter(Boolean).join(' ')}
       style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
     >
-      <div className="flex flex-col gap-xxxs">
-        <h3 className="font-display text-m font-semibold text-text-primary leading-[1.4]">{title}</h3>
-        {hint && <p className="font-body text-s text-text-secondary leading-[1.55]">{hint}</p>}
-      </div>
+      {(title || hint) && (
+        <div className="flex flex-col gap-xxxs">
+          {title && (
+            <h3 className="font-display text-m font-semibold text-text-primary leading-[1.4]">{title}</h3>
+          )}
+          {hint && <p className="font-body text-s text-text-secondary leading-[1.55]">{hint}</p>}
+        </div>
+      )}
       {children}
       {footer}
     </div>

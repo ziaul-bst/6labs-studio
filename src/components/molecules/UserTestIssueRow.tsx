@@ -130,8 +130,11 @@ export function UserTestIssueRow({
                     borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)',
                   }}
                 >
+                  {/* Who, not what they held. The device is not something
+                       6labs receives with a recording, and the row's third
+                       column already carries the time range it is seeking to. */}
                   <span className="font-display text-xs font-semibold text-text-primary leading-[1.5]">
-                    {clip.tester} · {clip.device}
+                    {clip.tester}
                   </span>
                   <span className="font-body text-xs text-text-secondary leading-[1.5] truncate">
                     {clip.note}

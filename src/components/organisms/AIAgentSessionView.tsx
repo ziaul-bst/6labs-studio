@@ -21,7 +21,7 @@
  * Code-first prototype — from the PM artifact (screen s48), no Figma source yet.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PageTopbar } from '../molecules/PageTopbar'
 import { RunFacts } from '../molecules/RunFacts'
@@ -32,6 +32,9 @@ import { CheckIcon } from '../icons/CheckIcon'
 import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
 import { IssueKindTag } from '../atoms/IssueKindTag'
 import { RecordingWell } from '../atoms/RecordingWell'
+import { applySessionTextState, useSessionTextDemoState } from '../../lib/sessionTextDemoState'
+import { SessionViewerSkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
 import { PERSONA_TONE, formatSessionTime } from '../../lib/mocks/testing'
 import { useRecordingDemoState } from '../../lib/recordingDemoState'
 import type { AgentSession, AIBehaviouralRunMeta } from '../../lib/types/testing'
@@ -77,7 +80,7 @@ const PLAY_MS = 1800
 export const AGENT_LOOP_MS = 6000
 
 export function AIAgentSessionView({
-  session,
+  session: sessionProp,
   runName,
   meta,
   instructions,
@@ -86,6 +89,14 @@ export function AIAgentSessionView({
   onBack,
   className,
 }: AIAgentSessionViewProps) {
+  /* Review chrome: the dock can rewrite every screen's account in its long
+     form, so the reading column can be looked at under the load it actually
+     has to carry. Identity at 'standard'. */
+  const textState = useSessionTextDemoState()
+  const session = useMemo(
+    () => ({ ...sessionProp, steps: applySessionTextState(sessionProp.steps, textState) }),
+    [sessionProp, textState],
+  )
   const live = session.status === 'live'
   const reached = session.reached
   const total = session.steps.length
@@ -102,6 +113,10 @@ export function AIAgentSessionView({
      in globals.css. The fixtures leave it unset so a reviewer can put the
      whole screen into either shape from the dock. */
   const orientation = session.orientation ?? demoOrientation
+  /* This screen's own beat, keyed on the session — stepping into a different
+     agent is a different fetch. It sits with the other hooks, above every
+     early return, so a session that resolves does not change the hook count. */
+  const loadPhase = usePageLoading(session.id)
 
   /* Opened mid-run, a live session lands on the newest screen 6labs has
      captured — the rest of the walk is the reader's. */
@@ -153,30 +168,44 @@ export function AIAgentSessionView({
 
   const timeLabel = `${formatSessionTime(step.atSec)} / ${live ? formatSessionTime(session.steps[last].atSec) : formatSessionTime(durationSec)}`
 
+  /* Built once and handed to both the skeleton and the viewer. The bar is the
+     way back to the run and it is known the instant a session card is clicked,
+     so it is never drawn as grey bars — see TestingSkeletons. */
+  const topbar = (
+    <PageTopbar
+      title={`${session.persona} · agent ${session.index + 1}`}
+      /* Only the run — the test itself is already the selected row in the
+         sidebar, so naming it here says nothing the screen does not. */
+      trail={[{ label: runName }]}
+      onBack={onBack}
+      /* A badge only while the state is still moving. "Finished" on a session
+         whose transport reads "Screen 14 of 14" and whose facts carry its full
+         length was a pill restating the page — and a badge that is present on
+         every screen stops being read at all, which is the one thing the live
+         one cannot afford. */
+      actions={
+        live ? (
+          <StatusPill bg="var(--bg-tint)" ink="var(--text-brand)">
+            <i className="agent-live-dot" aria-hidden />
+            Live
+          </StatusPill>
+        ) : undefined
+      }
+    />
+  )
+
+  if (loadPhase)
+    return (
+      <SessionViewerSkeleton
+        topbar={topbar}
+        label={`Loading ${session.persona} · agent ${session.index + 1}`}
+        className={className}
+      />
+    )
+
   return (
     <div className={['flex flex-col w-full min-h-full', className].filter(Boolean).join(' ')}>
-      <PageTopbar
-        title={`${session.persona} · agent ${session.index + 1}`}
-        /* Only the run — the test itself is already the selected row in the
-           sidebar, so naming it here says nothing the screen does not. */
-        trail={[{ label: runName }]}
-        onBack={onBack}
-        /* Status, and only status. The pill used to carry a second fact — the
-           screen count while live, the length once finished — both of which are
-           already on the screen: the transport counts screens under the video,
-           and the session facts carry the length. A pill that says two things
-           is read as one, and the one it is read as is the status. */
-        actions={
-          live ? (
-            <StatusPill bg="var(--bg-tint)" ink="var(--text-brand)">
-              <i className="agent-live-dot" aria-hidden />
-              Live
-            </StatusPill>
-          ) : (
-            <StatusPill bg="var(--bg-subtle)" ink="var(--text-secondary)">Finished</StatusPill>
-          )
-        }
-      />
+      {topbar}
 
       <div className="flex-1 w-full">
         {/* Wider than the reading measure: the frame is the point of this
@@ -433,13 +462,19 @@ export function AIAgentSessionView({
                     <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
                       Reasoning
                     </span>
-                    {/* Folded at eight lines. A model's reasoning runs as long
-                        as it runs, and the first lines are the ones that say
-                        what it decided; the rest is there for the reader who
-                        doubts it, one click away. Folding is per screen — step
-                        to the next one and it is folded again, because the
-                        default is skim. */}
-                    <ExpandableText key={`reasoning-${idx}`} lines={8} moreLabel="Show the full reasoning">
+                    {/* Four lines, and the number is a budget rather than a
+                        taste: Saw, Reasoning and Did have to fit the panel
+                        together, unopened, or the fold is pointless — a reader
+                        who has to scroll past the reasoning to find out what
+                        the agent actually DID has been given the long version
+                        whether they wanted it or not. Three for Saw and three
+                        here leaves Did — the whole block, action and observed
+                        line included — above the fold on a laptop, and each
+                        opens on its own with one click.
+
+                        Folding is per screen — step to the next one and it is
+                        folded again, because the default is skim. */}
+                    <ExpandableText key={`reasoning-${idx}`} lines={3} moreLabel="Show the full reasoning">
                       <span className="font-body text-s text-text-primary leading-[1.6] wrap-anywhere">
                         “{step.reasoning}”
                       </span>
@@ -630,13 +665,14 @@ export function AIAgentSessionView({
 
 /* ── Bits ───────────────────────────────────────────────────────────────── */
 
-function Reading({ label, children }: { label: string; children: ReactNode }) {
+function Reading({ label, lines = 3, children }: { label: string; lines?: number; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-xxxs min-w-0">
       <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">{label}</span>
       {/* An observation quotes the screen, and a screen can be a wall of rules
-          text — folded at six lines, opened with one click. */}
-      <ExpandableText lines={6} moreLabel="Show everything the agent saw">
+          text — folded, opened with one click. See the fold budget on the
+          Reasoning block for why it is three lines and not six. */}
+      <ExpandableText lines={lines} moreLabel="Show everything the agent saw">
         <span className="font-body text-s text-text-secondary leading-[1.6] wrap-anywhere">{children}</span>
       </ExpandableText>
     </div>

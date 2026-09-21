@@ -19,8 +19,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { runDateLabel } from '../../lib/runDate'
+import type { TestingAccent } from '../../lib/studioAreas'
 import { useRunDemoSeed } from '../../lib/runDemoState'
 import { TestingPageHeader } from '../molecules/TestingPageHeader'
+import { TestingBodySkeleton, TestingPageSkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
 import { SelectedVideosStrip } from '../molecules/SelectedVideosStrip'
@@ -80,7 +83,7 @@ const COPY: Record<
   {
     title: string
     description: string
-    accent: 'teal' | 'purple'
+    accent: TestingAccent
     recordingsHint: string
     casesHint: string
     defaultName: string
@@ -97,19 +100,25 @@ const COPY: Record<
     title: 'Functional test',
     description:
       'Upload the tests you already ran. 6labs checks what happened in each video — did every action complete — and makes them searchable.',
-    accent: 'teal',
-    recordingsHint: 'Recordings of tests your team has already run. Select a batch by tag.',
-    casesHint: 'The test cases these recordings were intended to cover — as a spreadsheet of cases.',
+    /* Blue, with User test — the accent encodes which group a test is in, not
+       what kind of test it is. In teal it was the only Human card wearing a
+       colour from nowhere, and it sat directly above an AI functional card in
+       green: two functional tests, two greens, one of them human. */
+    accent: 'brand',
+    recordingsHint: 'Sessions of tests your team has already run. Select a batch by tag.',
+    casesHint: 'The test cases these sessions were intended to cover — as a spreadsheet of cases.',
     defaultName: 'Build V2.2 — tutorial regression',
     cta: 'Verify test cases',
     outcome:
-      'Every recording is checked against your test cases — pass, fail, or never attempted — with the clip for each result. Analysis runs in the background; the report lands in Run history when it is done.',
+      'Every session is checked against your test cases — pass, fail, or never attempted — with the clip for each result. Analysis runs in the background; the report lands in Run history when it is done.',
   },
   agency: {
     title: 'External agency test',
     description:
       'Upload sessions from your QA agency. 6labs runs the same analysis across every session — objective, comparable results you can hold the agency to.',
-    accent: 'purple',
+    /* Blue, with the rest of Human testing — see the note on the functional
+       variant above. */
+    accent: 'brand',
     recordingsHint: 'Sessions uploaded by your QA agency. Select a batch by tag.',
     casesHint: 'The test cases the agency was asked to execute.',
     defaultName: 'Agency batch — September',
@@ -119,7 +128,14 @@ const COPY: Record<
   },
 }
 
+/** How long a submitted run sits in the queue before anything starts on it. */
+const SIMULATED_QUEUE_MS = 3500
 const SIMULATED_RUN_MS = 14000
+
+/** Most case files one run may carry. */
+const MAX_CASE_FILES = 3
+/** How long an attached sheet spends transferring before it is readable. */
+const SIMULATED_UPLOAD_MS = 1800
 
 export function FunctionalTestView({
   variant = 'functional',
@@ -146,6 +162,10 @@ export function FunctionalTestView({
   const [runs, setRuns] = useState<TestRunHistoryItem[]>(FUNCTIONAL_HISTORY)
   const [openRun, setOpenRun] = useState<TestRunHistoryItem | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  /* The home's own beat, restarted on a tab change — moving from New run to
+     Run history is a fetch, and the list should arrive the way the composer
+     did. The report has its own; see FunctionalTestReport. */
+  const loadPhase = usePageLoading(tab)
 
   /* Run-flow presets. No thread step here, so 'thread' lands on the report —
      see lib/runDemoState. */
@@ -155,11 +175,15 @@ export function FunctionalTestView({
       return
     }
     const base = FUNCTIONAL_HISTORY[0]
+    if (state === 'queued') {
+      /* Distinct id for the same reason as User Test — a seeded id resolves
+         back to its finished copy in `runs`. */
+      setOpenRun({ ...base, id: 'demo-queued', state: 'queued', result: undefined, when: runDateLabel() })
+      return
+    }
     setOpenRun(
       state === 'running'
-        ? /* Distinct id for the same reason as User Test — a seeded id resolves
-             back to its finished copy. */
-          { ...base, id: 'demo-running', state: 'progress', result: undefined, when: runDateLabel() }
+        ? { ...base, id: 'demo-running', state: 'progress', result: undefined, when: runDateLabel() }
         : { ...base, state: 'done' },
     )
   })
@@ -177,7 +201,27 @@ export function FunctionalTestView({
   })
 
   const selected = useMemo(() => PICKER_VIDEOS.filter((v) => selectedIds.includes(v.id)), [selectedIds])
-  const ready = selected.length > 0 && testCases.length > 0
+  /* A sheet still transferring is not a sheet the run can read. */
+  const uploading = testCases.some((f) => f.status === 'uploading')
+  const ready = selected.length > 0 && testCases.length > 0 && !uploading
+
+  /* Attaching a file is a transfer, not an assignment. The row lands straight
+     away so the reader can see the list grow, and flips to ready when the
+     sheet is actually there. */
+  const attachFile = (file: TestCaseFile) => {
+    setTestCases((prev) =>
+      prev.length >= MAX_CASE_FILES || prev.some((p) => p.name === file.name)
+        ? prev
+        : [...prev, { ...file, status: 'uploading' }],
+    )
+    timers.current.push(
+      window.setTimeout(
+        () =>
+          setTestCases((prev) => prev.map((f) => (f.name === file.name ? { ...f, status: 'ready' } : f))),
+        SIMULATED_UPLOAD_MS,
+      ),
+    )
+  }
 
   const finishRun = (id: string) =>
     setRuns((prev) =>
@@ -192,7 +236,7 @@ export function FunctionalTestView({
     const run: TestRunHistoryItem = {
       id: `ft-${Date.now()}`,
       name: runName.trim() || 'Functional verification',
-      detail: `${selected.length} videos · ${testCases[0].name}`,
+      detail: `${selected.length} sessions · ${testCases[0].name}`,
       /* The sheets the run was verified against, kept on the row so the report
          can hand them back as a download. */
       caseFiles: testCases,
@@ -201,16 +245,34 @@ export function FunctionalTestView({
          said less about the run than the picker did. */
       meta: tags.join(', ') || '—',
       tags: tags.length ? tags : ['—'],
-      state: 'progress',
+      /* Submitted, not started. Nothing has been read yet and the page says so
+         — which is the honest first frame of a run, and the one the reader is
+         handed instead of a list row that already claims to be in progress. */
+      state: 'queued',
       when: runDateLabel(),
       withUx: agency,
     }
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)
-    setTab('history')
-    timers.current.push(window.setTimeout(() => finishRun(run.id), SIMULATED_RUN_MS))
+    /* Straight to the run's own page. The history tab was the destination when
+       a submitted run had nothing to show; it has a page now, and that page is
+       where the state of the thing you just started is written. */
+    setOpenRun(run)
+    timers.current.push(
+      window.setTimeout(
+        () => setRuns((prev) => prev.map((r) => (r.id === run.id ? { ...r, state: 'progress' } : r))),
+        SIMULATED_QUEUE_MS,
+      ),
+    )
+    timers.current.push(
+      window.setTimeout(() => finishRun(run.id), SIMULATED_QUEUE_MS + SIMULATED_RUN_MS),
+    )
   }
 
+  /* Below the run branch, not above it. Above, pinning the dock's Loading
+     switch while a report was open replaced that report with the composer's
+     skeleton — the reviewer asked what this screen looks like loading and was
+     shown a different screen. Each screen owns its own. */
   if (openRun) {
     const run = runs.find((r) => r.id === openRun.id) ?? openRun
     return (
@@ -220,6 +282,7 @@ export function FunctionalTestView({
         mode="human"
         withUx={run.withUx}
         caseFiles={run.caseFiles}
+        queued={run.state === 'queued'}
         inProgress={run.state === 'progress'}
         failure={runFailureText(run)}
         onDone={() => finishRun(run.id)}
@@ -232,6 +295,16 @@ export function FunctionalTestView({
       />
     )
   }
+
+  /* Arriving draws the whole screen; refreshing draws only the panel under the
+     tabs. The header and the tab bar do not change when the tab does — and the
+     tab the reader just pressed must not vanish under the cursor, nor take the
+     active-tab marker with it. */
+  const skeletonBody = tab === 'history' ? 'list' : 'composer'
+  if (loadPhase === 'initial')
+    return (
+      <TestingPageSkeleton body={skeletonBody} label={`Loading ${copy.title}`} className={className} />
+    )
 
   const Icon = agency ? AgencyTestIcon : FunctionalTestIcon
 
@@ -254,19 +327,21 @@ export function FunctionalTestView({
         ]}
       />
 
-      {tab === 'new' ? (
+      {/* No preamble under the tabs. The two zones say what they want in 16px
+          bold inside themselves, and the note at the foot of the page said what
+          the run produces — a paragraph between the tabs and the first control
+          was the same thing a third time, above anything the reader could act
+          on. */}
+      {loadPhase === 'refresh' ? (
+        <TestingBodySkeleton body={skeletonBody} />
+      ) : tab === 'new' ? (
         <div className="flex flex-col gap-m w-full">
-          <p className="font-body text-s text-text-secondary leading-[1.6] max-w-[92ch]">
-            Select the recordings and the test cases they were intended to cover. 6labs verifies each
-            case against the footage and reports it as passed, failed, or not verifiable. No tests are re-run.
-          </p>
-
           <div className="grid gap-m w-full" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
             <SetupZone
               filled={selected.length > 0}
               icon={<PlayIcon size={20} />}
-              title="Select the recordings"
-              filledTitle="Recordings"
+              title="Select the sessions"
+              filledTitle="Sessions"
               description={copy.recordingsHint}
               required
               accent={copy.accent}
@@ -274,7 +349,7 @@ export function FunctionalTestView({
             >
               <ZoneFilledHeader
                 icon={<PlayIcon size={16} />}
-                title={`${selected.length} video${selected.length === 1 ? '' : 's'} selected`}
+                title={`${selected.length} session${selected.length === 1 ? '' : 's'} selected`}
                 onRemove={() => setSelectedIds([])}
               />
               <SelectedVideosStrip videos={selected} maxThumbs={4} showCount={false} />
@@ -305,38 +380,33 @@ export function FunctionalTestView({
                   />
                 ) : undefined
               }
-              onClick={() => setTestCases([SAMPLE_TEST_CASE_FILES[0]])}
+              onClick={() => attachFile(SAMPLE_TEST_CASE_FILES[0])}
             >
               <ZoneFileList
                 files={testCases}
+                limit={MAX_CASE_FILES}
+                limitReason={`${MAX_CASE_FILES} files is the most one run can verify against.`}
                 trailing={<SampleSheetLink href={SAMPLE_TEST_CASE_SHEET.href} label={SAMPLE_TEST_CASE_SHEET.label} />}
                 onRemove={(f) => setTestCases((prev) => prev.filter((x) => x.name !== f.name))}
-                onAdd={() =>
-                  setTestCases((prev) => {
-                    const next = SAMPLE_TEST_CASE_FILES.find((f) => !prev.some((p) => p.name === f.name))
-                    return next ? [...prev, next] : prev
-                  })
-                }
+                onAdd={() => {
+                  const next = SAMPLE_TEST_CASE_FILES.find((f) => !testCases.some((p) => p.name === f.name))
+                  if (next) attachFile(next)
+                }}
               />
             </SetupZone>
           </div>
 
+          {/* No heading. "Name this run" sat directly above a field labelled
+              RUN NAME, and its hint explained the value of naming things. */}
           <SetupCard
-            title="Name this run"
-            hint="A descriptive name makes the run easy to find and compare against later builds."
             /* The action closes the last card rather than floating under a
-               page-wide rule, and its hint says what it is still waiting on. */
+               page-wide rule. Its hint only speaks when something is actually
+               in the way: the two zones above already carry REQUIRED, and a
+               line restating them under an obviously disabled button was the
+               third place one screen asked for the same two things. */
             footer={
               <SetupFooter
-                hint={
-                  ready
-                    ? `${selected.length} video${selected.length === 1 ? '' : 's'} · ${testCases.length} file${testCases.length === 1 ? '' : 's'}`
-                    : selected.length === 0 && testCases.length === 0
-                      ? 'Select the recordings and add the test cases to run.'
-                      : selected.length === 0
-                        ? 'Select the recordings to run.'
-                        : 'Add the test cases to run.'
-                }
+                hint={uploading ? 'Waiting for the test cases to finish uploading.' : undefined}
               >
                 <Button variant="primary" size="lg" disabled={!ready} onClick={startRun}>
                   {copy.cta}
@@ -350,6 +420,9 @@ export function FunctionalTestView({
             </label>
           </SetupCard>
 
+          {/* What the run produces and that it is not something to sit and
+              watch — the same closing note the other three composers carry, in
+              the same slot. */}
           <SetupNote>{copy.outcome}</SetupNote>
         </div>
       ) : (
@@ -358,7 +431,7 @@ export function FunctionalTestView({
           highlightId={highlightId}
           metaLabel="Tags"
           emptyTitle="No runs yet"
-          emptyLabel="Pick footage and a test-case file, run it, and the report lands here."
+          emptyLabel="Pick sessions and a test-case file, run it, and the report lands here."
           emptyAction={{ label: 'New run', onClick: () => setTab('new') }}
           onOpen={(run) => setOpenRun(run)}
         />

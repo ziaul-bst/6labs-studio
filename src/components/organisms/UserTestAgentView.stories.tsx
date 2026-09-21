@@ -35,13 +35,6 @@ export const ReportHistory: Story = {
   },
 }
 
-/** A finished run read as a thread: request, report, follow-up questions. */
-export const RunThread: Story = {
-  args: {
-    initialScreen: 'thread',
-  },
-}
-
 /** The full report — the whole document, findings grouped by section. */
 export const FullReport: Story = {
   args: {

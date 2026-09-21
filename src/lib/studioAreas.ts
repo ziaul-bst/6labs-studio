@@ -295,6 +295,18 @@ export type TestingTestId =
  * Per-test accent. The artifact colours Human tests individually (teal /
  * purple / blue) and every AI test green, so "AI" reads as one family.
  */
+/**
+ * Two accents, one per group: Human testing is `brand`, AI player testing is
+ * `success`. The accent says which group a test belongs to, not what kind of
+ * test it is — a reader scanning the Overview is placing a card in a group,
+ * and the icon is what tells two cards in the same group apart.
+ *
+ * `teal`, `purple` and `emerald` were per-test colours from before that rule
+ * and are no longer carried by any test. They stay in the map because
+ * TESTING_ACCENT_VARS is the general accent palette — a locked pitch and the
+ * persona tones still draw from the same tokens — but nothing in
+ * TESTING_TESTS should reach for them again.
+ */
 export type TestingAccent = 'teal' | 'purple' | 'brand' | 'success' | 'emerald'
 
 /** One "what you get" tile — a name for the scan, a claim for the read. */
@@ -356,19 +368,26 @@ export const TESTING_TESTS: TestingTestMeta[] = [
     },
   },
   {
-    id: 'functional-test', group: 'human', label: 'Functional test', tagline: 'Your test cases, verified against video.', icon: 'functional-test', accent: 'teal',
+    /* Blue, with User test: the accent says which group a test belongs to, not
+       what kind of test it is. In teal this was the only Human card wearing a
+       colour from nowhere, and it sat directly above AI functional test in
+       green — two functional tests, and the human one was the odd colour. */
+    id: 'functional-test', group: 'human', label: 'Functional test', tagline: 'Your test cases, verified against video.', icon: 'functional-test', accent: 'brand',
     pitch: {
       headline: 'Verify the tests your team already ran against the footage, case by case, without re-running anything.',
       outcomes: [
         { title: 'A verdict per case', body: 'Every test case marked passed, failed or not verifiable, with the clip behind each result.' },
-        { title: 'Footage you can search', body: 'Recordings become searchable by case, module and outcome.' },
+        { title: 'Sessions you can search', body: 'Sessions become searchable by case, module and outcome.' },
       ],
       previewTitle: 'Release candidate 4.2 · 96 cases',
       previewRows: ['Furnace upgrade from tutorial hint', 'Purchase restore after reinstall', 'Complete the tutorial on a fresh install'],
     },
   },
   {
-    id: 'agency-test', group: 'human', label: 'External agency test', tagline: 'Every agency, held to one standard.', icon: 'agency-test', accent: 'purple', soon: true,
+    /* Blue, with the rest of Human testing. The accent says which group a
+       test belongs to, not what kind of test it is — purple made the one
+       Human card that nobody can open yet look like a third group. */
+    id: 'agency-test', group: 'human', label: 'External agency test', tagline: 'Every agency, held to one standard.', icon: 'agency-test', accent: 'brand', soon: true,
     pitch: {
       headline: 'Run the same objective analysis across every session your QA agency delivers, and hold them to comparable results.',
       outcomes: [
@@ -401,7 +420,11 @@ export const TESTING_TESTS: TestingTestMeta[] = [
     },
   },
   {
-    id: 'ai-functional-test', group: 'ai', label: 'AI functional test', tagline: 'AI executes your test cases, flags every failure', icon: 'ai-functional-test', accent: 'emerald',
+    /* The group's green, like the rest of AI player testing. It used to carry
+       a second, cooler green so the two AI tiles could be told apart by their
+       fill — which is the same thing purple and teal were doing on the Human
+       side, and the icons already tell them apart. */
+    id: 'ai-functional-test', group: 'ai', label: 'AI functional test', tagline: 'AI executes your test cases, flags every failure', icon: 'ai-functional-test', accent: 'success',
     pitch: {
       headline: 'AI players execute your test cases on any build and report what passed, failed or could not be reached, with video.',
       outcomes: [

@@ -16,6 +16,8 @@ import { useEffect, useRef, useState } from 'react'
 import { runDateLabel } from '../../lib/runDate'
 import { useRunDemoSeed } from '../../lib/runDemoState'
 import { TestingPageHeader } from '../molecules/TestingPageHeader'
+import { TestingBodySkeleton, TestingPageSkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
 import { BuildPickerModal, BuildPlatformBadge } from './BuildPickerModal'
@@ -57,7 +59,14 @@ export interface AIFunctionalTestViewProps {
   className?: string
 }
 
+/** How long a submitted run sits in the queue before a device picks it up. */
+const SIMULATED_QUEUE_MS = 3500
 const SIMULATED_RUN_MS = 14000
+
+/** Most case files one run may carry. */
+const MAX_CASE_FILES = 3
+/** How long an attached sheet spends transferring before it is readable. */
+const SIMULATED_UPLOAD_MS = 1800
 
 export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTabChange, className }: AIFunctionalTestViewProps) {
   const [tab, setTab] = useState<'new' | 'history'>(initialTab)
@@ -74,6 +83,8 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
   const [runs, setRuns] = useState<TestRunHistoryItem[]>(AI_FUNCTIONAL_HISTORY)
   const [openRun, setOpenRun] = useState<TestRunHistoryItem | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  /* The home's own beat, restarted on a tab change. The report has its own. */
+  const loadPhase = usePageLoading(tab)
   const timers = useRef<number[]>([])
 
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), [])
@@ -89,6 +100,16 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
       setOpenRun(null)
       return
     }
+    if (state === 'queued') {
+      setOpenRun({
+        ...AI_FUNCTIONAL_HISTORY[0],
+        id: 'demo-queued',
+        state: 'queued',
+        result: undefined,
+        when: runDateLabel(),
+      })
+      return
+    }
     setOpenRun({ ...AI_FUNCTIONAL_HISTORY[0], state: 'done' })
   })
   /* Review dock: reseed the history and show it. */
@@ -98,7 +119,26 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
     if (!initial) setTab('history')
   })
 
-  const ready = files.length > 0 && build !== null
+  /* A sheet still transferring is not a sheet the run can read. */
+  const uploading = files.some((f) => f.status === 'uploading')
+  const ready = files.length > 0 && build !== null && !uploading
+
+  /* Attaching a file is a transfer, not an assignment: the row lands straight
+     away so the list is seen to grow, and flips to ready when the sheet is
+     actually there. */
+  const attachFile = (file: TestCaseFile) => {
+    setFiles((prev) =>
+      prev.length >= MAX_CASE_FILES || prev.some((p) => p.name === file.name)
+        ? prev
+        : [...prev, { ...file, status: 'uploading' }],
+    )
+    timers.current.push(
+      window.setTimeout(
+        () => setFiles((prev) => prev.map((f) => (f.name === file.name ? { ...f, status: 'ready' } : f))),
+        SIMULATED_UPLOAD_MS,
+      ),
+    )
+  }
 
   const finishRun = (id: string) =>
     setRuns((prev) =>
@@ -115,13 +155,25 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
       detail: `${files.length} file${files.length === 1 ? '' : 's'} · ${files[0].name}`,
       meta: build,
       caseFiles: files,
-      state: 'progress',
+      /* Submitted, not started — the AI players are queued for a device. */
+      state: 'queued',
       when: runDateLabel(),
     }
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)
-    setTab('history')
-    timers.current.push(window.setTimeout(() => finishRun(run.id), SIMULATED_RUN_MS))
+    /* Straight to the run's own page, which opens on the queue and becomes the
+       report in place. The history tab was the destination when a submitted
+       run had nothing to show. */
+    setOpenRun(run)
+    timers.current.push(
+      window.setTimeout(
+        () => setRuns((prev) => prev.map((r) => (r.id === run.id ? { ...r, state: 'progress' } : r))),
+        SIMULATED_QUEUE_MS,
+      ),
+    )
+    timers.current.push(
+      window.setTimeout(() => finishRun(run.id), SIMULATED_QUEUE_MS + SIMULATED_RUN_MS),
+    )
   }
 
   if (openRun) {
@@ -131,7 +183,13 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
         title={run.name}
         subtitle={`${run.detail} · build ${run.meta} · executed by AI Player, 3 agents`}
         mode="ai"
+        /* Coverage is denominated in the build, not in a recording count: the
+           players produced the footage themselves, so "18 recordings" was a
+           number about our own output, and "reached in v2.3.1" is the one a
+           reader compares between runs. */
+        buildLabel={run.meta}
         caseFiles={run.caseFiles}
+        queued={run.state === 'queued'}
         inProgress={run.state === 'progress'}
         failure={runFailureText(run)}
         onDone={() => finishRun(run.id)}
@@ -144,6 +202,18 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
       />
     )
   }
+
+  /* Below the run branch: each screen owns its own loading state, so pinning
+     the dock's Loading switch inside a report holds the report, not this. */
+  /* Arriving draws the whole screen; refreshing draws only the panel under the
+     tabs. The header and the tab bar do not change when the tab does — and the
+     tab the reader just pressed must not vanish under the cursor, nor take the
+     active-tab marker with it. */
+  const skeletonBody = tab === 'history' ? 'list' : 'composer'
+  if (loadPhase === 'initial')
+    return (
+      <TestingPageSkeleton body={skeletonBody} label="Loading AI functional test" className={className} />
+    )
 
   return (
     <div className={['flex flex-col gap-l page-measure pt-[120px] pb-xxl3', className].filter(Boolean).join(' ')}>
@@ -164,12 +234,14 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
         ]}
       />
 
-      {tab === 'new' ? (
+      {/* No preamble under the tabs. The two zones name themselves in 16px
+          bold, and the note at the foot of the page already says what the run
+          produces — a paragraph here was the same orientation a third time,
+          above anything the reader could act on. */}
+      {loadPhase === 'refresh' ? (
+        <TestingBodySkeleton body={skeletonBody} />
+      ) : tab === 'new' ? (
         <div className="flex flex-col gap-m w-full">
-          <p className="font-body text-s text-text-secondary leading-[1.6] max-w-[92ch]">
-            Each run records its own test cases, build and report, so results remain comparable across builds.
-          </p>
-
           {/* The two inputs a run needs, side by side, in the same order the
               human functional test asks for them: what the cases run against
               first, then the cases. Cases were on the left here, so the two
@@ -235,18 +307,18 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
                   />
                 ) : undefined
               }
-              onClick={() => setFiles([SAMPLE_TEST_CASE_FILES[0]])}
+              onClick={() => attachFile(SAMPLE_TEST_CASE_FILES[0])}
             >
               <ZoneFileList
                 files={files}
+                limit={MAX_CASE_FILES}
+                limitReason={`${MAX_CASE_FILES} files is the most one run can execute.`}
                 trailing={<SampleSheetLink href={SAMPLE_TEST_CASE_SHEET.href} label={SAMPLE_TEST_CASE_SHEET.label} />}
                 onRemove={(f) => setFiles((prev) => prev.filter((x) => x.name !== f.name))}
-                onAdd={() =>
-                  setFiles((prev) => {
-                    const next = SAMPLE_TEST_CASE_FILES.find((f) => !prev.some((p) => p.name === f.name))
-                    return next ? [...prev, next] : prev
-                  })
-                }
+                onAdd={() => {
+                  const next = SAMPLE_TEST_CASE_FILES.find((f) => !files.some((p) => p.name === f.name))
+                  if (next) attachFile(next)
+                }}
               />
             </SetupZone>
           </div>
@@ -258,22 +330,17 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
             onPick={setBuild}
           />
 
+          {/* No heading. "Name this run" sat directly above a field labelled
+              RUN NAME, and its hint explained the value of naming things. */}
           <SetupCard
-            title="Name this run"
-            hint="Names make two builds comparable months later."
             /* The action closes the last card rather than floating under a
-               page-wide rule, and its hint says what it is still waiting on. */
+               page-wide rule. Its hint only speaks when something is actually
+               in the way: both zones above carry REQUIRED, and a line restating
+               them under a visibly disabled button was the third place one
+               screen asked for the same two things. */
             footer={
               <SetupFooter
-                hint={
-                  ready
-                    ? `${files.length} file${files.length === 1 ? '' : 's'} · ${build}`
-                    : files.length === 0 && build === null
-                      ? 'Add the test cases and choose a build to run.'
-                      : files.length === 0
-                        ? 'Add the test cases to run.'
-                        : 'Choose a build to run.'
-                }
+                hint={uploading ? 'Waiting for the test cases to finish uploading.' : undefined}
               >
                 <Button variant="primary" size="lg" disabled={!ready} onClick={startRun}>
                   Run test

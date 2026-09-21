@@ -1,15 +1,21 @@
 /**
  * UserTestAgentView — the whole User Test agent, from home to report.
  *
- * Four screens, one owner. Home is a composer with a history tab holding both
- * the reports it has produced and the questions it has answered; a run in
- * flight opens as a thread you watch; a finished run opens as its summary —
- * what it found and how big it was; and the full report is the summary's leaf.
- * They stay in one view because they are one task — a batch is set up,
- * watched, read, and then read in detail — and a run has no id worth putting
- * in the URL until it has run.
+ * Three screens, one owner. Home is a composer with a history tab holding both
+ * the reports it has produced and the questions it has answered; every run and
+ * every question opens on the same run page, whatever state it is in; and the
+ * full report is that page's leaf. They stay in one view because they are one
+ * task — a batch is set up, watched, read, and then read in detail — and a run
+ * has no id worth putting in the URL until it has run.
  *
- * With no footage in the library the home is replaced by the zero-state
+ * The thread screen is gone. A run used to open as a chat transcript while it
+ * was in flight and as a summary once it finished, so the same row went to two
+ * different layouts depending on a state the reader could not see before
+ * clicking; a question went to the thread always. One page now, with the wait
+ * as one of its states — which is also why submitting a run lands on it rather
+ * than on the history list.
+ *
+ * With no sessions in the library the home is replaced by the zero-state
  * blocker: nothing here can run without recordings, so the first step is
  * getting some in, not learning the composer.
  *
@@ -21,19 +27,18 @@ import { runDateLabel } from '../../lib/runDate'
 import { TestingHomeEmpty } from './TestingHomeEmpty'
 import { UserTestHome } from './UserTestHome'
 import { useRunDemoSeed } from '../../lib/runDemoState'
-import { runFailureText } from '../molecules/RunFailedNotice'
-import { TestRunThread } from './TestRunThread'
 import { UserTestReport } from './UserTestReport'
 import { UserTestRunSummary } from './UserTestRunSummary'
 import { MembersIcon } from '../icons/MembersIcon'
 import { showToast } from '../atoms/Toast'
-import { THREAD_SESSIONS, USER_TEST_HISTORY } from '../../lib/mocks/testing'
+import { answerFor, askQuestion } from './UserTestAskPanel'
+import { USER_TEST_HISTORY } from '../../lib/mocks/testing'
 import { useHistoryDemoSeed } from '../../lib/historyDemoState'
 import { PICKER_VIDEOS, USER_TEST_ISSUES, USER_TEST_REPORT_META } from '../../lib/mocks/user-test'
 import type { TestRunHistoryItem } from '../../lib/types/testing'
 import type { UserTestAskTurn } from '../../lib/types/userTest'
 
-export type UserTestScreen = 'home' | 'thread' | 'summary' | 'report'
+export type UserTestScreen = 'home' | 'summary' | 'report'
 
 /** The screens an open run can be on — every one but the home. */
 type RunStage = Exclude<UserTestScreen, 'home'>
@@ -73,20 +78,28 @@ export interface UserTestAgentViewProps {
   className?: string
 }
 
+/** How long a submitted run sits in the queue before the agent picks it up. */
+const SIMULATED_QUEUE_MS = 3500
 const SIMULATED_RUN_MS = 16000
+
+/* The first *report* in the fixture list, for the presets that hold a run
+   open. Row zero is a question, and seeding a queued run from it put a
+   question's own sentence in the bar of a page reporting on ten sessions. */
+const SEED_REPORT = USER_TEST_HISTORY.find((r) => (r.kind ?? 'report') === 'report') ?? USER_TEST_HISTORY[0]
 const SAMPLE_RUN: TestRunHistoryItem = {
   id: 'sample',
   name: 'Sample report — Whiteout Survival onboarding',
-  detail: '10 videos · Onboarding flow v3',
+  detail: '10 sessions · Onboarding flow v3',
   meta: 'Build V2.1',
   state: 'done',
   result: { kind: 'issues', count: 7 },
   when: 'Aug 26',
 }
 
-/** Where the thread came from — decides its request line and status. */
-interface OpenThread {
+/** The run being read, and what it was run over. */
+interface OpenRun {
   run: TestRunHistoryItem
+  /** Set when the row is a question rather than a report. */
   question?: string
   gameContext: string | null
   videoCount: number
@@ -115,15 +128,15 @@ export function UserTestAgentView({
     setHighlightId(hl)
     if (!initial) setHomeSeed((n) => n + 1)
   })
-  const [thread, setThread] = useState<OpenThread | null>(() =>
+  const [open, setOpen] = useState<OpenRun | null>(() =>
     initialScreen === 'home'
       ? null
-      : { run: USER_TEST_HISTORY[0], gameContext: 'Onboarding flow v3', videoCount: 10 },
+      : { run: SEED_REPORT, gameContext: 'Onboarding flow v3', videoCount: 10 },
   )
-  /* Which leaf of an open run is showing. Only meaningful while `thread` is
-     set; the screen falls back to the home the moment it is cleared. */
+  /* Which leaf of an open run is showing. Only meaningful while `open` is set;
+     the screen falls back to the home the moment it is cleared. */
   const [stage, setStage] = useState<RunStage>(
-    initialScreen === 'home' ? 'thread' : (initialScreen as RunStage),
+    initialScreen === 'home' ? 'summary' : (initialScreen as RunStage),
   )
   /* The follow-up thread lives here, not in the thread view, so it survives
      the trip to the full report and back. */
@@ -137,38 +150,65 @@ export function UserTestAgentView({
      thing a preset could hold open is a screen nothing routes to. */
   useRunDemoSeed((state) => {
     if (state === 'composer') {
-      setThread(null)
-      setStage('thread')
+      setOpen(null)
+      setStage('summary')
       return
     }
     /* A follow-up mid-flight. The turn is seeded with a null answer and nothing
-       is scheduled to resolve it, so the pending sheet stays on screen — the
-       real one is only up for ANSWER_DELAY_MS, which is not long enough to look
-       at. Any other preset clears the thread so it opens on its own answer. */
+       is scheduled to resolve it, so the pending line stays on screen — the
+       real one is only up for ANSWER_DELAY_MS, which is not long enough to
+       look at. Every other preset clears the thread. */
     setAskTurns(
       state === 'asking'
-        ? [{ id: 'demo-pending', question: 'Which device saw the most bugs?', answer: null }]
-        : [],
+        ? [{ id: 'demo-pending', question: 'Show me every clip where a tester quit', answer: null }]
+        : state === 'question'
+          ? [
+              {
+                id: 'demo-question',
+                question: 'Which testers quit before finishing onboarding, and what were they doing right before?',
+                answer: answerFor('Show me every clip where a tester quit'),
+              },
+            ]
+          : [],
     )
-    setThread({
-      run: { ...USER_TEST_HISTORY[0], state: 'done' },
+    if (state === 'queued') {
+      setOpen({
+        run: { ...SEED_REPORT, id: 'demo-queued', state: 'queued', result: undefined, when: runDateLabel() },
+        gameContext: 'Onboarding flow v3',
+        videoCount: 10,
+      })
+      setStage('summary')
+      return
+    }
+    setOpen({
+      run: { ...SEED_REPORT, state: 'done' },
+      question:
+        state === 'question'
+          ? 'Which testers quit before finishing onboarding, and what were they doing right before?'
+          : undefined,
       gameContext: 'Onboarding flow v3',
       videoCount: 10,
     })
-    setStage(state === 'thread' ? 'thread' : state === 'report' ? 'report' : 'summary')
+    setStage(state === 'report' ? 'report' : 'summary')
   })
 
-  const screen: UserTestScreen = thread ? stage : 'home'
+  const screen: UserTestScreen = open ? stage : 'home'
+  /* Resolved against the list, so a run that was queued when it was opened
+     moves through analysing to its report without anyone reopening it. */
+  const liveRun = (open && runs.find((r) => r.id === open.run.id)) || open?.run || SEED_REPORT
   useEffect(() => {
     onScreenChange?.(screen)
   }, [screen, onScreenChange])
 
-  const hasFootage = libraryVideoCount > 0
+  const hasSessions = libraryVideoCount > 0
 
   const finishRun = (id: string) =>
     setRuns((prev) =>
       prev.map((r) => (r.id === id ? { ...r, state: 'done', result: { kind: 'issues', count: 7 } } : r)),
     )
+
+  const advanceRun = (id: string, state: TestRunHistoryItem['state']) =>
+    setRuns((prev) => prev.map((r) => (r.id === id ? { ...r, state } : r)))
 
   const generate = (videoIds: string[], gameContext: string | null, runName: string) => {
     const chosen = PICKER_VIDEOS.filter((v) => videoIds.includes(v.id))
@@ -178,64 +218,70 @@ export function UserTestAgentView({
       /* The tag fills its own column, so an unnamed run falls back to the flow
          the footage was read against — the same shape as the seeded rows. */
       name: runName.trim() || gameContext || 'User test',
-      detail: `${chosen.length} videos${gameContext ? '' : ' · no game context'}`,
+      detail: `${chosen.length} sessions${gameContext ? '' : ' · no game context'}`,
       meta: tags.join(', ') || 'untagged',
       tags: tags.length ? tags : ['untagged'],
-      state: 'progress',
+      /* Submitted, not started — see TestRunState. */
+      state: 'queued',
       when: runDateLabel(),
     }
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)
-    timers.current.push(window.setTimeout(() => finishRun(run.id), SIMULATED_RUN_MS))
-    showToast(`Analysis started — ${chosen.length} recording${chosen.length === 1 ? '' : 's'}. Reading in the background.`)
+    timers.current.push(window.setTimeout(() => advanceRun(run.id, 'analysing'), SIMULATED_QUEUE_MS))
+    timers.current.push(
+      window.setTimeout(() => finishRun(run.id), SIMULATED_QUEUE_MS + SIMULATED_RUN_MS),
+    )
+    showToast(`Analysis queued — ${chosen.length} session${chosen.length === 1 ? '' : 's'}. Reading in the background.`)
     setAskTurns([])
-    /* The home stays put, on its History tab, with the new row highlighted and
-       in progress. It used to open the run's thread and watch it fill — a
-       sixteen-second screen whose whole content was a progress bar, which
-       contradicted the toast that had just promised the work was happening in
-       the background. The row carries the same progress and can be left. */
+    /* Straight to the run's own page, which opens on the queue and fills in
+       where it stands. The home used to stay put on its History tab, which
+       answered "did that work?" with a row in a list the reader then had to
+       find — and this page says the same thing the toast does, in the place
+       the report will appear. */
+    setStage('summary')
+    setOpen({ run, gameContext, videoCount: videoIds.length })
   }
 
   const openRun = (run: TestRunHistoryItem) => {
-    setAskTurns([])
-    /* A finished report opens on its summary — the run page. A run still in
-       flight, and any question, has no summary to open: one is not done and
-       the other was answered in the thread it was asked in. */
-    setStage(run.state === 'done' && run.kind !== 'question' ? 'summary' : 'thread')
-    setThread({
+    const isQuestion = run.kind === 'question'
+    /* A question reopens with its own answer already on the page — it was
+       answered once and the page is the record of that, not a prompt to ask
+       it again. */
+    setAskTurns(isQuestion ? [{ id: run.id, question: run.name, answer: answerFor(run.name) }] : [])
+    /* One destination, whatever state the row is in. The run page is the run:
+       queued, reading, finished or answered, it is the same page with a
+       different middle. */
+    setStage('summary')
+    setOpen({
       run,
-      /* A question row reopens as the question it was — the thread's request
-         line and status both key off this, so a report never opens as an ask
-         and an ask never opens as a report. */
-      question: run.kind === 'question' ? run.name : undefined,
+      question: isQuestion ? run.name : undefined,
       gameContext: /no game context/.test(run.detail) ? null : 'Onboarding flow v3',
-      videoCount: Number(run.detail.match(/^(\d+) videos/)?.[1] ?? 10),
+      videoCount: Number(run.detail.match(/^(\d+) (?:sessions|videos)/)?.[1] ?? 10),
     })
   }
 
-  const closeThread = () => {
-    setStage('thread')
-    setThread(null)
+  const closeRun = () => {
+    setStage('summary')
+    setOpen(null)
   }
 
   return (
     <div
       className={[
         'relative w-full',
-        screen === 'home' && !hasFootage ? 'h-full' : '',
-        /* The thread pins its composer with `sticky bottom-0`, which only holds
-           if the thread is at least as tall as the scroll viewport. The scroll
-           container above has a definite height; this wrapper has to carry it
-           down as a flex column so the thread can grow into it. The summary is
-           a thread too — same composer, same requirement. */
-        screen === 'thread' || screen === 'summary' ? 'flex flex-col h-full' : '',
+        screen === 'home' && !hasSessions ? 'h-full' : '',
+        /* The run page pins its composer with `sticky bottom-0`, which only
+           holds if the page is at least as tall as the scroll viewport. The
+           scroll container above has a definite height; this wrapper has to
+           carry it down as a flex column so the page can grow into it. */
+        screen === 'summary' ? 'flex flex-col h-full' : '',
         className,
       ]
         .filter(Boolean)
         .join(' ')}
     >
       {screen === 'home' &&
-        (hasFootage ? (
+        (hasSessions ? (
           <UserTestHome
             key={homeSeed}
             history={runs}
@@ -258,7 +304,7 @@ export function UserTestAgentView({
                 id: `q-${Date.now()}`,
                 kind: 'question',
                 name: question,
-                detail: `${videoIds.length} videos${gameContext ? '' : ' · no game context'}`,
+                detail: `${videoIds.length} sessions${gameContext ? '' : ' · no game context'}`,
                 /* The Tag column shows the footage's library tags, same as a report row. */
                 meta: askedTags.join(', ') || 'untagged',
                 tags: askedTags.length ? askedTags : ['untagged'],
@@ -266,19 +312,26 @@ export function UserTestAgentView({
                 when: runDateLabel(),
               }
               setRuns((prev) => [asked, ...prev])
-              setStage('thread')
-              setThread({ run: asked, question, gameContext, videoCount: videoIds.length })
+              /* Posted pending and answered on the same clock a follow-up runs
+                 on — see askQuestion. The page used to open with the answer
+                 already written, which made the very first question of a
+                 session the only one in the product that appeared to be
+                 answered before it was sent. */
+              setAskTurns([])
+              askQuestion(question, setAskTurns)
+              setStage('summary')
+              setOpen({ run: asked, question, gameContext, videoCount: videoIds.length })
             }}
             onOpenSample={() => {
               setAskTurns([])
               setStage('summary')
-              setThread({ run: SAMPLE_RUN, gameContext: 'Onboarding flow v3', videoCount: 10 })
+              setOpen({ run: SAMPLE_RUN, gameContext: 'Onboarding flow v3', videoCount: 10 })
             }}
           />
         ) : (
           <TestingHomeEmpty
-            title="Add recordings to run a user test analysis"
-            description="A user test analysis reads recorded sessions to find where players struggle. Upload footage you have, or record new sessions with the Recorder app."
+            title="Add sessions to run a user test analysis"
+            description="A user test analysis reads recorded sessions to find where players struggle. Upload sessions you have, or record new ones with the Recorder app."
             icon={<MembersIcon size={32} />}
             libraryVideoCount={libraryVideoCount}
             gameContextAdded={gameContextAdded}
@@ -287,73 +340,41 @@ export function UserTestAgentView({
           />
         ))}
 
-      {screen === 'thread' && thread && (
-        <TestRunThread
-          className="flex-1"
-          title={thread.run.name}
-          request={{
-            headline: `Analyse ${thread.videoCount} sessions`,
-            detail: `tagged ${thread.run.meta} · ${thread.gameContext ? `context: ${thread.gameContext}` : 'no game context'} · no previous analysis`,
-          }}
-          sessions={THREAD_SESSIONS.slice(0, Math.min(thread.videoCount, 10))}
-          totalSessions={thread.videoCount}
-          /* Same footage the run page expands onto, so the Sources block shows
-             one set of recordings across both screens. */
-          sources={PICKER_VIDEOS.slice(0, thread.videoCount).map((v) => ({
-            id: v.id,
-            duration: v.duration,
-            title: v.title,
-          }))}
-          gameContext={thread.gameContext}
-          compared={thread.run.id === SAMPLE_RUN.id}
-          sample={thread.run.id === SAMPLE_RUN.id}
-          inProgress={(runs.find((r) => r.id === thread.run.id) ?? thread.run).state === 'progress'}
-          failure={runFailureText(runs.find((r) => r.id === thread.run.id) ?? thread.run)}
-          onDone={() => finishRun(thread.run.id)}
-          onBack={closeThread}
-          question={thread.question}
-          askTurns={askTurns}
-          onAskTurnsChange={setAskTurns}
-          /* The thread's report card hands off to the run page, not straight
-             to the evidence — the summary is what a finished run *is*. */
-          onOpenReport={() => setStage('summary')}
-          onOpenEvidence={() => setStage('report')}
-          onOpenLibrary={onOpenLibrary}
-          onHandoffToOracle={(q) => onAskOracle?.(q)}
-        />
-      )}
-
-      {screen === 'summary' && (
+      {screen === 'summary' && open && (
         <UserTestRunSummary
           className="flex-1"
-          runName={thread?.run.name ?? USER_TEST_HISTORY[0].name}
+          runName={open.run.name}
           issues={USER_TEST_ISSUES}
-          sessionCount={thread?.videoCount ?? 10}
+          /* One page, four middles. The row's own state decides which: queued
+             and analysing are waits, a question is a single answer sheet, and
+             a finished report is the summary. */
+          pending={
+            liveRun.state === 'queued'
+              ? 'queued'
+              : liveRun.state === 'progress' || liveRun.state === 'analysing'
+                ? 'analysing'
+                : undefined
+          }
+          question={open.question}
+          sessionCount={open.videoCount}
           /* The batch is 10; the analysis covered 9. Both screens say so, or
              the tile and every finding's denominator tell different stories. */
           analysedCount={USER_TEST_REPORT_META.analysedSessions}
-          /* The footage the run read, so the Sources block expands onto the
+          /* The sessions the run read, so the Sources block expands onto the
              same recordings the batch was built from. */
-          sources={PICKER_VIDEOS.slice(0, thread?.videoCount ?? 10).map((v) => ({
+          sources={PICKER_VIDEOS.slice(0, open.videoCount).map((v) => ({
             id: v.id,
             duration: v.duration,
             title: v.title,
           }))}
-          /* Same opening message the thread showed — the summary is that
-             thread, re-opened after the run finished. */
-          request={{
-            headline: `Analyse ${thread?.videoCount ?? 10} sessions`,
-            detail: `tagged ${thread?.run.meta ?? 'Build V2.1'} · ${
-              thread?.gameContext ? `context: ${thread.gameContext}` : 'no game context'
-            } · no previous analysis`,
-          }}
           facts={{
-            videos: thread ? `${thread.videoCount} videos · tag ${thread.run.meta}` : '10 videos',
-            context: thread?.gameContext ?? null,
+            videos: `${open.videoCount} sessions · tag ${open.run.meta}`,
+            tag: open.run.meta,
+            context: open.gameContext,
           }}
           askTurns={askTurns}
           onAskTurnsChange={setAskTurns}
-          onBack={closeThread}
+          onBack={closeRun}
           onOpenReport={() => setStage('report')}
           onOpenLibrary={onOpenLibrary}
           onOpenEvidence={() => setStage('report')}
@@ -363,7 +384,7 @@ export function UserTestAgentView({
 
       {screen === 'report' && (
         <UserTestReport
-          runName={thread?.run.name ?? USER_TEST_HISTORY[0].name}
+          runName={open?.run.name ?? SEED_REPORT.name}
           issues={USER_TEST_ISSUES}
           onBackToRun={() => setStage('summary')}
         />

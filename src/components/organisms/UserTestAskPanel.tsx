@@ -3,9 +3,9 @@
  * User Test agent rather than by Oracle.
  *
  * The split is about corpus, not capability. User Test holds this run: ten
- * recordings, seven findings, every clip and the game context they were graded
- * against. It can therefore answer "which device saw the most bugs" *and point
- * at the sessions*. Oracle holds live player data and cannot see any of this
+ * sessions, seven findings, every clip and the game context they were graded
+ * against. It can therefore answer "where did testers quit" *and point at
+ * the sessions*. Oracle holds live player data and cannot see any of this
  * batch. Routing run questions to Oracle would have meant answering from the
  * wrong evidence — or, worse, answering plausibly from none.
  *
@@ -18,6 +18,14 @@
  * against the run, and moving it to a separate surface would separate the
  * answer from the numbers it is about.
  *
+ * No rail of suggested questions under the answer. The home composer offers
+ * prompts, which is where someone who does not yet know what to ask is
+ * standing; a reader who has just been handed an answer is reading it, and a
+ * row of other questions there competed with the answer above it and with the
+ * composer below. It also advertised the Oracle handoff as a question to
+ * spend, when the handoff already appears inside any answer that turns out to
+ * need live data — see `outOfScope` in UserTestAnswerCard.
+ *
  * Code-first prototype — no Figma source yet.
  */
 
@@ -29,11 +37,7 @@ import { Spinner } from '../atoms/Spinner'
 import { SkeletonText } from '../atoms/Skeleton'
 import Button from '../ui/Button'
 import { SendIcon } from '../icons/SendIcon'
-import {
-  USER_TEST_ASK_ANSWERS,
-  USER_TEST_ASK_FALLBACK,
-  USER_TEST_ASK_SUGGESTIONS,
-} from '../../lib/mocks/user-test'
+import { USER_TEST_ASK_ANSWERS, USER_TEST_ASK_FALLBACK } from '../../lib/mocks/user-test'
 import type { UserTestAskTurn, UserTestEvidenceRef } from '../../lib/types/userTest'
 
 export interface UserTestAskPanelProps {
@@ -60,8 +64,7 @@ export interface UserTestAskPanelProps {
   bare?: boolean
   /**
    * Drops the inline form. The thread screens pin an Oracle-style composer to
-   * the bottom instead; the panel then only renders turns and suggestions, and
-   * suggestion chips call `onAsk` so the host owns the question.
+   * the bottom instead; the panel then only renders the turns.
    */
   hideComposer?: boolean
   /**
@@ -70,12 +73,6 @@ export interface UserTestAskPanelProps {
    * own pale background is the container.
    */
   framed?: boolean
-  /**
-   * Drops the suggested-question chips. The run summary hides them: it ends on
-   * the report CTA, and a rail of questions under that band competed with the
-   * one thing the message is asking you to do.
-   */
-  hideSuggestions?: boolean
   /**
    * `document` renders each answer as its own sheet — 01 Summary, 02 Details —
    * the way the full report reads. Used where the answer *is* the page rather
@@ -88,7 +85,6 @@ export interface UserTestAskPanelProps {
    * down the thread is still a document someone will scroll straight to.
    */
   answerHeader?: ReactNode
-  onAsk?: (question: string) => void
   onOpenEvidence?: (ref: UserTestEvidenceRef) => void
   onHandoffToOracle?: (question: string) => void
   className?: string
@@ -103,40 +99,86 @@ export function answerFor(question: string) {
 }
 
 /**
- * The answer sheet, arriving.
+ * Ask, then answer — the one implementation every caller uses.
  *
- * One steady status line — not a cycling list. A cycling list ("Reading this
- * run's findings…", "Matching clips…") turned a sub-second wait into a
- * performance, and its last line was always still on screen when the answer
- * landed, so it read as a claim rather than a wait.
+ * A question typed into the composer on the home screen and a follow-up typed
+ * at the foot of a run page are the same act: the same agent reads the same
+ * recordings and writes the same kind of sheet. They were not behaving that
+ * way. The composer navigated straight to a page with the answer already on
+ * it, while a follow-up posted the question and held the pending line for
+ * ANSWER_DELAY_MS — so the wait looked like a property of *where* you asked
+ * rather than of asking, and the first question of a session was the only one
+ * in the product that appeared to be answered before it was sent.
  *
- * On a document answer the sheet arrives first, already signed with the same
- * agent block the answer will carry, and its body holds the shape of the
- * summary it is about to contain: the real "01 Summary" heading with the
- * status where its meta goes, then two paragraphs of skeleton text. Before
- * this it was the header and one word of "Thinking…", and after the thread
- * scrolled to it that one word sat under the composer — the visible state was
- * a signed sheet with nothing in it.
+ * One function now, so the two cannot drift apart again. `apply` takes an
+ * updater rather than a value because one host owns its turns as React state
+ * and the other has them handed down controlled — see the call sites.
+ *
+ * Returns the turn's id, or null if there was nothing to ask.
  */
-function AnswerPending({
-  inSheet,
-  header,
-  sessionCount,
-}: {
-  inSheet?: boolean
-  header?: ReactNode
-  sessionCount: number
-}) {
-  const status = (
+export function askQuestion(
+  question: string,
+  apply: (update: (prev: UserTestAskTurn[]) => UserTestAskTurn[]) => void,
+): string | null {
+  const trimmed = question.trim()
+  if (!trimmed) return null
+  const id = `ask-${Date.now()}`
+  apply((prev) => [...prev, { id, question: trimmed, answer: null }])
+  /* The deferred answer lands on whatever the thread looks like when the timer
+     fires, not on the one the question was asked against — which is why this
+     is an updater and not a captured array. */
+  window.setTimeout(() => {
+    apply((prev) => prev.map((t) => (t.id === id ? { ...t, answer: answerFor(trimmed) } : t)))
+  }, ANSWER_DELAY_MS)
+  return id
+}
+
+/**
+ * An answer, arriving.
+ *
+ * The sheet arrives first, already signed with the same agent block and the
+ * same Sources band the answer will carry, and its body holds the shape of
+ * what is coming: the real "01 Summary" heading with the status where its meta
+ * goes, then two paragraphs of skeleton text. Nothing moves when the answer
+ * lands — it fills the shape that was already on screen.
+ *
+ * The status line cycles rather than sitting still. A single frozen phrase for
+ * a second and a half reads as stuck, and the words are deliberately generic:
+ * they say the question is being worked on, not that a particular result is
+ * coming. That matters because not every answer is a summary — some are a
+ * table, one is a refusal — so the skeleton stands for "an answer, about this
+ * long", never for a promise about its shape.
+ *
+ * Inline hosts get the status line on its own: there is no sheet to fill, so
+ * there is nothing to draw the shape of.
+ */
+const WAIT_WORDS = ['Working', 'Reading the sessions', 'Checking the clips', 'Writing it up']
+
+/**
+ * The cycling status, on its own. Exported because every wait for an answer in
+ * User Test is this one — the question typed into the composer on the home
+ * screen, a follow-up asked at the foot of the run page, and a follow-up asked
+ * under the report band are the same act with the same corpus behind it.
+ */
+export function AgentWaitLine() {
+  const [i, setI] = useState(0)
+  useEffect(() => {
+    const t = window.setInterval(() => setI((n) => (n + 1) % WAIT_WORDS.length), 900)
+    return () => window.clearInterval(t)
+  }, [])
+  return (
     <span
       className="inline-flex items-center gap-xs font-body text-s text-text-tertiary leading-[1.5]"
       role="status"
     >
       <Spinner size={16} tone="neutral" />
-      Reading {sessionCount} {sessionCount === 1 ? 'session' : 'sessions'}…
+      {WAIT_WORDS[i]}…
     </span>
   )
-  if (!inSheet) return status
+}
+
+function AnswerPending({ inSheet, header }: { inSheet?: boolean; header?: ReactNode }) {
+  if (!inSheet) return <AgentWaitLine />
   return (
     <article
       className="skeleton-surface flex flex-col w-full rounded-2xl overflow-hidden"
@@ -145,7 +187,7 @@ function AnswerPending({
     >
       {header}
       <section className="flex flex-col gap-m px-l py-l">
-        <SectionHeading index="01" title="Summary" meta={status} />
+        <SectionHeading index="01" title="Summary" meta={<AgentWaitLine />} />
         <div className="flex flex-col gap-m max-w-[92ch]">
           <SkeletonText lines={3} lineHeight={14} gap={12} lastWidth="62%" />
           <SkeletonText lines={2} lineHeight={14} gap={12} lastWidth="40%" />
@@ -164,10 +206,8 @@ export function UserTestAskPanel({
   bare = false,
   hideComposer = false,
   framed = false,
-  hideSuggestions = false,
   answerLayout = 'inline',
   answerHeader,
-  onAsk,
   onOpenEvidence,
   onHandoffToOracle,
   className,
@@ -209,11 +249,6 @@ export function UserTestAskPanel({
     }, ANSWER_DELAY_MS)
   }
 
-  /* Suggestions that have already been asked drop off the rail — a chip that
-     repeats an answer already on screen is a dead end. */
-  const askedQuestions = new Set(turns.map((t) => t.question))
-  const suggestions = USER_TEST_ASK_SUGGESTIONS.filter((s) => !askedQuestions.has(s))
-
   return (
     <div
       className={['flex flex-col gap-s w-full', bare ? '' : 'px-l py-l', className]
@@ -234,7 +269,7 @@ export function UserTestAskPanel({
             Ask User Test about this run
           </h3>
           <p className="font-body text-xs text-text-tertiary leading-[1.6] max-w-[80ch]">
-            Answered from this run’s {sessionCount} recordings and its findings — every claim links
+            Answered from this run’s {sessionCount} sessions and its findings — every claim links
             back to the clip it came from. Questions that need live player data are handed to
             Oracle instead of guessed at.
           </p>
@@ -280,11 +315,7 @@ export function UserTestAskPanel({
                     onHandoffToOracle={() => onHandoffToOracle?.(turn.question)}
                   />
                 ) : (
-                  <AnswerPending
-                    inSheet={answerLayout === 'document'}
-                    header={answerHeader}
-                    sessionCount={sessionCount}
-                  />
+                  <AnswerPending inSheet={answerLayout === 'document'} header={answerHeader} />
                 )}
               </div>
             </div>
@@ -292,34 +323,6 @@ export function UserTestAskPanel({
           {/* The composer is sticky over the foot of the thread, so "scroll to
               the end" has to stop a composer's height short of it. */}
           <div ref={endRef} aria-hidden style={{ scrollMarginBottom: 'var(--composer-clearance)' }} />
-        </div>
-      )}
-
-      {!hideSuggestions && suggestions.length > 0 && (
-        <div className="flex flex-wrap gap-xs pt-xxs">
-          {suggestions.map((s) => {
-            /* Marked as a handoff up front, so nobody spends a question
-               discovering the boundary the hard way. */
-            const handoff = Boolean(USER_TEST_ASK_ANSWERS[s]?.outOfScope)
-            return (
-              <button
-                key={s}
-                type="button"
-                onClick={() => (hideComposer && onAsk ? onAsk(s) : ask(s))}
-                className="user-test-ask-chip inline-flex items-center gap-xxs rounded-round px-s py-xxs font-body text-xs leading-[1.5]"
-                style={{
-                  backgroundColor: 'var(--bg-elements)',
-                  border: `1px ${handoff ? 'dashed' : 'solid'} ${
-                    handoff ? 'var(--border-tint)' : 'var(--border-default)'
-                  }`,
-                  color: handoff ? 'var(--text-brand)' : 'var(--text-secondary)',
-                }}
-              >
-                {s}
-                {handoff && <span aria-hidden>↗</span>}
-              </button>
-            )
-          })}
         </div>
       )}
 

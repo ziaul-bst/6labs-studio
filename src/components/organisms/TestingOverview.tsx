@@ -25,6 +25,8 @@ import { TestCaseGenIcon } from '../icons/TestCaseGenIcon'
 import { LocalizationIcon } from '../icons/LocalizationIcon'
 import type { IconProps } from '../icons/types'
 import { LockBadge } from '../atoms/LockBadge'
+import { OverviewSkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
 import {
   TESTING_ACCENT_VARS,
   TESTING_TESTS,
@@ -59,6 +61,12 @@ const GROUPS: { id: 'human' | 'ai'; title: string; sub: string; ink: string }[] 
 ]
 
 export function TestingOverview({ onOpenTest, lockedTests = [], className }: TestingOverviewProps) {
+  /* This screen reads the account's entitlements before it can say which tests
+     are locked, so it has a loading frame like every other screen here. */
+  const loadPhase = usePageLoading()
+
+  if (loadPhase) return <OverviewSkeleton className={className} />
+
   return (
     <div
       className={['flex flex-col items-center w-full pb-xxl3', className].filter(Boolean).join(' ')}

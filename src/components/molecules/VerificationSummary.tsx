@@ -1,18 +1,21 @@
 /**
  * VerificationSummary — the two meters a functional report opens on.
  *
- * A reader arrives with two questions that have two different denominators,
- * and the version this replaces answered both on one bar over one of them.
- * That is why it read as arithmetic: 1,186 green against a 1,956 track looks
- * like "61% done" when it means "95% of what ran passed".
+ * Two questions, both denominated in the whole file:
  *
- *   Result   — how what ran did, denominated in cases that ran.
- *   Coverage — how much of the file ran at all, denominated in the file.
+ *   Result   — how many of your cases passed.
+ *   Coverage — how many of them the run reached at all.
  *
- * Each meter writes its denominator into its own label, so neither can be
- * misread as the other. Under Result the four outcomes are tiles, not a
- * dot-and-count legend: they wear their own tags' chip colours, because a
- * count here and a Fail tag on a row below are the same fact.
+ * Result used to be scored against the cases that ran, which flattered every
+ * run with poor coverage: 1,186 of 1,247 reached cases is "95% passed" on a
+ * suite of 1,956, where 709 cases nobody exercised are silently excluded from
+ * the verdict. A case that was never verified has not passed, and the headline
+ * number now says so — the four tiles under it still break out where the rest
+ * of the file went, and Coverage beside it says how much was reachable.
+ *
+ * Under Result the four outcomes are tiles, not a dot-and-count legend: they
+ * wear their own tags' chip colours, because a count here and a Fail tag on a
+ * row below are the same fact.
  *
  * Nothing here is a control. The card states the result; the toolbar below
  * filters the evidence. Making these counts clickable would put the same
@@ -26,6 +29,14 @@ import type { CaseOutcome, VerificationTotals } from '../../lib/types/testing'
 
 export interface VerificationSummaryProps {
   totals: VerificationTotals
+  /**
+   * What the run was executed against, in the Coverage caption and in the
+   * line under it: a build for an AI run ("reached in v2.3.1"), the sessions
+   * for a human one. AI players produce their own footage from one build, so
+   * naming a recording count there answered a question nobody asked — the
+   * build is the thing a coverage number is comparable across.
+   */
+  scope?: { kind: 'build'; label: string } | { kind: 'sessions' }
   /**
    * What the report is of — eyebrow and run name — as a band across the top of
    * this card rather than a heading floating above it on the page ground. The
@@ -56,8 +67,14 @@ function pct(part: number, whole: number) {
   return Math.min(99, Math.max(1, Math.round((part / whole) * 100)))
 }
 
-export function VerificationSummary({ totals, masthead, className }: VerificationSummaryProps) {
+export function VerificationSummary({
+  totals,
+  scope = { kind: 'sessions' },
+  masthead,
+  className,
+}: VerificationSummaryProps) {
   const unreached = Math.max(0, totals.total - totals.run)
+  const byBuild = scope.kind === 'build'
 
   return (
     <section
@@ -84,15 +101,18 @@ export function VerificationSummary({ totals, masthead, className }: Verificatio
       <div className="summary-meters">
         <Meter
           eyebrow="Result"
-          scope={`of the ${n(totals.run)} ${plural(totals.run, 'case', 'cases')} that ran`}
-          headline={`${pct(totals.pass, totals.run)}%`}
+          scope={`of the ${n(totals.total)} ${plural(totals.total, 'case', 'cases')} in the file`}
+          headline={`${pct(totals.pass, totals.total)}%`}
           caption="passed"
           bar={
+            /* The track is the whole file, so the gap at the end of the bar is
+               the cases nothing was said about — which is the fact a
+               pass-rate over "cases that ran" was hiding. */
             <Bar
-              label={`${totals.pass} pass, ${totals.fail} fail, ${totals.review} need review, ${totals.blocked} not verified, out of ${totals.run} cases run`}
+              label={`${totals.pass} pass, ${totals.fail} fail, ${totals.review} need review, ${totals.blocked} not verified, out of ${totals.total} cases in the file`}
               segments={OUTCOME_ORDER.map((o) => ({
                 key: o.key,
-                width: `${(totals[o.key] / Math.max(1, totals.run)) * 100}%`,
+                width: `${(totals[o.key] / Math.max(1, totals.total)) * 100}%`,
                 colour: o.colour,
                 empty: totals[o.key] === 0,
               }))}
@@ -132,7 +152,11 @@ export function VerificationSummary({ totals, masthead, className }: Verificatio
           eyebrow="Coverage"
           scope={`of the ${n(totals.total)} ${plural(totals.total, 'case', 'cases')} in the file`}
           headline={`${pct(totals.run, totals.total)}%`}
-          caption={`reached across ${n(totals.videos)} ${plural(totals.videos, 'recording', 'recordings')}`}
+          caption={
+            byBuild
+              ? `reached in ${scope.label}`
+              : `reached across ${n(totals.videos)} ${plural(totals.videos, 'session', 'sessions')}`
+          }
           divided
           bar={
             <Bar
@@ -154,7 +178,9 @@ export function VerificationSummary({ totals, masthead, className }: Verificatio
               under a one-line meter unbalanced the pair. */}
           <p className="font-body text-xs text-text-secondary leading-[1.6] max-w-[46ch]">
             {unreached > 0
-              ? `${n(unreached)} ${plural(unreached, 'case', 'cases')} never appeared in this footage.`
+              ? `${n(unreached)} ${plural(unreached, 'case was', 'cases were')} never exercised in ${
+                  byBuild ? 'this build' : 'these sessions'
+                }.`
               : 'Every case in the file was reached.'}
           </p>
         </Meter>

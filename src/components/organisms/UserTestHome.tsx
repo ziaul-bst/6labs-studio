@@ -19,6 +19,8 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { TestingPageHeader } from '../molecules/TestingPageHeader'
+import { TestingBodySkeleton, TestingPageSkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
 import { Skeleton } from '../atoms/Skeleton'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
@@ -67,6 +69,9 @@ export interface UserTestHomeProps {
 
 const NO_CONTEXT = '__none'
 
+/** How long an uploaded context document spends transferring before it is readable. */
+const SIMULATED_UPLOAD_MS = 2200
+
 export function UserTestHome({
   history,
   highlightId,
@@ -92,30 +97,74 @@ export function UserTestHome({
     onPickerOpenChange?.(pickerOpen)
   }, [pickerOpen, onPickerOpenChange])
   const [docId, setDocId] = useState<string | null>(null)
+  /**
+   * Documents added in this session, and which of them are still arriving.
+   * "Upload new" used to select an existing fixture the instant it was
+   * pressed, so a file the reader had not chosen appeared on the chip as
+   * though it had already been read. An upload is a transfer: the row lands
+   * disabled with a spinner, the chip stays empty until it is there, and only
+   * then does it become the chosen context.
+   */
+  const [uploads, setUploads] = useState<{ id: string; name: string; fileType: string; uploading: boolean }[]>([])
   const [runName, setRunName] = useState('')
   const [question, setQuestion] = useState('')
+  /* Restarted on a tab change — New run and Run history read different
+     things. The run page and the report have their own. */
+  const loadPhase = usePageLoading(tab)
 
   const selected = useMemo(() => PICKER_VIDEOS.filter((v) => selectedIds.includes(v.id)), [selectedIds])
   const hasVideos = selected.length > 0
-  const doc = GAME_CONTEXT_DOCS.find((d) => d.id === docId)
+  const doc =
+    GAME_CONTEXT_DOCS.find((d) => d.id === docId) ?? uploads.find((u) => u.id === docId && !u.uploading)
   const gameContext = doc ? doc.name.replace(/\.(pdf|docx)$/i, '') : null
 
+  /* Both, not either. The button used to enable on a selection alone and send
+     a canned prompt when the box was empty — so pressing it opened a thread
+     for a question nobody typed. Asking needs something to ask and something
+     to ask it of. */
+  const hasQuestion = question.trim().length > 0
+  const canAsk = hasVideos && hasQuestion
+
   const ask = () => {
-    if (!hasVideos) return
-    onAsk?.(question.trim() || USER_TEST_HOME_PROMPTS[1], selectedIds, gameContext)
+    if (!canAsk) return
+    onAsk?.(question.trim(), selectedIds, gameContext)
   }
+
+  const uploadDoc = () => {
+    const id = `upload-${Date.now()}`
+    const name = 'Game design notes.pdf'
+    setUploads((prev) => [...prev, { id, name, fileType: 'pdf', uploading: true }])
+    window.setTimeout(() => {
+      setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, uploading: false } : u)))
+      /* Chosen only once it is actually there — selecting a file mid-transfer
+         would put a context on the run that the run cannot read. */
+      setDocId(id)
+    }, SIMULATED_UPLOAD_MS)
+  }
+
+  /* The page as it will be, before it is. Drawn in the composer shape because
+     that is the tab a reader lands on. */
+  /* Arriving draws the whole screen; refreshing draws only the panel under the
+     tabs. The header and the tab bar do not change when the tab does — and the
+     tab the reader just pressed must not vanish under the cursor, nor take the
+     active-tab marker with it. */
+  const skeletonBody = tab === 'history' ? 'list' : 'card'
+  if (loadPhase === 'initial')
+    return (
+      <TestingPageSkeleton body={skeletonBody} label="Loading User Test Agent" className={className} />
+    )
 
   return (
     <div className={['flex flex-col gap-l page-measure pt-[120px] pb-xxl3', className].filter(Boolean).join(' ')}>
       <TestingPageHeader
-        title="User Test"
+        title="User Test Agent"
         description="Find where players struggle in your recorded sessions — a full report, or just ask."
         icon={<MembersIcon size={32} />}
         accent="brand"
       />
 
       <TestingTabs
-        ariaLabel="User Test sections"
+        ariaLabel="User Test Agent sections"
         value={tab}
         onChange={setTab}
         options={[
@@ -126,7 +175,9 @@ export function UserTestHome({
         ]}
       />
 
-      {tab === 'new' ? (
+      {loadPhase === 'refresh' ? (
+        <TestingBodySkeleton body={skeletonBody} />
+      ) : tab === 'new' ? (
         <div className="flex flex-col gap-m w-full">
           <div
             className="flex flex-col w-full rounded-4xl px-xl pt-l pb-m"
@@ -187,7 +238,11 @@ export function UserTestHome({
                 </div>
               )}
 
-              {mode === 'ask' && hasVideos && (
+              {/* The box stands whether or not videos are picked. A suggested
+                  prompt pressed first has somewhere to land, and a reader who
+                  knows what they want to ask can type it before choosing what
+                  to ask it of. */}
+              {mode === 'ask' && (
                 <textarea
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
@@ -197,8 +252,8 @@ export function UserTestHome({
                       ask()
                     }
                   }}
-                  placeholder="Ask anything about these videos…"
-                  aria-label="Ask anything about these videos"
+                  placeholder={hasVideos ? 'Ask anything about these sessions…' : 'Ask anything about these sessions…'}
+                  aria-label="Ask anything about these sessions"
                   rows={2}
                   autoFocus
                   className="composer-input w-full resize-none bg-transparent border-0 outline-none font-body text-l text-text-primary placeholder:text-text-placeholder leading-[1.5] py-xs"
@@ -240,9 +295,16 @@ export function UserTestHome({
                     meta: d.meta,
                     badge: d.fileType.toUpperCase(),
                   })),
+                  ...uploads.map((u) => ({
+                    value: u.id,
+                    label: u.name,
+                    meta: u.uploading ? 'Uploading…' : 'Added just now',
+                    badge: u.fileType.toUpperCase(),
+                    pending: u.uploading,
+                  })),
                   { value: NO_CONTEXT, label: 'None', meta: 'Findings per video, not grouped by step.', badge: '—' },
                 ]}
-                trailing={{ label: 'Upload new', meta: 'PDF, DOCX, or image', onSelect: () => setDocId(GAME_CONTEXT_DOCS[0].id) }}
+                trailing={{ label: 'Upload new', meta: 'PDF, DOCX, or image', onSelect: uploadDoc }}
               />
               <span className="flex-1" />
               {mode === 'report' ? (
@@ -250,38 +312,53 @@ export function UserTestHome({
                   variant="primary"
                   size="lg"
                   disabled={!hasVideos}
-                  /* Straight to the history, where the run now sits as a row
-                     in progress. The analysis runs in the background — which is
-                     what the note under this button has always said — so the
-                     honest destination is the list it lands in, not a detail
-                     page with nothing in it yet. */
-                  onClick={() => {
-                    onGenerate?.(selectedIds, gameContext, runName)
-                    setTab('history')
-                  }}
+                  /* The host decides where this lands — it opens the new run's
+                     own page, which is where the queue, the analysis and then
+                     the report each report themselves. Flipping this
+                     composer's own tab to the history on the way out is a
+                     leftover from when the list was the destination, and it
+                     runs on a component that unmounts in the same commit. */
+                  onClick={() => onGenerate?.(selectedIds, gameContext, runName)}
                 >
                   Generate report
                 </Button>
               ) : (
-                <Button
-                  variant="primary"
-                  size="lg"
-                  iconOnly
-                  iconRound
-                  disabled={!hasVideos}
-                  aria-label="Ask"
-                  onClick={ask}
-                >
-                  <SendIcon size={20} />
-                </Button>
+                <>
+                  {/* A disabled round icon button with nothing beside it is a
+                      dead control — this says which of the two things is
+                      missing, in the order they have to happen. */}
+                  {!canAsk && (
+                    <span className="font-body text-s text-text-tertiary leading-[1.5]">
+                      {!hasVideos && hasQuestion
+                        ? 'Select the sessions to ask about.'
+                        : !hasVideos
+                          ? 'Select sessions and type a question.'
+                          : 'Type a question to ask.'}
+                    </span>
+                  )}
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    iconOnly
+                    iconRound
+                    disabled={!canAsk}
+                    aria-label="Ask"
+                    onClick={ask}
+                  >
+                    <SendIcon size={20} />
+                  </Button>
+                </>
               )}
             </div>
           </div>
 
+          {/* What the run produces and that it is not something to sit and
+              watch — the same closing note the other three composers carry, in
+              the same slot. */}
           <SetupNote>
             {mode === 'report'
               ? 'Reports identify UX issues, friction points, frustration markers and drop-off by game step, each with supporting clips. Analysis runs in the background — the report lands in Run history when it is done.'
-              : 'Answers are drawn from the selected recordings only, with clips as evidence.'}
+              : 'Answers are drawn from the selected sessions only, with clips as evidence.'}
           </SetupNote>
 
           {mode === 'ask' && (
@@ -294,10 +371,13 @@ export function UserTestHome({
                   <button
                     key={p}
                     type="button"
-                    onClick={() => {
-                      setQuestion(p)
-                      if (!hasVideos) setPickerOpen(true)
-                    }}
+                    /* Pre-fill and stop. Opening the picker on top of the
+                       click threw the reader into a modal they did not ask
+                       for, and cancelling it lost the prompt as well. The
+                       question is now in the box, the hint beside the send
+                       button says videos are still needed, and they choose
+                       when to go and get them. */
+                    onClick={() => setQuestion(p)}
                     className="suggestion-card-hover flex items-start gap-s text-left rounded-2xl px-l py-m font-body text-m text-text-primary leading-[1.5]"
                     style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
                   >
@@ -339,7 +419,7 @@ export function UserTestHome({
           onOpen={onOpenRun}
           metaLabel="Tags"
           emptyTitle="Nothing has run yet"
-          emptyLabel="Run a report on your footage or ask it a question — both land here."
+          emptyLabel="Run a report on your sessions or ask them a question — both land here."
           emptyAction={{ label: 'New run', onClick: () => setTab('new') }}
         />
       )}

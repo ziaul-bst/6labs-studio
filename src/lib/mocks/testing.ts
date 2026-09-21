@@ -24,16 +24,16 @@ export const USER_TEST_HISTORY: TestRunHistoryItem[] = [
      Each fact appears once: the library tag lives in `meta` (the "Tag"
      column), the game-context flow is the run's name, and `detail` holds only
      what went in. */
-  { id: 'ut-q-onboarding', kind: 'question', name: 'Which testers quit before finishing onboarding, and what were they doing right before?', detail: '6 videos · 3 follow-ups', meta: 'Build V2.2', tags: ['Build V2.2'], state: 'done', when: 'Sep 8' },
+  { id: 'ut-q-onboarding', kind: 'question', name: 'Which testers quit before finishing onboarding, and what were they doing right before?', detail: '6 sessions · 3 follow-ups', meta: 'Build V2.2', tags: ['Build V2.2'], state: 'done', when: 'Sep 8' },
   /* Picked from three tags — the row the Tag column has to survive. */
-  { id: 'ut-v22', name: 'Onboarding flow v3', detail: '10 videos', meta: 'Build V2.2, Tutorial, Last 24h', tags: ['Build V2.2', 'Tutorial', 'Last 24h'], state: 'done', result: { kind: 'issues', count: 7 }, when: 'Sep 7' },
-  { id: 'ut-v21', name: 'Onboarding flow v3', detail: '10 videos', meta: 'Build V2.1', tags: ['Build V2.1'], state: 'done', result: { kind: 'issues', count: 7 }, when: 'Aug 26' },
-  { id: 'ut-alliance', name: 'Alliance join — pilot', detail: '5 videos · no game context', meta: 'Alliance, New event', tags: ['Alliance', 'New event'], state: 'done', result: { kind: 'issues', count: 3 }, when: 'Aug 19' },
+  { id: 'ut-v22', name: 'Onboarding flow v3', detail: '10 sessions', meta: 'Build V2.2, Tutorial, Last 24h', tags: ['Build V2.2', 'Tutorial', 'Last 24h'], state: 'done', result: { kind: 'issues', count: 7 }, when: 'Sep 7' },
+  { id: 'ut-v21', name: 'Onboarding flow v3', detail: '10 sessions', meta: 'Build V2.1', tags: ['Build V2.1'], state: 'done', result: { kind: 'issues', count: 7 }, when: 'Aug 26' },
+  { id: 'ut-alliance', name: 'Alliance join — pilot', detail: '5 sessions · no game context', meta: 'Alliance, New event', tags: ['Alliance', 'New event'], state: 'done', result: { kind: 'issues', count: 3 }, when: 'Aug 19' },
 ]
 
 export const FUNCTIONAL_HISTORY: TestRunHistoryItem[] = [
-  { id: 'ft-v22', name: 'Tutorial regression', detail: '8 videos · regression-suite.xlsx', meta: 'Build V2.2, Tutorial', tags: ['Build V2.2', 'Tutorial'], caseFiles: [{ name: 'regression-suite.xlsx', meta: '48 cases', href: '#/files/regression-suite.xlsx' }], state: 'done', result: { kind: 'counts', passed: 42, failed: 3, review: 2, blocked: 1 }, when: 'Sep 5' },
-  { id: 'ft-agency', name: 'Agency batch — Digital Hearts', detail: '24 videos · agency-cases-aug.xlsx', meta: 'CBT', tags: ['CBT'], caseFiles: [{ name: 'agency-cases-aug.xlsx', meta: '131 cases', href: '#/files/agency-cases-aug.xlsx' }], state: 'done', result: { kind: 'counts', passed: 118, failed: 9, review: 4, blocked: 2 }, when: 'Sep 2', withUx: true },
+  { id: 'ft-v22', name: 'Tutorial regression', detail: '8 sessions · regression-suite.xlsx', meta: 'Build V2.2, Tutorial', tags: ['Build V2.2', 'Tutorial'], caseFiles: [{ name: 'regression-suite.xlsx', meta: '48 cases', href: '#/files/regression-suite.xlsx' }], state: 'done', result: { kind: 'counts', passed: 42, failed: 3, review: 2, blocked: 1 }, when: 'Sep 5' },
+  { id: 'ft-agency', name: 'Agency batch — Digital Hearts', detail: '24 sessions · agency-cases-aug.xlsx', meta: 'CBT', tags: ['CBT'], caseFiles: [{ name: 'agency-cases-aug.xlsx', meta: '131 cases', href: '#/files/agency-cases-aug.xlsx' }], state: 'done', result: { kind: 'counts', passed: 118, failed: 9, review: 4, blocked: 2 }, when: 'Sep 2', withUx: true },
 ]
 
 export const AI_FUNCTIONAL_HISTORY: TestRunHistoryItem[] = [
@@ -58,12 +58,17 @@ export const AI_BEHAVIOURAL_HISTORY: TestRunHistoryItem[] = [
 
 
 /** Sample test-case files the upload zones resolve to (prototype only). */
+/* Size and date, not a case count. Nothing has parsed the sheet at the moment
+   it is attached, so the count the row used to print was invented — and the
+   report's Coverage meter is the place that number belongs, denominated and
+   explained. What the composer can honestly say about a file it has just
+   received is how big it is and when it arrived. */
 export const SAMPLE_TEST_CASE_FILES: TestCaseFile[] = [
-  { name: 'regression-suite.xlsx', meta: '48 cases', href: '#/files/regression-suite.xlsx' },
-  { name: 'FreeFire-PRD-s9-cases.xlsx', meta: '24 cases', href: '#/files/FreeFire-PRD-s9-cases.xlsx' },
-  { name: 'checkout-flow-cases.csv', meta: '12 cases', href: '#/files/checkout-flow-cases.csv' },
-  { name: 'alliance-rally-cases.csv', meta: '9 cases', href: '#/files/alliance-rally-cases.csv' },
-  { name: 'settings-smoke.csv', meta: '6 cases', href: '#/files/settings-smoke.csv' },
+  { name: 'regression-suite.xlsx', meta: '182 KB · Sep 12', href: '#/files/regression-suite.xlsx' },
+  { name: 'FreeFire-PRD-s9-cases.xlsx', meta: '96 KB · Sep 9', href: '#/files/FreeFire-PRD-s9-cases.xlsx' },
+  { name: 'checkout-flow-cases.csv', meta: '14 KB · Sep 4', href: '#/files/checkout-flow-cases.csv' },
+  { name: 'alliance-rally-cases.csv', meta: '11 KB · Aug 28', href: '#/files/alliance-rally-cases.csv' },
+  { name: 'settings-smoke.csv', meta: '7 KB · Aug 21', href: '#/files/settings-smoke.csv' },
 ]
 
 /**

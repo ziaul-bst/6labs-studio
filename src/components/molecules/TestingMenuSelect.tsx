@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Spinner } from '../atoms/Spinner'
 import { DropdownArrowIcon } from '../icons/DropdownArrowIcon'
 
 export interface MenuSelectOption {
@@ -21,6 +22,13 @@ export interface MenuSelectOption {
   meta?: string
   /** Short badge on the left — "APK", "PDF", "DOCX". */
   badge?: string
+  /**
+   * The thing this row names is still arriving. It renders greyed, with a
+   * spinner where its badge goes, and cannot be chosen: a document that has
+   * not finished uploading is not a context the run can read, and offering it
+   * as a choice means accepting a run built on a file that is not there.
+   */
+  pending?: boolean
 }
 
 export interface TestingMenuSelectProps {
@@ -131,16 +139,31 @@ export function TestingMenuSelect({
                 type="button"
                 role="option"
                 aria-selected={selected}
+                aria-disabled={opt.pending || undefined}
+                disabled={opt.pending}
                 onClick={() => {
+                  if (opt.pending) return
                   onChange(opt.value)
                   setOpen(false)
                 }}
                 className="testing-menu-row flex items-center gap-s w-full text-left px-s py-xs rounded-m"
-                style={{ backgroundColor: selected ? 'var(--bg-tint-light)' : undefined }}
+                style={{
+                  backgroundColor: selected ? 'var(--bg-tint-light)' : undefined,
+                  cursor: opt.pending ? 'default' : undefined,
+                }}
               >
-                {opt.badge && <Badge>{opt.badge}</Badge>}
+                {opt.pending ? (
+                  <Badge>
+                    <Spinner size={12} tone="current" />
+                  </Badge>
+                ) : (
+                  opt.badge && <Badge>{opt.badge}</Badge>
+                )}
                 <span className="flex flex-col min-w-0 flex-1">
-                  <span className="font-display text-s font-semibold text-text-primary leading-[1.45] truncate">
+                  <span
+                    className="font-display text-s font-semibold leading-[1.45] truncate"
+                    style={{ color: opt.pending ? 'var(--text-secondary)' : 'var(--text-primary)' }}
+                  >
                     {opt.label}
                   </span>
                   {opt.meta && (

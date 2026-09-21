@@ -34,6 +34,8 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PageTopbar } from '../molecules/PageTopbar'
+import { ReportSheetSkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
 import { SectionHeading } from '../molecules/SectionHeading'
 import { ReportFindingRow } from '../molecules/ReportFindingRow'
 import { StatTile } from '../molecules/StatTile'
@@ -99,6 +101,10 @@ export function UserTestReport({
   onExport,
   className,
 }: UserTestReportProps) {
+  /* This screen's own beat, keyed on the run. `sheetOnly` opts out: there the
+     report is embedded in a host that has already drawn its own wait, and two
+     skeletons in one column read as a page that failed. */
+  const loadPhase = usePageLoading(runName)
   const bugs = issues.filter((i) => i.kind === 'bug').length
   const friction = issues.filter((i) => i.kind === 'friction').length
 
@@ -155,20 +161,32 @@ export function UserTestReport({
       ? { value: `${analysed} / ${meta.sessions}`, label: `${noun} analysed` }
       : { value: String(meta.sessions), label: noun }
 
+  const skeleton = Boolean(loadPhase) && !sheetOnly
+
+  /* Built once and handed to both the skeleton and the document. The bar is
+     the way back to the run page and it is known the instant this report is
+     opened, so it is never drawn as grey bars — see TestingSkeletons. */
+  const topbar = sheetOnly ? null : (
+    <PageTopbar
+      title={`Full report · ${runName}`}
+      trail={[{ label: 'User Test Agent' }]}
+      onBack={() => onBackToRun?.()}
+      actions={
+        <Button variant="secondary" size="md" disabled={skeleton} onClick={onExport}>
+          Export PDF
+        </Button>
+      }
+    />
+  )
+
+  if (skeleton)
+    return (
+      <ReportSheetSkeleton topbar={topbar} label={`Loading ${runName || 'report'}`} className={className} />
+    )
+
   return (
     <div className={['flex flex-col w-full', className].filter(Boolean).join(' ')}>
-      {!sheetOnly && (
-        <PageTopbar
-          title={`Full report · ${runName}`}
-          trail={[{ label: 'User Test' }]}
-          onBack={() => onBackToRun?.()}
-          actions={
-            <Button variant="secondary" size="md" onClick={onExport}>
-              Export PDF
-            </Button>
-          }
-        />
-      )}
+      {topbar}
 
       <div className={sheetOnly ? 'w-full' : 'page-measure pt-xl pb-xxl3'}>
         {/* ── The sheet ──
@@ -239,7 +257,7 @@ export function UserTestReport({
               <StatTile
                 surface="band"
                 value={meta.footageLabel}
-                label={meta.footageTileLabel ?? 'footage reviewed'}
+                label={meta.footageTileLabel ?? 'session reviewed'}
               />
               <StatTile surface="band" value={String(bugs)} label="bugs" dot="var(--error)" />
               <StatTile

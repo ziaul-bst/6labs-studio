@@ -177,7 +177,7 @@ export function TestLockedPitch({
         eyebrow={
           test.group === 'ai'
             ? 'AI player testing · 6labs plays your build'
-            : 'Human testing · your own recordings'
+            : 'Human testing · your own sessions'
         }
         title={test.label}
         description={pitch.headline}

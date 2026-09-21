@@ -10,13 +10,19 @@
  */
 
 /**
+ * 'queued' is a run that has been submitted and not started — accepted, in
+ * line, nothing happening to it yet. It is the state a run is in the moment
+ * you press the button, and every test now lands you on the run's own page in
+ * it, so "did that work?" is answered by the page rather than by a toast.
+ *
  * 'progress' is the run *producing* evidence — agents playing, videos being
  * read. 'analysing' is the run reading what it produced: nothing is being
- * recorded any more, and the report is being written. They are two different
- * waits, and the AI tests have to say which one a reader is in — "Watch live"
- * on a run whose agents have all stopped is a link to nothing.
+ * recorded any more, and the report is being written. They are three different
+ * waits, and a test has to say which one a reader is in — "Watch live" on a
+ * run whose agents have all stopped is a link to nothing, and on one that has
+ * not started it is a link to nothing yet.
  */
-export type TestRunState = 'progress' | 'analysing' | 'done' | 'never' | 'failed'
+export type TestRunState = 'queued' | 'progress' | 'analysing' | 'done' | 'never' | 'failed'
 
 /**
  * Result column of a history row. Functional tests count outcomes — the same
@@ -73,8 +79,14 @@ export interface TestRunHistoryItem {
 /** A test-case file attached to a functional run. */
 export interface TestCaseFile {
   name: string
-  /** "48 cases" */
+  /** "48 cases · Aug 20" — what the run learned about the sheet after reading it. */
   meta: string
+  /**
+   * 'uploading' is the file in transit: the row exists, the sheet does not
+   * yet. Defaults to 'ready' — a file that came off a finished run is by
+   * definition already there.
+   */
+  status?: 'uploading' | 'ready'
   /** Where the uploaded sheet can be fetched back from. */
   href?: string
 }

@@ -1,7 +1,7 @@
 /**
  * SourcesGrid — Sources block inside an Oracle AI response.
  *
- * Collapsed: a single summary row — "Sources · N docs · N connectors · N videos"
+ * Collapsed: a single summary row — "Sources · N docs · N connectors · N sessions"
  * with a chevron. Expanded: doc pills, connector pills, then a 3-up row of video
  * thumbnails. Rows with no items are omitted.
  *
@@ -100,7 +100,10 @@ export function SourcesGrid({
     docs.length > 0 && `${docs.length} ${docs.length === 1 ? 'doc' : 'docs'}`,
     connectors.length > 0 &&
       `${connectors.length} ${connectors.length === 1 ? 'connector' : 'connectors'}`,
-    videoCount > 0 && `${videoCount} ${videoCount === 1 ? 'video' : 'videos'}`,
+    /* "sessions", the word every testing surface now uses for a gameplay
+       recording — the block used to say "10 videos" directly under a report
+       counting "10 sessions analysed". */
+    videoCount > 0 && `${videoCount} ${videoCount === 1 ? 'session' : 'sessions'}`,
   ].filter(Boolean) as string[]
 
   return (

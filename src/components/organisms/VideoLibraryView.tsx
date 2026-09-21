@@ -59,6 +59,8 @@
  */
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { VideoLibraryCard, type VideoStatus } from '../molecules/VideoLibraryCard'
+import { LibrarySkeleton } from '../molecules/TestingSkeletons'
+import { usePageLoading } from '../../lib/pageLoading'
 import { AgentPageHeader } from '../molecules/AgentPageHeader'
 import { LibraryVideoLightbox } from './LibraryVideoLightbox'
 import { AddTagsDialog } from './AddTagsDialog'
@@ -370,6 +372,10 @@ export interface VideoLibraryViewProps {
 type Facet<T extends string> = T | 'all'
 
 export function VideoLibraryView({ className, initialVideos, demoState }: VideoLibraryViewProps) {
+  /* This screen's own beat. The library is the one screen here that really
+     does fetch a list on arrival, so it is the one where a skeleton stands for
+     something real rather than for a prototype's module import. */
+  const loadPhase = usePageLoading()
   const storeState = useLibraryDemoState()
   const state = demoState ?? storeState
   const [videos, setVideos] = useState<LibraryVideo[]>(() => initialVideos ?? seedForDemoState(state))
@@ -678,6 +684,8 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
   const selecting = selectedIds.size > 0
 
   const isEmpty = videos.length === 0
+
+  if (loadPhase) return <LibrarySkeleton className={className} />
 
   return (
     <div className="flex w-full h-full overflow-hidden">
