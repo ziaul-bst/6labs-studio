@@ -52,10 +52,12 @@ export const LIBRARY_DEMO_NOTES: Record<LibraryDemoState, string> = {
   'many-tags': '40+ tags, so the “+N more” menu has to scroll. Open it to check the list caps and scrolls.',
   'long-labels':
     'Tags and titles as they really arrive from an import — 40+ characters with nothing to break on. Every pill folds at one measure; the full string is on hover.',
-  uploading: 'Every clip mid-transfer: progress bars, no duration, nothing selectable in the picker.',
+  uploading:
+    'Every clip mid-transfer: progress bars and no duration. The picker holds only ready clips, so it shows its “nothing ready yet” state instead.',
   processing:
-    'Transferred but not analysed yet — the daily run has not reached them. They play and can be tagged; no test can reference them.',
-  failed: 'Failed uploads with the error and Retry. Retry restarts the transfer.',
+    'Transferred but not analysed yet — the daily run has not reached them. They play and can be tagged here; the picker leaves them out until the analysis lands.',
+  failed:
+    'Failed uploads with the error and Retry. Retry restarts the transfer. The picker has nothing to offer, and says why.',
 }
 
 /**

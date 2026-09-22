@@ -33,7 +33,8 @@ export const BugScopeOnly: Story = {
 export const WithoutGameContext: Story = {
   args: {
     facts: {
-      videos: '10 videos · tag Build V2.1',
+      videos: '10 sessions · tag Build V2.1',
+      tag: 'Build V2.1',
       context: null,
     },
   },

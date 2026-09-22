@@ -151,18 +151,17 @@ const STATUS_META: Partial<Record<VideoStatus, { color: string; label: string }>
  *
  * The BOUND first, because it is the only part that tells you whether to wait
  * or go and do something else. How 6labs schedules its analysis is our problem
- * and not the reader's, so it is not mentioned. "Up to", not "within": 24
- * hours is the worst case, not a promise.
+ * and not the reader's, so it is not mentioned. "Can take up to", not "within":
+ * 24 hours is the worst case, not a promise.
  *
- * Then what you CAN do, which is most of the answer: almost nothing is
- * actually blocked.
+ * Then the resolution — what the wait is FOR. It ends by itself and the video
+ * comes back usable, so there is nothing to come back and do.
  *
  * `processingLabel` replaces the first sentence once there is a real time to
  * quote ("Analysed tonight at ~02:00.").
  */
-const PROCESSING_BOUND = 'Analysis takes up to 24h.'
-const PROCESSING_MEANWHILE =
-  'You can play, rename and tag this video now — it just cannot be used by a test until the analysis finishes.'
+const PROCESSING_BOUND = 'Processing can take up to 24 hours.'
+const PROCESSING_MEANWHILE = 'Your video will be available for analysis once complete.'
 
 function StatusBadge({ status, processingLabel }: { status: VideoStatus; processingLabel?: string }) {
   const s = STATUS_META[status]

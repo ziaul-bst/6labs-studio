@@ -5,8 +5,10 @@
  * Sessions come first because the batch is the run. Tags do the selecting —
  * a tester batch is tagged once at upload and then picked in a single click,
  * which is why the tag rail sits above the grid rather than inside a filter
- * menu. Videos still indexing are shown but not selectable: hiding them would
- * make the count look wrong to anyone who just uploaded twelve clips.
+ * menu. Only READY clips reach this grid at all: a picker is a list of things
+ * you can pick, and a run that cannot read a clip has no use for it on screen.
+ * Anything still processing or failed is accounted for in the empty state
+ * instead, where the count and the reason belong together.
  *
  * Step 2 is the game context. Without a document the run still finds issues,
  * it just can't group them by game step or compare them to a previous batch —
@@ -40,7 +42,7 @@ import {
   PICKER_VIDEOS,
   pickerVideosFor,
 } from '../../lib/mocks/user-test'
-import type { PickerSource, PickerVideo } from '../../lib/types/userTest'
+import type { PickerSource, PickerStatus, PickerVideo } from '../../lib/types/userTest'
 
 export interface UserTestRunSetupModalProps {
   isOpen: boolean
@@ -118,12 +120,20 @@ export function UserTestRunSetupModal({
   /* The picker shows whatever the library holds, so it follows the same
      reviewer state pill — see lib/libraryDemoState. */
   const demoState = useLibraryDemoState()
-  const pool = useMemo(() => pickerVideosFor(demoState), [demoState])
+  const library = useMemo(() => pickerVideosFor(demoState), [demoState])
+
+  /* The picker's pool is the ready clips and nothing else. Showing the rest
+     greyed out put un-pickable cards in every count on the screen — the tag
+     pills, "Select all N", the grid itself — and asked the reader to sort the
+     usable from the unusable by opacity. What is still processing or failed is
+     a library matter, and the empty state below says so when it is ALL of
+     them; it is not a decision to be made one card at a time. */
+  const pool = useMemo(() => library.filter((v) => v.status === 'ready'), [library])
 
   const readyCountByTag = useMemo(() => {
     const counts: Record<string, number> = {}
     pool.forEach((v) => {
-      if (v.status === 'ready') counts[v.tag] = (counts[v.tag] ?? 0) + 1
+      counts[v.tag] = (counts[v.tag] ?? 0) + 1
     })
     return counts
   }, [pool])
@@ -160,14 +170,11 @@ export function UserTestRunSetupModal({
     [visible, activeTags],
   )
 
-  /* Pickable = ready; uploading and failed clips are shown but cannot be taken. */
-  const shownReady = useMemo(() => shown.filter((v) => v.status === 'ready'), [shown])
-
   if (!isOpen) return null
 
-  const shownReadySelected = shownReady.reduce((n, v) => n + (selected.has(v.id) ? 1 : 0), 0)
-  const allShownSelected = shownReady.length > 0 && shownReadySelected === shownReady.length
-  const someShownSelected = shownReadySelected > 0
+  const shownSelected = shown.reduce((n, v) => n + (selected.has(v.id) ? 1 : 0), 0)
+  const allShownSelected = shown.length > 0 && shownSelected === shown.length
+  const someShownSelected = shownSelected > 0
 
   const selectedCount = selected.size
   const minutes = Math.round(selectedCount * AVG_MINUTES_PER_VIDEO)
@@ -175,7 +182,6 @@ export function UserTestRunSetupModal({
   const docSelected = docId !== NO_CONTEXT
 
   const toggleVideo = (video: PickerVideo) => {
-    if (video.status !== 'ready') return
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(video.id)) next.delete(video.id)
@@ -186,9 +192,7 @@ export function UserTestRunSetupModal({
 
   /** Tag pills select the whole batch — that is the point of tagging on upload. */
   const toggleTag = (tag: string) => {
-    const members = pool.filter(
-      (v) => v.status === 'ready' && (tag === '__recent' ? v.recent : v.tag === tag),
-    )
+    const members = pool.filter((v) => (tag === '__recent' ? v.recent : v.tag === tag))
     setActiveTags((prev) => {
       const next = new Set(prev)
       const turningOn = !next.has(tag)
@@ -203,12 +207,12 @@ export function UserTestRunSetupModal({
     })
   }
 
-  /* Scoped to what is on screen and pickable — a select-all under an active
-     filter has to mean the clips you can see. */
+  /* Scoped to what is on screen — a select-all under an active filter has to
+     mean the clips you can see. */
   const setAllShownSelected = (on: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev)
-      shownReady.forEach((v) => (on ? next.add(v.id) : next.delete(v.id)))
+      shown.forEach((v) => (on ? next.add(v.id) : next.delete(v.id)))
       return next
     })
   }
@@ -227,7 +231,7 @@ export function UserTestRunSetupModal({
 
   const pinnedTags = allTags.filter((t, i) => i < MAX_TAG_PILLS || activeTags.has(t))
   const overflowTags = allTags.filter((t) => !pinnedTags.includes(t))
-  const recentCount = pool.filter((v) => v.recent && v.status === 'ready').length
+  const recentCount = pool.filter((v) => v.recent).length
 
   /* Named back to the user, because "no results" without the reason reads as a
      bug — but as terms, not a sentence: spelled out, six tags and a query ran
@@ -239,10 +243,34 @@ export function UserTestRunSetupModal({
     summarizeTags([...activeTags].filter((t) => t !== '__recent')),
     activeTags.has('__recent') && 'last 24h',
   ].filter(Boolean) as string[]
-  /* An empty library and an over-tight filter are different problems with
-     different ways out, so they get different empty states. Before, a studio
-     with nothing uploaded was told to "clear a filter" it had never set. */
-  const libraryEmpty = pool.length === 0
+  /* Three different reasons for an empty grid, three different ways out. A
+     studio with nothing uploaded was once told to "clear a filter" it had never
+     set; a studio whose whole batch is still processing would now be told its
+     library is empty, which is worse — it is looking at twelve clips on the
+     Library page. So the middle case is named: the clips exist, none of them
+     are readable yet, and here is when that changes. */
+  const libraryEmpty = library.length === 0
+  const countOf = (status: PickerStatus) => library.filter((v) => v.status === status).length
+  const uploadingCount = countOf('uploading')
+  const processingCount = countOf('processing')
+  const failedCount = countOf('failed')
+  const nothingReady = !libraryEmpty && pool.length === 0
+  /* Both states hide the filter chrome: nothing on the rail can widen a grid
+     whose contents are not ready to be picked. */
+  const nothingToPick = libraryEmpty || nothingReady
+  /* Three clauses because they are three different waits. An upload finishes
+     in minutes and needs no explanation; processing is the one with a bound
+     worth quoting; a failure is not a wait at all and needs an action. */
+  const sessionWord = (n: number) => `${n} session${n === 1 ? '' : 's'}`
+  const pendingMessage = [
+    uploadingCount > 0 && `${sessionWord(uploadingCount)} still uploading.`,
+    processingCount > 0 &&
+      `${sessionWord(processingCount)} still processing — processing can take up to 24 hours, and they appear here once it completes.`,
+    failedCount > 0 &&
+      `${sessionWord(failedCount)} failed to upload; retry ${failedCount === 1 ? 'it' : 'them'} in the Gameplay Library.`,
+  ]
+    .filter(Boolean)
+    .join(' ')
   const emptyMessage =
     activeFilters.length === 0
       ? 'Upload or record a session — it appears here as soon as it finishes uploading.'
@@ -297,7 +325,7 @@ export function UserTestRunSetupModal({
                 Pick sessions
               </h2>
               <p className="font-body text-s text-text-secondary leading-[1.6] max-w-[80ch]">
-                {libraryEmpty
+                {nothingToPick
                   ? 'Recordings from your Gameplay Library.'
                   : 'Recordings from your Gameplay Library. Pick a tag to select a whole batch.'}
               </p>
@@ -306,7 +334,7 @@ export function UserTestRunSetupModal({
             {/* Filter chrome — hidden when the library is empty. A tag rail
                 reading "Last 24h · 0" over a "your library is empty" panel
                 invites the reviewer to debug a filter that is not the problem. */}
-            {!libraryEmpty && (
+            {!nothingToPick && (
               <>
             {/* Tag rail — the fast path */}
             <div className="flex flex-wrap items-center gap-xs px-xl pb-m">
@@ -362,7 +390,7 @@ export function UserTestRunSetupModal({
               {/* Same toolbar order as the Gameplay Library: the one control
                   that acts on the collection leads, a rule separates it from the
                   two that only narrow it, and search sits opposite on the right. */}
-              {shownReady.length > 0 && (
+              {shown.length > 0 && (
                 <>
                   <label className="flex items-center gap-xs shrink-0 cursor-pointer">
                     <Checkbox
@@ -372,7 +400,7 @@ export function UserTestRunSetupModal({
                       aria-label={allShownSelected ? 'Deselect all shown videos' : 'Select all shown videos'}
                     />
                     <span className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-                      {allShownSelected ? 'Deselect all' : `Select all ${shownReady.length}`}
+                      {allShownSelected ? 'Deselect all' : `Select all ${shown.length}`}
                     </span>
                   </label>
                   <span
@@ -419,6 +447,22 @@ export function UserTestRunSetupModal({
                     ) : undefined
                   }
                 />
+              ) : nothingReady ? (
+                /* The clips are there, they just cannot be read yet. The bound
+                   is the whole answer here — it is what decides whether to wait
+                   or come back tomorrow — so it leads, and the failures are a
+                   separate clause because they need a different action. */
+                <VideosEmptyState
+                  title="No sessions are ready to pick yet"
+                  message={pendingMessage}
+                  action={
+                    onOpenLibrary ? (
+                      <Button variant="secondary" size="lg" onClick={onOpenLibrary}>
+                        Open Gameplay Library
+                      </Button>
+                    ) : undefined
+                  }
+                />
               ) : (
                 shown.length === 0 && (
                   /* The dialog used to shrink to one grey line here, which read
@@ -456,7 +500,6 @@ export function UserTestRunSetupModal({
                       onToggleSelect={() => toggleVideo(v)}
                       onOpen={() => toggleVideo(v)}
                       showRowActions={false}
-                      className={v.status === 'ready' ? undefined : 'opacity-60 pointer-events-none'}
                     />
                   ))}
                 </div>

@@ -461,7 +461,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     uploadingIds.current = now
     if (landed > 0) {
       showToast(
-        `${landed} ${landed === 1 ? 'video' : 'videos'} uploaded · analysis takes up to 24h`,
+        `${landed} ${landed === 1 ? 'video' : 'videos'} uploaded · processing can take up to 24 hours`,
       )
     }
   }, [videos])
