@@ -218,9 +218,15 @@ export function RunHistoryList({
            would be a progress bar, which this row already is. The tests whose
            agents can be watched play live pass `onWatchLive` and keep their way
            in; everything else is inert until the run has something to show. */
-        /* Queued opens: the run page is where a submitted run reports itself,
-           and it is the page the reader was just on. */
-        const openable = (!inProgress && !failedWithoutReason) || Boolean(onWatchLive)
+        /* A queued run has not started. Its page would say exactly what this
+           row says and nothing more, so the row is inert and its control is
+           greyed until there is something behind it — the list is where a
+           submitted run waits, not a report page with nothing in it yet. */
+        const openable = queued
+          ? false
+          : inProgress
+            ? Boolean(onWatchLive)
+            : !failedWithoutReason
         return (
           <div
             key={run.id}
@@ -343,14 +349,11 @@ export function RunHistoryList({
                 different reason than a finished one. */}
             <span className="flex items-center justify-end">
               {queued ? (
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onOpen?.(run)
-                  }}
-                >
+                /* Disabled, not absent — same as a run mid-analysis. The verb
+                   stays in the column so the reader knows what will be there,
+                   and the greying says "not yet" where an empty cell would
+                   read as "nothing here". */
+                <Button variant="secondary" size="md" disabled>
                   View run
                 </Button>
               ) : inProgress && onWatchLive ? (

@@ -296,13 +296,12 @@ export function AIBehaviouralTestView({
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)
     setRunName('')
-    /* Straight to the run's own page, on its Report tab — the tab that says
-       what the run is waiting for, and the one that fills in when it lands. */
-    setOpenSession(null)
     setLiveReached(0)
-    setRunTab('report')
-    setRunVideosStatus('all')
-    setOpenRun(run)
+    /* Back to the History tab, where the submitted run is now the top row —
+       queued, with its control greyed until there is a report behind it. The
+       run's own page was the destination for a while; it said nothing the row
+       does not, so a submit ended on a page with nothing on it. */
+    setTab('history')
     /* Three beats: the run waits for devices, the agents play, then the
        analysis reads what they recorded. */
     timers.current.push(

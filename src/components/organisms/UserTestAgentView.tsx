@@ -233,13 +233,13 @@ export function UserTestAgentView({
     )
     showToast(`Analysis queued — ${chosen.length} session${chosen.length === 1 ? '' : 's'}. Reading in the background.`)
     setAskTurns([])
-    /* Straight to the run's own page, which opens on the queue and fills in
-       where it stands. The home used to stay put on its History tab, which
-       answered "did that work?" with a row in a list the reader then had to
-       find — and this page says the same thing the toast does, in the place
-       the report will appear. */
-    setStage('summary')
-    setOpen({ run, gameContext, videoCount: videoIds.length })
+    /* Stay on the home and remount it on its History tab, where the run is now
+       the top row — queued, with its control greyed until there is a report to
+       open. The run's own page was the destination for a while; a queued page
+       says nothing the row does not, and the toast already answered "did that
+       work?". Remounting also clears the composer, which is what a submitted
+       run should leave behind. */
+    setHomeSeed((n) => n + 1)
   }
 
   const openRun = (run: TestRunHistoryItem) => {

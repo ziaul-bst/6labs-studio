@@ -161,10 +161,11 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
     }
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)
-    /* Straight to the run's own page, which opens on the queue and becomes the
-       report in place. The history tab was the destination when a submitted
-       run had nothing to show. */
-    setOpenRun(run)
+    /* Back to the History tab, where the submitted run is now the top row —
+       queued, with its control greyed until there is a report behind it. The
+       run's own page was the destination for a while; it said nothing the row
+       does not, so a submit ended on a page with nothing on it. */
+    setTab('history')
     timers.current.push(
       window.setTimeout(
         () => setRuns((prev) => prev.map((r) => (r.id === run.id ? { ...r, state: 'progress' } : r))),
