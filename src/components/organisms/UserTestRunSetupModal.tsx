@@ -209,6 +209,11 @@ export function UserTestRunSetupModal({
   const nextPageSize = Math.min(PAGE_SIZE, remaining)
   /* Under a filter "all of them" is the matches, not the library. */
   const scopeLabel = search.trim() || source !== 'all' || activeTags.size > 0 ? 'matching these filters' : 'in the library'
+  /* The offer's adjective (copy 2026-09-23: "Select all 1,000 available
+     sessions"). Under a filter it says "matching" instead — "available" from
+     inside a search that found 40 reads as the whole library, which would be
+     an offer to act on clips the reader cannot see. */
+  const offerWord = search.trim() || source !== 'all' || activeTags.size > 0 ? 'matching' : 'available'
 
   const isSelected = (id: string) => allMatching || selected.has(id)
   const loadedSelected = allMatching
@@ -544,7 +549,7 @@ export function UserTestRunSetupModal({
                       {scopeLabel} are selected.
                     </>
                   ) : (
-                    `All ${loaded.length} sessions on this page are selected.`
+                    `${loaded.length} sessions are currently selected.`
                   )}
                 </span>
                 <button
@@ -555,7 +560,7 @@ export function UserTestRunSetupModal({
                 >
                   {allMatching
                     ? 'Clear selection'
-                    : `Select all ${shown.length.toLocaleString()} ${scopeLabel}`}
+                    : `Select all ${shown.length.toLocaleString()} ${offerWord} sessions.`}
                 </button>
               </div>
             )}
