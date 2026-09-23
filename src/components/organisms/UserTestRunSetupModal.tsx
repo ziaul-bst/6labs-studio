@@ -23,6 +23,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { VideoLibraryCard } from '../molecules/VideoLibraryCard'
 import { batchTag } from '../../lib/libraryTags'
+import { CheckIcon } from '../icons/CheckIcon'
+import { ChevronIcon } from '../icons/ChevronIcon'
 import { SearchIcon } from '../icons/SearchIcon'
 import { useLibraryDemoState } from '../../lib/libraryDemoState'
 import { VideosEmptyState } from '../molecules/VideosEmptyState'
@@ -73,6 +75,13 @@ export interface UserTestRunSetupModalProps {
 
 /** Rough play-time estimate per clip, so the footer total moves as you select. */
 const AVG_MINUTES_PER_VIDEO = 12.5
+/**
+ * Same page size as the Gameplay Library, for the same reasons — see
+ * VideoLibraryView. The picker reads the same corpus, so a studio whose
+ * library pages at 200 cannot have a picker that renders all 1,000: it is the
+ * same grid of the same cards, and here it sits inside a dialog.
+ */
+const PAGE_SIZE = 200
 const MAX_TAG_PILLS = 5
 const NO_CONTEXT = 'none'
 
@@ -96,6 +105,15 @@ export function UserTestRunSetupModal({
     initialSelected ? new Set() : new Set([defaultTag]),
   )
   const [source, setSource] = useState<PickerSource | 'all'>('all')
+  /**
+   * "Every clip that matches", held as a flag rather than as a set of ids —
+   * see VideoLibraryView, which settled this. Here it resolves to real ids at
+   * one moment only: when the run is confirmed. That is one enumeration of the
+   * corpus instead of one per render, and it is the moment the ids are
+   * actually needed.
+   */
+  const [allMatching, setAllMatching] = useState(false)
+  const [pages, setPages] = useState(1)
   const [search, setSearch] = useState('')
   const [runName, setRunName] = useState('Build V2.3 — onboarding (Sep 7)')
   const [docId, setDocId] = useState<string>(GAME_CONTEXT_DOCS[0].id)
@@ -170,18 +188,52 @@ export function UserTestRunSetupModal({
     [visible, activeTags],
   )
 
+  /** The cards that actually render. */
+  const loaded = useMemo(() => shown.slice(0, pages * PAGE_SIZE), [shown, pages])
+
+  /* Narrowing the batch changes what "all of them" means, so the page depth,
+     the flag and the ticked ids all reset with it. Held in state and compared
+     against committed state rather than mutated on a ref — a ref written
+     during render is discarded by StrictMode's second pass. */
+  const facetKey = `${search.trim().toLowerCase()}|${source}|${[...activeTags].sort().join(',')}`
+  const [lastFacetKey, setLastFacetKey] = useState(facetKey)
+  if (lastFacetKey !== facetKey) {
+    setLastFacetKey(facetKey)
+    setPages(1)
+    setAllMatching(false)
+  }
+
   if (!isOpen) return null
 
-  const shownSelected = shown.reduce((n, v) => n + (selected.has(v.id) ? 1 : 0), 0)
-  const allShownSelected = shown.length > 0 && shownSelected === shown.length
-  const someShownSelected = shownSelected > 0
+  const remaining = shown.length - loaded.length
+  const nextPageSize = Math.min(PAGE_SIZE, remaining)
+  /* Under a filter "all of them" is the matches, not the library. */
+  const scopeLabel = search.trim() || source !== 'all' || activeTags.size > 0 ? 'matching these filters' : 'in the library'
 
-  const selectedCount = selected.size
+  const isSelected = (id: string) => allMatching || selected.has(id)
+  const loadedSelected = allMatching
+    ? loaded.length
+    : loaded.reduce((n, v) => n + (selected.has(v.id) ? 1 : 0), 0)
+  const allShownSelected = loaded.length > 0 && loadedSelected === loaded.length
+  const someShownSelected = loadedSelected > 0
+
+  const selectedCount = allMatching ? shown.length : selected.size
   const minutes = Math.round(selectedCount * AVG_MINUTES_PER_VIDEO)
-  const selectedTags = [...new Set(pool.filter((v) => selected.has(v.id)).map((v) => v.tag))]
+  const selectedTags = allMatching
+    ? [...new Set(shown.map((v) => v.tag))]
+    : [...new Set(pool.filter((v) => selected.has(v.id)).map((v) => v.tag))]
   const docSelected = docId !== NO_CONTEXT
+  /** The ids a run is actually started with — resolved once, on confirm. */
+  const resolveSelection = () => (allMatching ? shown.map((v) => v.id) : [...selected])
 
+  /* Taking one card out of "all of them" drops back to the page, the way it
+     does in a mail client: a selection with exceptions is a list of ids again. */
   const toggleVideo = (video: PickerVideo) => {
+    if (allMatching) {
+      setAllMatching(false)
+      setSelected(new Set(loaded.filter((v) => v.id !== video.id).map((v) => v.id)))
+      return
+    }
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(video.id)) next.delete(video.id)
@@ -198,6 +250,7 @@ export function UserTestRunSetupModal({
       const turningOn = !next.has(tag)
       if (turningOn) next.add(tag)
       else next.delete(tag)
+      setAllMatching(false)
       setSelected((prevSel) => {
         const sel = new Set(prevSel)
         members.forEach((m) => (turningOn ? sel.add(m.id) : sel.delete(m.id)))
@@ -210,16 +263,23 @@ export function UserTestRunSetupModal({
   /* Scoped to what is on screen — a select-all under an active filter has to
      mean the clips you can see. */
   const setAllShownSelected = (on: boolean) => {
+    setAllMatching(false)
     setSelected((prev) => {
       const next = new Set(prev)
-      shown.forEach((v) => (on ? next.add(v.id) : next.delete(v.id)))
+      loaded.forEach((v) => (on ? next.add(v.id) : next.delete(v.id)))
       return next
     })
   }
 
   const clearAll = () => {
-    setSelected(new Set())
+    clearSelection()
     setActiveTags(new Set())
+  }
+
+  /** Drops the selection and leaves the filters alone — the banner's way out. */
+  const clearSelection = () => {
+    setAllMatching(false)
+    setSelected(new Set())
   }
 
   /** Widens the view without touching the selection — the empty state's way out. */
@@ -380,7 +440,7 @@ export function UserTestRunSetupModal({
 
             {/* Filter bar */}
             <div
-              className="flex items-center gap-s px-xl py-s"
+              className="flex items-center gap-l px-xl py-s flex-nowrap"
               style={{
                 backgroundColor: 'var(--bg-page-pale)',
                 borderTop: '1px solid var(--border-subtle)',
@@ -390,19 +450,37 @@ export function UserTestRunSetupModal({
               {/* Same toolbar order as the Gameplay Library: the one control
                   that acts on the collection leads, a rule separates it from the
                   two that only narrow it, and search sits opposite on the right. */}
-              {shown.length > 0 && (
+              {loaded.length > 0 && (
                 <>
+                  {/* Checkbox, label and count as one group at a tighter gap;
+                      the rule after them takes the row's full gap. */}
+                  <div className="flex items-center gap-s shrink-0">
                   <label className="flex items-center gap-xs shrink-0 cursor-pointer">
                     <Checkbox
                       checked={allShownSelected}
                       indeterminate={someShownSelected && !allShownSelected}
                       onChange={() => setAllShownSelected(!allShownSelected)}
-                      aria-label={allShownSelected ? 'Deselect all shown videos' : 'Select all shown videos'}
+                      aria-label={allShownSelected ? 'Deselect all loaded videos' : 'Select all loaded videos'}
                     />
-                    <span className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-                      {allShownSelected ? 'Deselect all' : `Select all ${shown.length}`}
+                    {/* The number is the one the control ACTS on, so pressing
+                        the banner's whole-library offer visibly moves it. */}
+                    {/* One number; the total rides on it greyed — see the
+                        Gameplay Library's toolbar, which this mirrors. */}
+                    <span
+                      className="font-body text-s leading-[1.5] whitespace-nowrap"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      {allShownSelected
+                        ? `Deselect all ${selectedCount.toLocaleString()}`
+                        : `Select all ${loaded.length}`}
+                      {remaining > 0 && !allMatching && (
+                        <span style={{ color: 'var(--text-tertiary)' }}>
+                          {' '}of {shown.length.toLocaleString()}
+                        </span>
+                      )}
                     </span>
                   </label>
+                  </div>
                   <span
                     className="w-px h-[20px] shrink-0"
                     style={{ backgroundColor: 'var(--border-default)' }}
@@ -411,12 +489,17 @@ export function UserTestRunSetupModal({
                 </>
               )}
 
-              <span className="font-body text-s text-text-tertiary leading-[1.5] shrink-0">
-                Source
+              {/* The source segments give way on a narrow dialog — they scroll
+                  rather than clip, so the last option stays reachable and the
+                  toolbar stays one line with the search opposite it. */}
+              <span className="flex items-center gap-s min-w-0 segment-scroll">
+                <span className="font-body text-s text-text-tertiary leading-[1.5] shrink-0">
+                  Source
+                </span>
+                <SourceFilter value={source} onChange={setSource} />
               </span>
-              <SourceFilter value={source} onChange={setSource} />
               <span className="flex-1" />
-              <div className="library-search w-[320px] shrink">
+              <div className="library-search w-[240px] min-w-[150px] shrink">
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -427,6 +510,55 @@ export function UserTestRunSetupModal({
                 />
               </div>
             </div>
+
+            {/* ── The second half of the selection ──
+                Only once the page is fully ticked and there is more behind it.
+                Two grounds on purpose: the offer is neutral, taking it turns
+                brand and grows a mark — the difference between a run over 200
+                sessions and a run over 1,000 is the whole banner. */}
+            {(allMatching || (allShownSelected && remaining > 0)) && (
+              <div
+                className="flex items-center justify-center gap-xs px-xl py-s w-full text-center flex-wrap"
+                style={{
+                  backgroundColor: allMatching ? 'var(--bg-tint)' : 'var(--bg-page-pale)',
+                  borderBottom: '1px solid var(--border-subtle)',
+                }}
+                role="status"
+              >
+                {allMatching && (
+                  <span
+                    className="inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-round text-white"
+                    style={{ backgroundColor: 'var(--brand)' }}
+                    aria-hidden
+                  >
+                    <CheckIcon size={12} />
+                  </span>
+                )}
+                <span
+                  className="font-body text-s leading-[1.5]"
+                  style={{ color: allMatching ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+                >
+                  {allMatching ? (
+                    <>
+                      All <strong className="font-semibold">{shown.length.toLocaleString()} sessions</strong>{' '}
+                      {scopeLabel} are selected.
+                    </>
+                  ) : (
+                    `All ${loaded.length} sessions on this page are selected.`
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="font-body text-s font-semibold leading-[1.5] hover:underline"
+                  style={{ color: 'var(--brand)' }}
+                  onClick={() => (allMatching ? clearSelection() : setAllMatching(true))}
+                >
+                  {allMatching
+                    ? 'Clear selection'
+                    : `Select all ${shown.length.toLocaleString()} ${scopeLabel}`}
+                </button>
+              </div>
+            )}
 
               </>
             )}
@@ -483,9 +615,9 @@ export function UserTestRunSetupModal({
                   />
                 )
               )}
-              {shown.length > 0 && (
+              {loaded.length > 0 && (
                 <div className="grid gap-m" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }}>
-                  {shown.map((v) => (
+                  {loaded.map((v) => (
                     <VideoLibraryCard
                       key={v.id}
                       title={v.title}
@@ -496,13 +628,29 @@ export function UserTestRunSetupModal({
                       status={v.status}
                       progress={100}
                       tags={[batchTag(v.tag)]}
-                      selected={selected.has(v.id)}
+                      selected={isSelected(v.id)}
                       onToggleSelect={() => toggleVideo(v)}
                       onOpen={() => toggleVideo(v)}
                       showRowActions={false}
                     />
                   ))}
                 </div>
+              )}
+
+              {/* The next page — the same full-bleed control the Gameplay
+                  Library and the Radiologist's session grid use. */}
+              {remaining > 0 && (
+                <Button
+                  variant="tertiary"
+                  size="lg"
+                  pill
+                  rightIcon={<ChevronIcon direction="down" size={16} />}
+                  className="w-full"
+                  onClick={() => setPages((n) => n + 1)}
+                  aria-label={`Show ${nextPageSize} more sessions`}
+                >
+                  Show more
+                </Button>
               )}
             </div>
 
@@ -511,7 +659,7 @@ export function UserTestRunSetupModal({
               style={{ borderTop: '1px solid var(--border-subtle)' }}
             >
               <span className="font-body text-s text-text-secondary leading-[1.5]">
-                <strong className="font-semibold text-text-primary">{selectedCount}</strong> selected
+                <strong className="font-semibold text-text-primary">{selectedCount.toLocaleString()}</strong> selected
                 {' · '}
                 {Math.floor(minutes / 60)}h {minutes % 60}m of play
                 {selectedTags.length > 0 && (
@@ -531,10 +679,10 @@ export function UserTestRunSetupModal({
                 variant="primary"
                 size="lg"
                 disabled={selectedCount === 0}
-                onClick={() => (pickOnly ? onPick?.([...selected]) : setStep(2))}
+                onClick={() => (pickOnly ? onPick?.(resolveSelection()) : setStep(2))}
               >
                 {pickOnly
-                  ? `Use ${selectedCount} video${selectedCount === 1 ? '' : 's'}`
+                  ? `Use ${selectedCount.toLocaleString()} session${selectedCount === 1 ? '' : 's'}`
                   : 'Next'}
               </Button>
             </div>
@@ -653,7 +801,7 @@ export function UserTestRunSetupModal({
                 variant="primary"
                 size="lg"
                 disabled={!runName.trim()}
-                onClick={() => onStartRun?.([...selected], runName.trim())}
+                onClick={() => onStartRun?.(resolveSelection(), runName.trim())}
               >
                 Start run
               </Button>

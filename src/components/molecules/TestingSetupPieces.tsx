@@ -195,6 +195,12 @@ export function SampleSheetLink({ href, label }: { href: string; label: string }
  * a file that already satisfies it reads as a warning about that file. What
  * survives is SampleSheetLink, in the zone's own footer row.
  */
+/** "A, B, and C" — the fields read as a sentence, not as a CSV header row. */
+function listSentence(items: string[]): string {
+  if (items.length < 2) return items.join('')
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
+}
+
 export function CaseSheetNote({
   required,
   href,
@@ -217,9 +223,9 @@ export function CaseSheetNote({
         <InfoFilledIcon size={16} />
       </span>
       <p className="font-body text-xs text-text-tertiary leading-[1.6] min-w-0 m-0 text-left">
-        Each case needs{' '}
-        <span className="font-medium text-text-secondary">{required.join(', ')}</span> — without
-        them 6labs can only mark the case not verified.{' '}
+        Ensure it includes{' '}
+        <span className="font-medium text-text-secondary">{listSentence(required)}</span> for each
+        case.{' '}
         <a
           href={href}
           target="_blank"

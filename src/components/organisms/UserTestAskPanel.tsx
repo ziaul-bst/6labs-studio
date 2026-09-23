@@ -31,10 +31,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { UserTestAnswerCard } from '../molecules/UserTestAnswerCard'
-import { SectionHeading } from '../molecules/SectionHeading'
 import { UserPrompt } from '../atoms/UserPrompt'
 import { Spinner } from '../atoms/Spinner'
-import { SkeletonText } from '../atoms/Skeleton'
 import Button from '../ui/Button'
 import { SendIcon } from '../icons/SendIcon'
 import { USER_TEST_ASK_ANSWERS, USER_TEST_ASK_FALLBACK } from '../../lib/mocks/user-test'
@@ -136,29 +134,29 @@ export function askQuestion(
 /**
  * An answer, arriving.
  *
- * The sheet arrives first, already signed with the same agent block and the
- * same Sources band the answer will carry, and its body holds the shape of
- * what is coming: the real "01 Summary" heading with the status where its meta
- * goes, then two paragraphs of skeleton text. Nothing moves when the answer
- * lands — it fills the shape that was already on screen.
+ * A cycling line and nothing else. The wait used to draw the sheet the answer
+ * would land in — agent block, Sources band, a real "01 Summary" heading, two
+ * paragraphs of skeleton — and the reason that is wrong is in the answers
+ * themselves: an ask can come back as a summary, as a table, or as a refusal
+ * that says the run holds no frame this question could be answered from. A
+ * skeleton is a promise about shape, and for an ask there is no shape to
+ * promise. It was drawing the most common answer and calling it the wait.
  *
- * The status line cycles rather than sitting still. A single frozen phrase for
- * a second and a half reads as stuck, and the words are deliberately generic:
- * they say the question is being worked on, not that a particular result is
- * coming. That matters because not every answer is a summary — some are a
- * table, one is a refusal — so the skeleton stands for "an answer, about this
- * long", never for a promise about its shape.
+ * A REPORT is the other case and keeps its skeleton — a report is always a
+ * summary and a findings table, so the shape is known before it arrives. Split
+ * 2026-09-23; the two waits are different because the two acts are.
  *
- * Inline hosts get the status line on its own: there is no sheet to fill, so
- * there is nothing to draw the shape of.
+ * The words cycle rather than sitting still: a single frozen phrase for a
+ * second and a half reads as stuck. They are deliberately generic — they say
+ * the question is being worked on, not that a particular result is coming.
  */
 const WAIT_WORDS = ['Working', 'Reading the sessions', 'Checking the clips', 'Writing it up']
 
 /**
- * The cycling status, on its own. Exported because every wait for an answer in
- * User Test is this one — the question typed into the composer on the home
- * screen, a follow-up asked at the foot of the run page, and a follow-up asked
- * under the report band are the same act with the same corpus behind it.
+ * The wait for any asked question in User Test. Exported because every one of
+ * them is this — a question typed into the composer on the home screen, a
+ * follow-up at the foot of the run page, and a follow-up under the report band
+ * are the same act with the same corpus behind it.
  */
 export function AgentWaitLine() {
   const [i, setI] = useState(0)
@@ -174,26 +172,6 @@ export function AgentWaitLine() {
       <Spinner size={16} tone="neutral" />
       {WAIT_WORDS[i]}…
     </span>
-  )
-}
-
-function AnswerPending({ inSheet, header }: { inSheet?: boolean; header?: ReactNode }) {
-  if (!inSheet) return <AgentWaitLine />
-  return (
-    <article
-      className="skeleton-surface flex flex-col w-full rounded-2xl overflow-hidden"
-      style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
-      aria-busy
-    >
-      {header}
-      <section className="flex flex-col gap-m px-l py-l">
-        <SectionHeading index="01" title="Summary" meta={<AgentWaitLine />} />
-        <div className="flex flex-col gap-m max-w-[92ch]">
-          <SkeletonText lines={3} lineHeight={14} gap={12} lastWidth="62%" />
-          <SkeletonText lines={2} lineHeight={14} gap={12} lastWidth="40%" />
-        </div>
-      </section>
-    </article>
   )
 }
 
@@ -315,7 +293,7 @@ export function UserTestAskPanel({
                     onHandoffToOracle={() => onHandoffToOracle?.(turn.question)}
                   />
                 ) : (
-                  <AnswerPending inSheet={answerLayout === 'document'} header={answerHeader} />
+                  <AgentWaitLine />
                 )}
               </div>
             </div>

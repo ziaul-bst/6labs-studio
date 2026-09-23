@@ -158,7 +158,7 @@ export function UserTestHome({
     <div className={['flex flex-col gap-l page-measure pt-[120px] pb-xxl3', className].filter(Boolean).join(' ')}>
       <TestingPageHeader
         title="User Test Agent"
-        description="Find where players struggle in your recorded sessions — a full report, or just ask."
+        description="Find where players struggle in your gameplay sessions. Generate a report or ask questions."
         icon={<MembersIcon size={32} />}
         accent="brand"
       />
@@ -233,7 +233,7 @@ export function UserTestHome({
                     Add videos
                   </Button>
                   <span className="font-body text-s text-text-tertiary leading-[1.5]">
-                    Select sessions from your Gameplay Library by tag, source, or date.
+                    Select sessions from your Gameplay Library by tag or source.
                   </span>
                 </div>
               )}
@@ -324,18 +324,9 @@ export function UserTestHome({
                 </Button>
               ) : (
                 <>
-                  {/* A disabled round icon button with nothing beside it is a
-                      dead control — this says which of the two things is
-                      missing, in the order they have to happen. */}
-                  {!canAsk && (
-                    <span className="font-body text-s text-text-tertiary leading-[1.5]">
-                      {!hasVideos && hasQuestion
-                        ? 'Select the sessions to ask about.'
-                        : !hasVideos
-                          ? 'Select sessions and type a question.'
-                          : 'Type a question to ask.'}
-                    </span>
-                  )}
+                  {/* No readiness hint beside the send button (removed
+                      2026-09-23 on the PM brief). The two things it named are
+                      the two empty controls directly above it. */}
                   <Button
                     variant="primary"
                     size="lg"
@@ -399,15 +390,15 @@ export function UserTestHome({
               <SamplePreview />
               <div className="flex flex-col gap-xxxs flex-1 min-w-0">
                 <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
-                  Preview a finished report
+                  Sample Report
                 </span>
                 <span className="font-body text-s text-text-secondary leading-[1.5]">
-                  A completed report on 10 onboarding sessions: every finding grouped by what you would
-                  fix together, each with its evidence clips and a recommendation.
+                  Completed sample report on 10 gameplay sessions: findings grouped by categories with
+                  clips &amp; recommendations.
                 </span>
               </div>
               <Button variant="secondary" size="lg" onClick={onOpenSample}>
-                See a sample report
+                View Report
               </Button>
             </div>
           )}

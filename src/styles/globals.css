@@ -3340,16 +3340,25 @@ textarea { resize: none; font-family: var(--font-body); }
  * and some screens never get one. This is that beat, and it has one job: read
  * as "the picture is coming" rather than as "the picture failed".
  *
- * A capture reticle rather than a phone outline. The outline drew a device,
- * which is a picture of the thing being recorded — on a landscape capture it
- * was the wrong device, and at thumbnail size it was a grey rounded rectangle
- * on a black one. Four corner brackets read as framing-a-shot at any size and
- * in any orientation, and the pulse inside them is the only thing moving, so
- * the eye has somewhere to rest while it waits.
+ * It draws the FRAME'S OWN SILHOUETTE — the pane the picture will fill, at the
+ * pane's own shape, wearing the pane's own hairline — filled with the product's
+ * skeleton tone and swept by the product's skeleton sheen. That is the one
+ * shape here that is actually known, which is the only thing a skeleton is
+ * allowed to stand for. A capture reticle stood here before (four brackets and
+ * a dot); it was thin lines on black, and it said "framing a shot" when the
+ * thing happening is "a picture is loading". The earlier worry about an outline
+ * — wrong device on a landscape capture, a grey rectangle at thumbnail size —
+ * no longer applies: the shape comes from the well's own orientation, and at
+ * thumbnail size the silhouette carries only its glow.
  *
- * All of it is faint. It sits where footage will be, and anything with weight
+ * One thing breathes: a soft brand light at the pane's centre, with a ring
+ * that leaves it every 2.4s. Slow enough to read as alive rather than as
+ * progress — nothing here can be counted.
+ *
+ * All of it is dim. It sits where footage will be, and anything with weight
  * here gets mistaken for the footage itself. */
 .recording-well-waiting {
+  --well-caption-reserve: 0px;
   position: absolute;
   inset: 0;
   display: flex;
@@ -3357,95 +3366,137 @@ textarea { resize: none; font-family: var(--font-body); }
   align-items: center;
   justify-content: center;
   gap: 14px;
-  padding: 12px;
-  background: radial-gradient(120% 90% at 50% 40%, var(--recording-matte-lift), var(--recording-matte) 70%);
+  padding: 12px 12px calc(12px + var(--well-caption-reserve));
+  background: radial-gradient(120% 90% at 50% 42%, var(--recording-matte-lift), var(--recording-matte) 72%);
 }
-.recording-well-waiting::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(100deg, transparent 22%, rgba(255, 255, 255, 0.05) 50%, transparent 78%);
-  background-size: 260% 100%;
-  animation: recording-well-sweep 2.8s ease-in-out infinite;
-  pointer-events: none;
+/* The hero frame carries the agent's action as a caption across its foot, so
+   the silhouette and its copy sit above that band rather than under it. */
+.agent-frame .recording-well-waiting {
+  --well-caption-reserve: 76px;
 }
-/* Corner brackets, drawn as eight gradient slivers pinned to the four
-   corners — no extra elements, and the bracket length stays constant as the
-   frame scales, which is what makes it read as a reticle rather than as a
-   box with the middle rubbed out. */
+
+/* The silhouette. Sized like the real pane — height-led when portrait,
+   width-led when landscape — but held well short of the edges so it reads as
+   an object placed in the well, not as the well with its middle greyed. */
 .recording-well-waiting-frame {
-  --bracket: rgba(255, 255, 255, 0.34);
-  --bracket-len: 18px;
-  --bracket-weight: 2px;
   position: relative;
   z-index: 1;
-  width: 46%;
-  max-width: 120px;
-  aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-image:
-    linear-gradient(var(--bracket), var(--bracket)), linear-gradient(var(--bracket), var(--bracket)),
-    linear-gradient(var(--bracket), var(--bracket)), linear-gradient(var(--bracket), var(--bracket)),
-    linear-gradient(var(--bracket), var(--bracket)), linear-gradient(var(--bracket), var(--bracket)),
-    linear-gradient(var(--bracket), var(--bracket)), linear-gradient(var(--bracket), var(--bracket));
-  background-size:
-    var(--bracket-len) var(--bracket-weight), var(--bracket-weight) var(--bracket-len),
-    var(--bracket-len) var(--bracket-weight), var(--bracket-weight) var(--bracket-len),
-    var(--bracket-len) var(--bracket-weight), var(--bracket-weight) var(--bracket-len),
-    var(--bracket-len) var(--bracket-weight), var(--bracket-weight) var(--bracket-len);
-  background-position:
-    top left, top left,
-    top right, top right,
-    bottom left, bottom left,
-    bottom right, bottom right;
-  background-repeat: no-repeat;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    0 24px 56px rgba(0, 0, 0, 0.5);
 }
-/* The one moving thing. Slow enough to read as a heartbeat rather than as a
-   spinner — nothing here is making progress that could be counted. */
+.recording-well[data-orientation='portrait'] .recording-well-waiting-frame {
+  height: 62%;
+  aspect-ratio: 9 / 19.5;
+}
+.recording-well[data-orientation='landscape'] .recording-well-waiting-frame {
+  width: 58%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+}
+/* The product's skeleton sheen, on dark: one slow diagonal pass. */
+.recording-well-waiting-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.07) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: skeleton-shine 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+/* The breath. A soft light, and a ring that leaves it. */
 .recording-well-waiting-pulse {
-  width: 10px;
-  height: 10px;
+  position: relative;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
-  background-color: rgba(255, 255, 255, 0.75);
-  animation: recording-well-pulse 1.8s ease-in-out infinite;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 6px rgba(23, 112, 239, 0.22),
+    0 0 28px 10px rgba(23, 112, 239, 0.28);
+  animation: recording-well-breathe 2.4s ease-in-out infinite;
+}
+.recording-well-waiting-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(23, 112, 239, 0.6);
+  animation: recording-well-ring 2.4s ease-out infinite;
+}
+/* Thumbnails: the same object, smaller, and only its glow — a hairline and
+   a ring at 60px tall are noise. */
+.recording-well-compact .recording-well-waiting {
+  gap: 0;
+  padding: 6px;
 }
 .recording-well-compact .recording-well-waiting-frame {
-  width: 54%;
-  --bracket-len: 9px;
-  --bracket-weight: 1.5px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.recording-well-compact[data-orientation='portrait'] .recording-well-waiting-frame {
+  height: 70%;
+}
+.recording-well-compact[data-orientation='landscape'] .recording-well-waiting-frame {
+  width: 66%;
 }
 .recording-well-compact .recording-well-waiting-pulse {
   width: 6px;
   height: 6px;
+  box-shadow:
+    0 0 0 3px rgba(23, 112, 239, 0.24),
+    0 0 12px 4px rgba(23, 112, 239, 0.3);
 }
-.recording-well-waiting-label {
+.recording-well-compact .recording-well-waiting-pulse::after {
+  display: none;
+}
+/* Two tiers, not one paragraph. The first line is what you read at a glance;
+   the second is the reason, for whoever wants it. Both are dimmer than the
+   footage would be — this is a frame that has not arrived, and it should never
+   out-shout the one that has. */
+.recording-well-waiting-copy {
   position: relative;
   z-index: 1;
-  max-width: 34ch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: 38ch;
   text-align: center;
   text-wrap: balance;
+}
+.recording-well-waiting-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.86);
+}
+.recording-well-waiting-note {
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.55;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(255, 255, 255, 0.52);
 }
-@keyframes recording-well-sweep {
-  0% {
-    background-position: 140% 0;
-  }
-  100% {
-    background-position: -40% 0;
-  }
+@keyframes recording-well-breathe {
+  0%, 100% { transform: scale(0.92); opacity: 0.8; }
+  50%      { transform: scale(1);    opacity: 1; }
 }
-@keyframes recording-well-pulse {
-  0%, 100% { transform: scale(0.7); opacity: 0.35; }
-  50%      { transform: scale(1); opacity: 1; }
+@keyframes recording-well-ring {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  70%  { transform: scale(3.4); opacity: 0; }
+  100% { transform: scale(3.4); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .recording-well-waiting::after,
-  .recording-well-waiting-pulse {
+  .recording-well-waiting-frame::before,
+  .recording-well-waiting-pulse,
+  .recording-well-waiting-pulse::after {
     animation: none;
   }
 }

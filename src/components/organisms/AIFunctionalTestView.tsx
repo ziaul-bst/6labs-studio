@@ -37,6 +37,7 @@ import {
 } from '../molecules/TestingSetupPieces'
 import { FunctionalTestReport } from './FunctionalTestReport'
 import { runFailureText } from '../molecules/RunFailedNotice'
+import { showToast } from '../atoms/Toast'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import { AIFunctionalIcon } from '../icons/AIFunctionalIcon'
@@ -161,6 +162,13 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
     }
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)
+    /* Every agent confirms a submit the same way (2026-09-23). The run now
+       lands in a list rather than on its own page, so the toast is what says
+       "that worked" at the moment of pressing — the row is the record, this is
+       the receipt. */
+    showToast(
+      `Run queued — ${files.length} case file${files.length === 1 ? '' : 's'} on ${build}. The AI players start as soon as a device frees up.`,
+    )
     /* Back to the History tab, where the submitted run is now the top row —
        queued, with its control greyed until there is a report behind it. The
        run's own page was the destination for a while; it said nothing the row
@@ -220,7 +228,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
     <div className={['flex flex-col gap-l page-measure pt-[120px] pb-xxl3', className].filter(Boolean).join(' ')}>
       <TestingPageHeader
         title="AI functional test"
-        description="AI players run your test cases on your build and report what passed, what failed and what they could not reach — with the video."
+        description="Run test cases on your build with AI players. See which passed, failed, need review, or could not be verified, with sessions."
         icon={<AIFunctionalIcon size={32} />}
         accent="success"
       />
@@ -255,7 +263,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
               icon={<UploadIcon size={20} />}
               title="Choose a build"
               filledTitle="Build"
-              description="Upload an APK, or pick one you uploaded before. An earlier build shows whether a failure is new."
+              description="Upload an APK or select an uploaded build."
               formats="APK"
               required
               accent="success"
@@ -291,9 +299,9 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
             <SetupZone
               filled={files.length > 0}
               icon={<UploadIcon size={20} />}
-              title="Add your test cases"
+              title="Add test cases"
               filledTitle="Test cases"
-              description="Upload a spreadsheet of test cases — one row per case."
+              description="Upload a CSV or XLSX file with one test case per row."
               formats="CSV · XLSX"
               required
               accent="success"
@@ -367,9 +375,9 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
           {/* What the run produces and that it is not something to wait on —
               same closing note the other three composers carry. */}
           <SetupNote>
-            AI players execute every case against the build you picked and report pass, fail or blocked,
-            each with the clip of the attempt. They play in the background — the report lands in Run
-            history when the last case finishes.
+            AI players execute the provided test cases on the selected build. Test cases are marked
+            Passed, Failed, Needs review, or Not verified, with explanations and supporting clips where
+            available. Once completed reports appear in Run history.
           </SetupNote>
         </div>
       ) : (

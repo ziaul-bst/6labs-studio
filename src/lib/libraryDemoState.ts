@@ -23,6 +23,7 @@ export type LibraryDemoState =
   | 'uploading'
   | 'processing'
   | 'failed'
+  | 'large'
 
 export const LIBRARY_DEMO_STATES: LibraryDemoState[] = [
   'default',
@@ -32,6 +33,7 @@ export const LIBRARY_DEMO_STATES: LibraryDemoState[] = [
   'uploading',
   'processing',
   'failed',
+  'large',
 ]
 
 /** Switcher button copy — short, the pill is one row on a crowded screen. */
@@ -43,6 +45,7 @@ export const LIBRARY_DEMO_LABELS: Record<LibraryDemoState, string> = {
   uploading: 'Uploading',
   processing: 'Processing',
   failed: 'Failed',
+  large: 'Large library',
 }
 
 /** Shown under the pill so a reviewer knows what they are looking at. */
@@ -58,6 +61,8 @@ export const LIBRARY_DEMO_NOTES: Record<LibraryDemoState, string> = {
     'Transferred but not analysed yet — the daily run has not reached them. They play and can be tagged here; the picker leaves them out until the analysis lands.',
   failed:
     'Failed uploads with the error and Retry. Retry restarts the transfer. The picker has nothing to offer, and says why.',
+  large:
+    'A studio with a real corpus — 1,000 sessions. The grid loads 200 at a time, and select-all offers the whole library the way Gmail does.',
 }
 
 /**

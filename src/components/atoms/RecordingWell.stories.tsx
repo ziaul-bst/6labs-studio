@@ -49,7 +49,23 @@ export const Landscape: Story = {
 export const WaitingForTheFrame: Story = {
   args: {
     orientation: 'portrait',
-    pendingLabel: 'Waiting for the frame. 6labs has the agent on this screen, not the picture of it yet.',
+    pendingLabel: 'Waiting for the frame',
+    pendingNote: '6labs has the agent on this screen — the picture of it is a beat behind.',
+  },
+  render: (args) => (
+    <div style={{ width: 440 }}>
+      <RecordingWell {...args} />
+    </div>
+  ),
+}
+
+/** The same wait on a landscape capture. The silhouette takes the pane's own
+ *  shape from the well's orientation, so it is never the wrong device. */
+export const WaitingForTheFrameLandscape: Story = {
+  args: {
+    orientation: 'landscape',
+    pendingLabel: 'Waiting for the frame',
+    pendingNote: '6labs has the agent on this screen — the picture of it is a beat behind.',
   },
   render: (args) => (
     <div style={{ width: 440 }}>

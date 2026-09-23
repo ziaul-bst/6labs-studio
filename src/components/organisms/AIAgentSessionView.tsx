@@ -273,8 +273,13 @@ export function AIAgentSessionView({
                   scene={step.scene}
                   orientation={orientation}
                   /* Said as a fact about 6labs, not about the agent: the agent
-                     is not stuck, the capture is behind. */
-                  pendingLabel="Waiting for the frame. 6labs has the agent on this screen, not the picture of it yet."
+                     is not stuck, the capture is behind. The reading panel
+                     beside this stays filled while the frame is missing — the
+                     agent's account of the screen and the picture of it arrive
+                     on different clocks, and blanking the half that HAS
+                     arrived would throw away the only thing known. */
+                  pendingLabel="Waiting for the frame"
+                  pendingNote="6labs has the agent on this screen — the picture of it is a beat behind."
                   /* The HUD stand-in belongs to the game, so it is clipped to
                      the footage — on a portrait clip it would otherwise float
                      out over the ambience and read as 6labs' own chrome. */

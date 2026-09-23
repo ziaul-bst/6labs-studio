@@ -466,6 +466,25 @@ export function pickerVideosFor(state: LibraryDemoState): PickerVideo[] {
     return PICKER_VIDEOS.map((v) => ({ ...v, status: 'failed' as PickerStatus }))
   }
 
+  /* A studio a year into shipping, same size as the Gameplay Library's own
+     `large` fixture. The picker needs it for the same reason the library does:
+     a 1,000-clip grid and a "select all" that means a run over all 1,000 are
+     the two things paging and the two-step selection exist for, and neither
+     shows itself against sixteen. Built by repeating the seeded clips so the
+     tag rail and the source filter stay the ones every other state uses. */
+  if (state === 'large') {
+    return Array.from({ length: 1000 }, (_, i) => {
+      const b = PICKER_VIDEOS[i % PICKER_VIDEOS.length]
+      return {
+        ...b,
+        id: `pk-lg-${i}`,
+        title: b.title.replace(/\d+/, String(2000 + i)),
+        status: 'ready' as PickerStatus,
+        recent: i < 40,
+      }
+    })
+  }
+
   /* Mixed, like the library: the picker's whole job here is to show that some
      of what you can see is not yet pickable, and why. */
   if (state === 'processing') {

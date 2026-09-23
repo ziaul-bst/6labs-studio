@@ -34,8 +34,7 @@
  *     batch · source · stage until then, which restated the tag rail directly
  *     above it and the badges on every card, and forced a "Select batch"
  *     control per header — a third way to do what the rail and the card
- *     checkboxes already did. Selection is per card plus the bulk bar; there is
- *     no select-all.
+ *     checkboxes already did.
  *   - A clip nobody has tagged shows a dashed "Add tags" pill where its user
  *     tags would sit, so an empty tag slot reads as an invitation instead of
  *     as nothing.
@@ -54,6 +53,19 @@
  *     The bar keeps the two actions that belong to the corpus itself, tagging
  *     and deletion. Starting a run belongs to the test composer, which picks
  *     its own footage, and retrying a failed clip is a per-card action.
+ *
+ * Paging and the two-step selection (2026-09-23):
+ *   - The grid holds PAGE_SIZE clips and a button asks for the next page. A
+ *     studio a year in has thousands of sessions, and neither the grid nor the
+ *     server wants them all at once.
+ *   - So "select all" had to split in two. The checkbox takes the page; a
+ *     banner then offers the whole library, and only that second press means
+ *     "everything matching", which is held as a FLAG rather than as a set of
+ *     ids — enumerating a thousand matches to tick them is the read the paging
+ *     exists to avoid. Gmail settled this; there was no reason to invent one.
+ *   - Narrowing the library clears the lot. A selection that outlives its
+ *     filter is a bar reading "200 selected" over a grid showing other clips,
+ *     and the actions on that bar are tagging and deletion.
  *
  * Code-first prototype — no Figma source yet.
  */
@@ -79,6 +91,8 @@ import { UploadIcon } from '../icons/UploadIcon'
 import { CloseIcon } from '../icons/CloseIcon'
 import { TrashIcon } from '../icons/TrashIcon'
 import { PlusIcon } from '../icons/PlusIcon'
+import { CheckIcon } from '../icons/CheckIcon'
+import { ChevronIcon } from '../icons/ChevronIcon'
 import { SearchIcon } from '../icons/SearchIcon'
 import {
   SOURCE_ORDER,
@@ -166,6 +180,23 @@ const UPLOAD_ERROR = 'Upload failed — the transfer was interrupted. Retry to u
 const MAX_TAG_PILLS = 2
 /** Not a tag — the recency pill rides the same rail and the same select set. */
 const RECENT_TAG = '__recent'
+
+/**
+ * How many clips the grid holds at once, and the size of every page after it.
+ *
+ * A studio that has been shipping for a year has thousands of sessions, and
+ * neither end of the wire wants all of them: the grid renders a card with a
+ * thumbnail, a tag rail and a menu per clip, and the server has to read the
+ * lot to answer. So the list arrives a page at a time and the reader asks for
+ * the next one — a button, not an infinite scroll, because the footer of this
+ * screen is somewhere people mean to reach.
+ *
+ * 200 rather than 50: a page has to be big enough that "select all" on it is
+ * a useful act on its own, or the two-step selection below is just friction.
+ */
+const PAGE_SIZE = 200
+/** The size of the `large` review fixture — see lib/libraryDemoState. */
+const LARGE_LIBRARY_COUNT = 1000
 const GRADIENTS = [
   'linear-gradient(135deg, #1770EF 0%, #7B4CFF 100%)',
   'linear-gradient(135deg, #7B4CFF 0%, #C20568 100%)',
@@ -354,6 +385,32 @@ function seedForDemoState(state: LibraryDemoState): LibraryVideo[] {
     }))
   }
 
+  /* A studio a year into shipping. Paging and the select-all hand-off have
+     nothing to show against fourteen clips — 1,000 is the size at which
+     "select all" stops being free, which is the whole reason both exist. Built
+     by repeating the seeded batches rather than inventing new ones, so the tag
+     rail, the source filter and the uploader column stay the ones every other
+     state uses; only the volume changes. Everything is ready: a corpus this
+     old is long since analysed, and mixing in-flight clips here would be
+     testing two things at once. */
+  if (state === 'large') {
+    const base = seedVideos()
+    const H = 1000 * 60 * 60
+    return Array.from({ length: LARGE_LIBRARY_COUNT }, (_, i) => {
+      const b = base[i % base.length]
+      return {
+        ...b,
+        id: `lg-${i}`,
+        title: b.title.replace(/\d+/, String(2000 + i)),
+        status: 'ready' as VideoStatus,
+        progress: 100,
+        error: undefined,
+        willFail: false,
+        addedAt: b.addedAt - Math.floor(i / base.length) * 5 * H,
+      }
+    })
+  }
+
   return seedVideos()
 }
 
@@ -380,6 +437,24 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
   const state = demoState ?? storeState
   const [videos, setVideos] = useState<LibraryVideo[]>(() => initialVideos ?? seedForDemoState(state))
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  /**
+   * The second selection mode, and the reason the first one is safe.
+   *
+   * A checkbox holds ids. On a library of a thousand sessions that is the one
+   * thing you cannot do — enumerating every match to tick it costs a full read
+   * of the corpus before the reader has even said what they want done with it.
+   * So "all of them" is a FLAG rather than a set: it means "everything matching
+   * the filters in force", and it is the filters, not a list of ids, that go to
+   * the server when the action finally runs.
+   *
+   * Which is why the two selections are offered in sequence rather than as one
+   * control. Ticking the box selects the page, and only then does the banner
+   * offer the whole library — the expensive read is a second, deliberate press.
+   * Gmail settled this pattern; there is no reason to invent another.
+   */
+  const [allMatching, setAllMatching] = useState(false)
+  /** How many pages of PAGE_SIZE the grid currently holds. */
+  const [pages, setPages] = useState(1)
   const [query, setQuery] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null)
@@ -413,6 +488,8 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     seededFor.current = state
     setVideos(seedForDemoState(state))
     setSelectedIds(new Set())
+    setAllMatching(false)
+    setPages(1)
     setActiveTags(new Set())
     setSourceFacet('all')
     setQuery('')
@@ -556,22 +633,37 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     })
     setDeleteIds(null)
   }
-  /* Scoped to `shown`, never to the whole library: "select all" under an active
-     filter has to mean the clips you can see, or it silently picks up footage
-     the filter was hiding. */
-  const setAllShownSelected = (on: boolean) =>
+  /** Everything currently on screen — the page, not the library. */
+  const setAllLoadedSelected = (on: boolean) => {
+    setAllMatching(false)
     setSelectedIds((prev) => {
       const n = new Set(prev)
-      shown.forEach((v) => (on ? n.add(v.id) : n.delete(v.id)))
+      loaded.forEach((v) => (on ? n.add(v.id) : n.delete(v.id)))
       return n
     })
+  }
 
-  const toggleSelect = (id: string) =>
+  /* Taking one card out of "all of them" drops back to the page, the way it
+     does in a mail client: the reader has started making exceptions, and a
+     selection with exceptions is a list of ids again. Materialising the page
+     is cheap — it is the corpus-wide read the flag exists to avoid. */
+  const toggleSelect = (id: string) => {
+    if (allMatching) {
+      setAllMatching(false)
+      setSelectedIds(new Set(loaded.filter((v) => v.id !== id).map((v) => v.id)))
+      return
+    }
     setSelectedIds((prev) => {
       const n = new Set(prev)
       n.has(id) ? n.delete(id) : n.add(id)
       return n
     })
+  }
+
+  const clearSelection = () => {
+    setAllMatching(false)
+    setSelectedIds(new Set())
+  }
 
   /* Bulk tag — additive, never replaces a video's existing tags, and always
      user-origin: a batch is assigned at ingest, not applied by hand later. A
@@ -657,6 +749,10 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     return matchesQuery && matchesSource && matchesTag
   })
   const activeFacets = (sourceFacet !== 'all' ? 1 : 0) + activeTags.size
+  /* What "all of them" covers. Under a filter it is the matches, not the
+     library — offering "all 1,000 in the library" from inside a search that
+     found 40 would be an offer to act on 960 clips the reader cannot see. */
+  const scopeLabel = activeFacets > 0 || q ? 'matching these filters' : 'in this library'
   const clearFacets = () => {
     setSourceFacet('all')
     setActiveTags(new Set())
@@ -668,20 +764,55 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
      batch and source on the card. The sections also forced a "Select batch"
      control per header, a second way to do what the rail plus the card
      checkboxes already did. */
+  /** Every clip that matches — the number, not the cards. */
   const shown = useMemo(
     () => [...filtered].sort((a, b) => b.addedAt - a.addedAt),
     [filtered],
   )
+  /** The cards that actually render. */
+  const loaded = useMemo(() => shown.slice(0, pages * PAGE_SIZE), [shown, pages])
+  const remaining = shown.length - loaded.length
+  const nextPageSize = Math.min(PAGE_SIZE, remaining)
 
-  const shownSelectedCount = shown.reduce((n, v) => n + (selectedIds.has(v.id) ? 1 : 0), 0)
-  const allShownSelected = shown.length > 0 && shownSelectedCount === shown.length
-  const someShownSelected = shownSelectedCount > 0
+  /* Narrowing the library changes what "all of them" means, so the whole
+     selection resets with it — the page depth, the corpus-wide flag and the
+     ticked ids. A selection that survives a filter is a bar reading "200
+     selected" over a grid showing different clips, and the two actions on that
+     bar are tagging and deletion. Keyed off the filter signature rather than a
+     callback on every control, because search, the rail and the source
+     segments all narrow.
 
-  const selectedList = videos.filter((v) => selectedIds.has(v.id))
+     Held in STATE, not a ref. A ref mutated during render is the exact thing
+     StrictMode's double invoke breaks: the first pass writes the ref and
+     queues the reset, the second sees the ref already current and skips, and
+     the queued update goes with the discarded render — so the page depth never
+     reset and "all 1,000" survived a search that found 286. Comparing against
+     committed state is React's own way to adjust state on a change, and it
+     survives the double render. */
+  const facetKey = `${q}|${sourceFacet}|${[...activeTags].sort().join(',')}`
+  const [lastFacetKey, setLastFacetKey] = useState(facetKey)
+  if (lastFacetKey !== facetKey) {
+    setLastFacetKey(facetKey)
+    setPages(1)
+    setAllMatching(false)
+    setSelectedIds(new Set())
+  }
+
+  const isSelected = (id: string) => allMatching || selectedIds.has(id)
+  const loadedSelectedCount = allMatching
+    ? loaded.length
+    : loaded.reduce((n, v) => n + (selectedIds.has(v.id) ? 1 : 0), 0)
+  const allLoadedSelected = loaded.length > 0 && loadedSelectedCount === loaded.length
+  const someLoadedSelected = loadedSelectedCount > 0
+
+  /* What an action would run against. In flag mode that is every match, not
+     the ids that happen to be ticked — which is the whole point of the flag. */
+  const selectedList = allMatching ? shown : videos.filter((v) => selectedIds.has(v.id))
+  const selectionCount = allMatching ? shown.length : selectedIds.size
   /* Only an in-flight upload is unusable now, so the bar counts what is still
      arriving rather than what has cleared an analysis gate. */
   const selectedPending = selectedList.filter((v) => v.status !== 'ready')
-  const selecting = selectedIds.size > 0
+  const selecting = selectionCount > 0
 
   const isEmpty = videos.length === 0
 
@@ -838,40 +969,85 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                       its control keep the tighter gap inside their own group
                       (and stay together when the row wraps). */}
                   <div
-                    className="flex items-center gap-xl p-m w-full flex-wrap"
+                    /* One line, never two. `flex-wrap` sent the search field
+                       to a row of its own the moment the loaded/total count
+                       joined the left group, which doubled the height of the
+                       toolbar and put the field under the controls instead of
+                       opposite them. Nowrap plus a shrinking field keeps the
+                       geometry: collection controls left, search right. */
+                    className="flex items-center gap-l p-m w-full flex-nowrap"
                     style={{
                       borderTop: '1px solid var(--border-subtle)',
                       borderBottom: '1px solid var(--border-subtle)',
                       backgroundColor: 'var(--bg-page-pale)',
                     }}
                   >
-                    {/* One select-all for the filtered set, leading the row:
-                        it sits above the column of card checkboxes it controls,
-                        which is where anyone looks for it. The rule after it
-                        separates the one control that ACTS on the collection
-                        from the two that only narrow it. */}
-                    {shown.length > 0 && (
+                    {/* One select-all, leading the row: it sits above the
+                        column of card checkboxes it controls, which is where
+                        anyone looks for it. It selects what is LOADED — the
+                        cards under it — and the banner below offers the rest.
+                        The rule after it separates the one control that ACTS on
+                        the collection from the two that only narrow it. */}
+                    {loaded.length > 0 && (
                       <>
+                        {/* The checkbox, its label and the loaded/total count
+                            are one group at a tighter gap; the rule after
+                            them gets the row's full gap on both sides. They
+                            used to share one gap with a divider that carried
+                            negative margins, which left the count and
+                            "Source" four pixels apart. */}
+                        <div className="flex items-center gap-s shrink-0">
                         <label className="flex items-center gap-xs shrink-0 cursor-pointer">
                           <Checkbox
-                            checked={allShownSelected}
-                            indeterminate={someShownSelected && !allShownSelected}
-                            onChange={() => setAllShownSelected(!allShownSelected)}
-                            aria-label={allShownSelected ? 'Deselect all shown videos' : 'Select all shown videos'}
+                            checked={allLoadedSelected}
+                            indeterminate={someLoadedSelected && !allLoadedSelected}
+                            onChange={() => setAllLoadedSelected(!allLoadedSelected)}
+                            aria-label={allLoadedSelected ? 'Deselect all loaded videos' : 'Select all loaded videos'}
                           />
-                          <span className="font-body text-s leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-                            {allShownSelected ? 'Deselect all' : `Select all ${shown.length}`}
+                          {/* The number is on the label in every state, and
+                              it is the number the control ACTS on. Pressing
+                              "Select all 1,000 in this library" used to leave
+                              this row byte-identical — same tick, same word,
+                              same count — so the one control that owns selection
+                              said nothing about the selection having just
+                              grown by 600. */}
+                          {/* One number, and the total rides on it greyed:
+                              "Select all 200 of 1,000". A separate "200 of
+                              1,000" beside "Select all 200" said 200 twice.
+                              The suffix only appears while there IS more to
+                              load, and drops once the whole library is the
+                              selection — "Deselect all 1,000 of 1,000" is the
+                              same redundancy from the other side. */}
+                          <span
+                            className="font-body text-s leading-[1.5] whitespace-nowrap"
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            {allLoadedSelected
+                              ? `Deselect all ${selectionCount.toLocaleString()}`
+                              : `Select all ${loaded.length}`}
+                            {remaining > 0 && !allMatching && (
+                              <span style={{ color: 'var(--text-tertiary)' }}>
+                                {' '}of {shown.length.toLocaleString()}
+                              </span>
+                            )}
                           </span>
                         </label>
+                        </div>
                         <span
-                          className="w-px h-[20px] shrink-0 -mx-s"
+                          className="w-px h-[20px] shrink-0"
                           style={{ backgroundColor: 'var(--border-default)' }}
                           aria-hidden
                         />
                       </>
                     )}
 
-                    <div className="flex items-center gap-s flex-wrap">
+                    {/* The source segments are what gives way on a narrow
+                        column — they scroll rather than clip, so the last
+                        option stays reachable and the row stays one line. The
+                        other two things on the row cannot do this: a count
+                        half-cut is unreadable, and a search field is the one
+                        control you have to be able to type a word into. */}
+                    <div className="flex items-center gap-s min-w-0 segment-scroll">
                       <span
                         className="font-body text-s leading-[1.5] shrink-0"
                         style={{ color: 'var(--text-tertiary)' }}
@@ -896,7 +1072,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                         left of the row acts on the collection, the right of it
                         searches. `shrink` so the field gives way before the
                         source segments wrap. */}
-                    <div className="library-search w-[320px] max-w-full shrink">
+                    <div className="library-search w-[240px] min-w-[150px] shrink">
                       <Input
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -907,6 +1083,70 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                       />
                     </div>
                   </div>
+
+                  {/* ── The second half of the selection ──
+                      Only after the page is fully ticked, and only while there
+                      is more behind it. It is a strip across the top of the
+                      grid rather than a line in the toolbar because it is
+                      about the cards below it, and because it has to be
+                      impossible to miss — the difference between deleting 200
+                      sessions and deleting 1,000 is the whole banner.
+
+                      Once the flag is on the strip stays, and says so in the
+                      past tense with the way out beside it: a selection this
+                      large must never be a state you can be in without being
+                      told. */}
+                  {(allMatching || (allLoadedSelected && remaining > 0)) && (
+                    <div
+                      className="flex items-center justify-center gap-xs px-m py-s w-full text-center flex-wrap"
+                      /* Two states, two grounds. The offer is a neutral band —
+                         it is a thing you MAY do. Taken, it turns brand and
+                         grows a mark: at that point six hundred clips nobody
+                         can see are inside the selection, and the strip saying
+                         so has to look different from the strip that merely
+                         offered it. They used to be the same pale rectangle
+                         with different words in it. */
+                      style={{
+                        backgroundColor: allMatching ? 'var(--bg-tint)' : 'var(--bg-page-pale)',
+                        borderBottom: '1px solid var(--border-subtle)',
+                      }}
+                      role="status"
+                    >
+                      {allMatching && (
+                        <span
+                          className="inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-round text-white"
+                          style={{ backgroundColor: 'var(--brand)' }}
+                          aria-hidden
+                        >
+                          <CheckIcon size={12} />
+                        </span>
+                      )}
+                      <span
+                        className="font-body text-s leading-[1.5]"
+                        style={{ color: allMatching ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+                      >
+                        {allMatching ? (
+                          <>
+                            All{' '}
+                            <strong className="font-semibold">{shown.length.toLocaleString()} sessions</strong>{' '}
+                            {scopeLabel} are selected.
+                          </>
+                        ) : (
+                          `All ${loaded.length} sessions on this page are selected.`
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        className="font-body text-s font-semibold leading-[1.5] hover:underline"
+                        style={{ color: 'var(--brand)' }}
+                        onClick={() => (allMatching ? clearSelection() : setAllMatching(true))}
+                      >
+                        {allMatching
+                          ? 'Clear selection'
+                          : `Select all ${shown.length.toLocaleString()} ${scopeLabel}`}
+                      </button>
+                    </div>
+                  )}
 
                   {/* The one-click way out of a filtered view — only while filters are on */}
                   {activeFacets > 0 && (
@@ -950,7 +1190,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                       />
                     ) : (
                       <div className="grid gap-l w-full" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-                        {shown.map((v) => (
+                        {loaded.map((v) => (
                           <VideoLibraryCard
                             key={v.id}
                             layout="grid"
@@ -966,7 +1206,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                             progress={v.progress}
                             tags={v.tags}
                             errorMessage={v.error}
-                            selected={selectedIds.has(v.id)}
+                            selected={isSelected(v.id)}
                             checkboxVisibility="always"
                             onToggleSelect={() => toggleSelect(v.id)}
                             onDelete={() => setDeleteIds([v.id])}
@@ -977,6 +1217,32 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                           />
                         ))}
                       </div>
+                    )}
+
+                    {/* ── The next page ──
+                        A button, not an infinite scroll. The foot of this
+                        screen is somewhere people mean to arrive at — it is
+                        where the count and the end of the list are — and a
+                        grid that grows as you approach it never lets you get
+                        there. It also says what it will cost, because a
+                        thousand-session library is one the reader is going to
+                        press this on more than once. */}
+                    {remaining > 0 && (
+                      /* The same control the Radiologist's session grid uses
+                         for the same job — full-bleed tertiary pill, chevron
+                         down. One "show me more of this list" gesture across
+                         the product, not two that look alike. */
+                      <Button
+                        variant="tertiary"
+                        size="lg"
+                        pill
+                        rightIcon={<ChevronIcon direction="down" size={16} />}
+                        className="w-full"
+                        onClick={() => setPages((n) => n + 1)}
+                        aria-label={`Show ${nextPageSize} more sessions`}
+                      >
+                        Show more
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -1041,7 +1307,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                 className="font-display text-s font-semibold whitespace-nowrap"
                 style={{ color: 'var(--text-brand)' }}
               >
-                {selectedIds.size} selected
+                {selectionCount.toLocaleString()} selected
               </span>
               {selectedPending.length > 0 && (
                 /* A token, not opacity — the bar is a real surface now, and a
@@ -1065,7 +1331,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                 variant="secondary"
                 size="md"
                 leftIcon={<PlusIcon size={16} />}
-                onClick={() => setTagTargetIds([...selectedIds])}
+                onClick={() => setTagTargetIds(selectedList.map((v) => v.id))}
               >
                 Add tag
               </Button>
@@ -1073,7 +1339,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                 variant="danger"
                 size="md"
                 leftIcon={<TrashIcon size={16} />}
-                onClick={() => setDeleteIds([...selectedIds])}
+                onClick={() => setDeleteIds(selectedList.map((v) => v.id))}
               >
                 Delete
               </Button>
@@ -1081,7 +1347,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                 variant="transparent"
                 size="md"
                 iconOnly
-                onClick={() => setSelectedIds(new Set())}
+                onClick={clearSelection}
                 aria-label="Clear selection"
               >
                 <CloseIcon size={16} />

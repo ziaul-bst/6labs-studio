@@ -88,7 +88,9 @@ export const SAMPLE_TEST_CASE_FILES: TestCaseFile[] = [
 export const SAMPLE_TEST_CASE_SHEET = {
   href: '#/sample-test-case-sheet.xlsx',
   label: 'See a sample sheet',
-  required: ['Precondition', 'Expected result', 'Steps'],
+  /* Order is the brief's (2026-09-23): a reader follows Precondition → Steps →
+     Expected result, which is also the order the columns sit in the sheet. */
+  required: ['Precondition', 'Steps', 'Expected result'],
 }
 
 // ── Builds and personas (AI tests) ────────────────────────────────────────────

@@ -32,6 +32,7 @@ import { SegmentedControl } from '../atoms/SegmentedControl'
 import { AIBehaviouralRunView, type AIBehaviouralRunTab, type VideosStatusFilter } from './AIBehaviouralRunView'
 import { AIAgentSessionView, AGENT_LOOP_MS } from './AIAgentSessionView'
 import { BuildField } from './BuildPickerModal'
+import { showToast } from '../atoms/Toast'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
@@ -296,6 +297,13 @@ export function AIBehaviouralTestView({
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)
     setRunName('')
+    /* Every agent confirms a submit the same way (2026-09-23). The run now
+       lands in a list rather than on its own page, so the toast is what says
+       "that worked" at the moment of pressing — the row is the record, this is
+       the receipt. */
+    showToast(
+      `Run queued — ${totalAgents} session${totalAgents === 1 ? '' : 's'} on ${build}. The AI players start as soon as devices free up.`,
+    )
     setLiveReached(0)
     /* Back to the History tab, where the submitted run is now the top row —
        queued, with its control greyed until there is a report behind it. The
@@ -384,7 +392,7 @@ export function AIBehaviouralTestView({
     <div className={['flex flex-col gap-l page-measure pt-[120px] pb-xxl3', className].filter(Boolean).join(' ')}>
       <TestingPageHeader
         title="AI behavioural test"
-        description="AI players play your build like real personas — new player, core, whale, lapsed — and 6labs analyses what they did the same way it analyses human sessions."
+        description="Explore your build using selected personas & review their recorded behaviour to identify usability issues."
         icon={<AIBehaviouralIcon size={32} />}
         accent="success"
       />
@@ -421,7 +429,7 @@ export function AIBehaviouralTestView({
               className="flex items-center gap-m pb-m mb-s"
               style={{ borderBottom: '1px solid var(--border-subtle)' }}
             >
-              <span className="font-display text-m font-semibold text-text-primary">Set up a session</span>
+              <span className="font-display text-m font-semibold text-text-primary">Set up a run</span>
             </div>
 
             <Row label="Run name">
@@ -529,18 +537,11 @@ export function AIBehaviouralTestView({
               className="flex items-center justify-end gap-s pt-m mt-s"
               style={{ borderTop: '1px solid var(--border-subtle)' }}
             >
-              {/* Both are required and neither is seeded any more, so the
-                  button says which one is still missing rather than sitting
-                  dead with no explanation. */}
-              {(personas.length === 0 || !build) && (
-                <span className="font-body text-s text-text-tertiary leading-[1.5] mr-auto">
-                  {!build && personas.length === 0
-                    ? 'Choose a build and at least one persona to run.'
-                    : !build
-                      ? 'Choose a build to run.'
-                      : 'Choose at least one persona to run.'}
-                </span>
-              )}
+              {/* No readiness hint beside the button (removed 2026-09-23 on
+                  the PM brief). Build and Personas are two labelled, empty,
+                  required rows a few inches above it — the form already says
+                  what is missing, in the place it is missing from, and a line
+                  restating it at the foot was the third copy of the same fact. */}
               <Button variant="primary" size="lg" disabled={personas.length === 0 || !build} onClick={submit}>
                 Submit
               </Button>
@@ -548,9 +549,8 @@ export function AIBehaviouralTestView({
           </div>
 
           <SetupNote>
-            6labs produces a behavioural and UX report from the sessions, and you can query them exactly
-            as you would human sessions. The agents play in the background — a run takes about as long as
-            the session length you set, and the report lands in Run history when the last agent finishes.
+            AI players run as selected personas for the set session length. Once finished, a behavioural
+            and usability report is generated, you may track in Run history.
           </SetupNote>
         </div>
       ) : (

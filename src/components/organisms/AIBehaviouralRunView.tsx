@@ -28,7 +28,6 @@ import { FilterPill } from '../atoms/FilterPill'
 import { ProgressBar } from '../atoms/ProgressBar'
 import { Spinner } from '../atoms/Spinner'
 import { Skeleton, SkeletonText } from '../atoms/Skeleton'
-import { CheckIcon } from '../icons/CheckIcon'
 import { RunFailedNotice, runFailureText } from '../molecules/RunFailedNotice'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
@@ -257,7 +256,6 @@ export function AIBehaviouralRunView({
                 meta={meta}
                 done={analysing ? meta.agents : done}
                 total={meta.agents}
-                footageHours={hoursLabel(sessions.length * minutesIn(meta.lengthLabel))}
                 onWatch={() => onTabChange('videos')}
               />
             ) : (
@@ -318,7 +316,6 @@ function ReportPending({
   meta,
   done,
   total,
-  footageHours,
   onWatch,
 }: {
   phase: ReportPendingPhase
@@ -326,8 +323,6 @@ function ReportPending({
   meta: AIBehaviouralRunMeta
   done: number
   total: number
-  /** Known once every agent has stopped. */
-  footageHours: string
   onWatch: () => void
 }) {
   const playing = phase === 'playing'
@@ -344,7 +339,6 @@ function ReportPending({
      personas · 0 of 20 sessions played" is a row of facts about a run that has
      not begun, and a real number next to a grey bar reads as the grey bars
      being broken rather than as the run being early. */
-  const knowsNothing = queued || none
   /* Nothing is turning and there is nothing to watch: no spinner, no link to
      sessions that do not exist yet. */
   const idle = queued || none
@@ -415,33 +409,27 @@ function ReportPending({
             />
           )}
           {analysing && (
-            <div className="flex flex-col gap-s mt-xxs">
-              <ProgressBar indeterminate label="Writing the report" track="var(--bg-elements)" />
-              <AnalysisBeats />
-            </div>
+            <ProgressBar indeterminate label="Writing the report" track="var(--bg-elements)" className="mt-xxs" />
           )}
         </div>
 
+        {/* All five skeleton while the report is pending, in every phase —
+            extended 2026-09-23 from the queued state to running and analysing.
+            The first two used to print for real once agents were playing ("2
+            personas · 12 of 20 sessions played") beside three grey bars, and a
+            real number next to a grey bar reads as the grey bars being broken,
+            not as the run being early. The live count already has a home: the
+            status line and the progress bar directly above. */}
         <div className="stat-tiles gap-s">
           <StatTile
             surface="band"
-            value={knowsNothing ? '' : String(meta.personas.length)}
+            value=""
             label={meta.personas.length === 1 ? 'persona' : 'personas'}
-            loading={knowsNothing}
+            loading
             shimmer={shimmer}
           />
-          <StatTile
-            surface="band"
-            value={knowsNothing ? '' : String(done)}
-            label={`of ${total} ${sessionsWord} played`}
-            loading={knowsNothing}
-            shimmer={shimmer}
-          />
-          {analysing ? (
-            <StatTile surface="band" value={footageHours} label="session reviewed" />
-          ) : (
-            <StatTile surface="band" value="" label="session reviewed" loading shimmer={shimmer} />
-          )}
+          <StatTile surface="band" value="" label={`of ${total} ${sessionsWord} played`} loading shimmer={shimmer} />
+          <StatTile surface="band" value="" label="session reviewed" loading shimmer={shimmer} />
           <StatTile surface="band" value="" label="bugs" dot="var(--error)" loading shimmer={shimmer} />
           <StatTile surface="band" value="" label="friction points" dot="var(--warning)" loading shimmer={shimmer} />
         </div>
@@ -451,6 +439,11 @@ function ReportPending({
         <PartHeader index="01" label="Summary" first />
         <SkeletonText lines={3} lineHeight={14} gap={14} lastWidth="62%" className="max-w-[86ch] pt-l" />
 
+        {/* Simplified 2026-09-23 (PM brief). What stood here was a bordered
+            table with a header bar and three grey rows — a drawn picture of
+            findings that do not exist, at a count nobody knows. The heading and
+            its one line say the same thing and claim nothing: a skeleton may
+            stand for a shape that is known, never for one that is not. */}
         <PartHeader
           index="02"
           label="Findings"
@@ -464,73 +457,8 @@ function ReportPending({
                   : 'being ranked now'
           }
         />
-        <div className="flex flex-col rounded-xl overflow-hidden mt-l" style={{ border: '1px solid var(--border-subtle)' }}>
-          <div className="flex items-center h-[40px] px-m" style={{ backgroundColor: 'var(--bg-page-pale)' }}>
-            <Skeleton variant="bar" width={120} height={10} shimmer={shimmer} />
-          </div>
-          {[62, 48, 55].map((w) => (
-            <div key={w} className="flex items-center gap-s px-m py-s" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-              <Skeleton variant="circle" width={24} shimmer={shimmer} />
-              <Skeleton variant="text" width={`${w}%`} height={12} shimmer={shimmer} />
-              <span className="flex-1" />
-              <Skeleton variant="bar" width={56} shimmer={shimmer} />
-            </div>
-          ))}
-        </div>
       </div>
     </article>
-  )
-}
-
-/**
- * The three beats of the analysis, in the dot vocabulary AnalysisProgressCard
- * uses — done tick, active ring, waiting ring. The status line above carries
- * the sheet's only spinner.
- */
-function AnalysisBeats() {
-  const beats = [
-    { label: 'Sessions read', state: 'done' },
-    { label: 'Findings ranked', state: 'active' },
-    { label: 'Report written', state: 'waiting' },
-  ] as const
-  return (
-    <ul className="flex flex-wrap items-center gap-m list-none m-0 p-0">
-      {beats.map((b) => (
-        <li key={b.label} className="flex items-center gap-xs">
-          {b.state === 'done' ? (
-            <span
-              className="flex items-center justify-center shrink-0 w-[14px] h-[14px] rounded-round text-white"
-              style={{ backgroundColor: 'var(--success)' }}
-              aria-hidden
-            >
-              <CheckIcon size={12} />
-            </span>
-          ) : (
-            <span
-              className="shrink-0 w-[14px] h-[14px] rounded-round"
-              style={{
-                border: `1.5px solid ${b.state === 'active' ? 'var(--brand)' : 'var(--border-default)'}`,
-                backgroundColor: b.state === 'active' ? 'var(--bg-tint-light)' : 'transparent',
-              }}
-              aria-hidden
-            />
-          )}
-          <span
-            className="font-body text-xs leading-[1.5]"
-            style={{
-              color:
-                b.state === 'done'
-                  ? 'var(--text-primary)'
-                  : b.state === 'active'
-                    ? 'var(--text-brand)'
-                    : 'var(--text-tertiary)',
-            }}
-          >
-            {b.label}
-          </span>
-        </li>
-      ))}
-    </ul>
   )
 }
 

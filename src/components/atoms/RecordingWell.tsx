@@ -54,6 +54,16 @@ export interface RecordingWellProps {
    * thumbnail, where there is no room for a sentence and the sweep is enough.
    */
   pendingLabel?: string
+  /**
+   * The second line under `pendingLabel`, quieter and smaller.
+   *
+   * The wait used to be one 34-character-wide paragraph centred in a black
+   * frame, which is the shape of a message you read rather than glance at —
+   * and a glance is all anyone gives a frame they are waiting on. Split, the
+   * first line answers "what is happening" at a glance and the second is there
+   * for whoever wants the reason.
+   */
+  pendingNote?: string
   /** Thumbnail scale: thinner hairline, no copy, cheaper blur. */
   compact?: boolean
   /**
@@ -81,6 +91,7 @@ export function RecordingWell({
   scene,
   orientation = 'portrait',
   pendingLabel,
+  pendingNote,
   compact = false,
   fill = false,
   pane,
@@ -109,7 +120,12 @@ export function RecordingWell({
           <div className="recording-well-waiting-frame" aria-hidden>
             <span className="recording-well-waiting-pulse" />
           </div>
-          {pendingLabel && !compact && <span className="recording-well-waiting-label">{pendingLabel}</span>}
+          {pendingLabel && !compact && (
+            <span className="recording-well-waiting-copy">
+              <span className="recording-well-waiting-label">{pendingLabel}</span>
+              {pendingNote && <span className="recording-well-waiting-note">{pendingNote}</span>}
+            </span>
+          )}
         </div>
       )}
       {!pending && src && <img className="recording-well-fit" src={src} alt="" />}

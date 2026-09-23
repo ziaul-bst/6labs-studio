@@ -42,6 +42,7 @@ import {
 import { UserTestRunSetupModal } from './UserTestRunSetupModal'
 import { FunctionalTestReport } from './FunctionalTestReport'
 import { runFailureText } from '../molecules/RunFailedNotice'
+import { showToast } from '../atoms/Toast'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import { FunctionalTestIcon } from '../icons/FunctionalTestIcon'
@@ -99,18 +100,18 @@ const COPY: Record<
   functional: {
     title: 'Functional test',
     description:
-      'Upload the tests you already ran. 6labs checks what happened in each video — did every action complete — and makes them searchable.',
+      'Your test cases, verified against your gameplay sessions, each verdict backed by a clip.',
     /* Blue, with User test — the accent encodes which group a test is in, not
        what kind of test it is. In teal it was the only Human card wearing a
        colour from nowhere, and it sat directly above an AI functional card in
        green: two functional tests, two greens, one of them human. */
     accent: 'brand',
-    recordingsHint: 'Sessions of tests your team has already run. Select a batch by tag.',
-    casesHint: 'The test cases these sessions were intended to cover — as a spreadsheet of cases.',
+    recordingsHint: 'These are sessions on which you want to run a functional test.',
+    casesHint: 'Upload a CSV or XLSX file with one test case per row.',
     defaultName: 'Build V2.2 — tutorial regression',
     cta: 'Verify test cases',
     outcome:
-      'Every session is checked against your test cases — pass, fail, or never attempted — with the clip for each result. Analysis runs in the background; the report lands in Run history when it is done.',
+      'Test cases are marked Passed, Failed, Needs Review, or Not Verified with supporting evidence. Analysis runs in the background, with results available in Run History.',
   },
   agency: {
     title: 'External agency test',
@@ -254,6 +255,13 @@ export function FunctionalTestView({
     }
     setRuns((prev) => [run, ...prev])
     setHighlightId(run.id)
+    /* Every agent confirms a submit the same way (2026-09-23). The run now
+       lands in a list rather than on its own page, so the toast is what says
+       "that worked" at the moment of pressing — the row is the record, this is
+       the receipt. */
+    showToast(
+      `Verification queued — ${selected.length} session${selected.length === 1 ? '' : 's'} against ${testCases.length} case file${testCases.length === 1 ? '' : 's'}. Running in the background.`,
+    )
     /* Back to the History tab, where the submitted run is now the top row —
        queued, with its control greyed until there is a report behind it. The
        run's own page was the destination for a while; it said nothing the row
@@ -341,7 +349,7 @@ export function FunctionalTestView({
             <SetupZone
               filled={selected.length > 0}
               icon={<PlayIcon size={20} />}
-              title="Select the sessions"
+              title="Select gameplay sessions"
               filledTitle="Sessions"
               description={copy.recordingsHint}
               required
@@ -364,7 +372,7 @@ export function FunctionalTestView({
             <SetupZone
               filled={testCases.length > 0}
               icon={<UploadIcon size={20} />}
-              title="Add the test cases"
+              title="Add test cases"
               filledTitle="Test cases"
               description={copy.casesHint}
               formats="CSV · XLSX"
