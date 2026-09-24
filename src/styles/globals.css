@@ -3067,6 +3067,15 @@ textarea { resize: none; font-family: var(--font-body); }
   box-shadow: var(--shadow-normal);
   outline: none;
 }
+/* A card with nothing behind it — an AI player that failed before starting.
+   No lift on hover, because there is nothing to open. */
+.agent-session-card-inert {
+  cursor: default;
+}
+.agent-session-card-inert:hover {
+  border-color: var(--border-subtle) !important;
+  box-shadow: none;
+}
 .agent-frame-nav {
   opacity: 0;
   transition: opacity 150ms ease;

@@ -434,10 +434,10 @@ export const AI_BEHAVIOURAL_RUN_META: Record<string, AIBehaviouralRunMeta> = {
      "sessions played", a one-card grid, a single-row persona split — and it is
      a real way to use the product, not an edge case to be reasoned about. */
   'aib-smoke': { build: 'v2.3.2', agents: 1, personas: ['New player'], personaCounts: { 'New player': 1 }, lengthLabel: '10 min', startedLabel: 'Sep 8', finished: 1 },
-  /* The Frost Festival run with three AI players that stopped early — the
-     "Partly failed" dock preset. Spread across both personas and three failure
-     modes so the Videos grid shows what a partial failure actually looks like:
-     a few red cards among many finished ones, not a block of them. */
+  /* The Frost Festival run with three AI players that failed — the "Partly
+     failed" dock preset. Spread across both personas and both stages: two
+     failed part-way (they have footage up to the stop), one never started (it
+     has none). A few red cards among many finished ones, not a block of them. */
   'demo-partial': {
     build: 'v2.3.1',
     agents: 20,
@@ -447,18 +447,9 @@ export const AI_BEHAVIOURAL_RUN_META: Record<string, AIBehaviouralRunMeta> = {
     startedLabel: 'Sep 6',
     finished: 20,
     failedIndices: [3, 10, 16],
+    neverStartedIndices: [10],
   },
 }
-
-/**
- * Why an AI player stops early, one line each — short enough for a card, and
- * said as what happened rather than as an error code. Rotated by index.
- */
-const AGENT_FAILURES = [
-  'Stopped at an account wall — AI players are not allowed past a login without a human.',
-  'The device disconnected mid-session and did not reconnect.',
-  'The build crashed to the home screen and did not relaunch.',
-]
 
 export const formatSessionTime = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 
@@ -496,6 +487,21 @@ export function buildAgentSessions(runId: string, meta: AIBehaviouralRunMeta, li
        screen. Capping it below the last one parked the live viewer on a
        screen it could never leave. */
     const failed = (meta.failedIndices ?? []).includes(i)
+    if (failed && (meta.neverStartedIndices ?? []).includes(i)) {
+      /* Failed before its first screen: nothing was recorded, so there is
+         nothing to show and nothing to open. */
+      return {
+        id: `${runId}-a${i + 1}`,
+        index: i,
+        persona,
+        personaDetail: PERSONA_DETAIL[persona] ?? '',
+        status: 'failed' as const,
+        reached: 0,
+        steps: [],
+        durationLabel: 'Did not start',
+        stoppedFraction: 0,
+      }
+    }
     if (failed) {
       /* Stopped part-way: every screen up to the stop is real and watchable,
          nothing after it exists. Varied per player so three failures do not
@@ -519,7 +525,6 @@ export function buildAgentSessions(runId: string, meta: AIBehaviouralRunMeta, li
            screens into a 30-minute session stopped about 9 minutes in. */
         durationLabel: `Stopped at ${stoppedMin}m`,
         stoppedFraction: stoppedMin / lengthMin,
-        failure: AGENT_FAILURES[(meta.failedIndices ?? []).indexOf(i) % AGENT_FAILURES.length],
       }
     }
     const reached = done ? steps.length : Math.min(steps.length, Math.max(1, liveReached + (i % 4) - 1))

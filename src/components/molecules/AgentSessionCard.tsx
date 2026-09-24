@@ -10,12 +10,15 @@
  * Everything else — the title, the duration — is identical in both, so a grid
  * that is half done reads as one set rather than two.
  *
- * Failed (2026-09-24) is the third state and the only one that says something
- * about itself: an AI player that stopped early. Same card, same frame — the
- * last screen it reached, under a scrim so it cannot be mistaken for a healthy
- * recording — with a FAILED badge where Live sits, a red rule showing how far
- * it got, and the reason in one line under the title. It still opens: every
- * screen up to the stop is real, and the last one is where the reason is.
+ * Failed (2026-09-24) is the third state: an AI player that failed inside a
+ * run that did not. 6labs never knows WHY, so the card says only where — one
+ * generic line naming the stage. Two stages, two cards:
+ *   - Part-way: the last screen it reached under a scrim, a FAILED badge where
+ *     Live sits, a red rule showing how far it got, "Stopped at 13m". It opens:
+ *     every screen up to the stop is real.
+ *   - Before starting: no recording exists, so the well is an empty device
+ *     frame rather than a waiting one (waiting means "coming"; this is not),
+ *     "Did not start", and the card does not open — there is nothing to watch.
  *
  * Code-first prototype — from the PM artifact (screen s47), no Figma source yet.
  */
@@ -38,6 +41,8 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
   const demoOrientation = useRecordingDemoState()
   const live = session.status === 'live'
   const failed = session.status === 'failed'
+  /* Failed before its first screen — no steps, no footage, nothing to open. */
+  const neverStarted = failed && session.reached === 0
   const latest = session.steps[Math.max(0, session.reached - 1)]
   /* A live card shows where the agent is; a finished one shows a screen from
      the middle of its session, varied per agent so a grid of twenty reads as
@@ -45,18 +50,21 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
   /* A failed card shows where it stopped — that is the frame the reason is about. */
   const current =
     live || failed ? latest : session.steps[Math.min(session.steps.length - 1, 2 + (session.index % 6))]
+  const failedLine = neverStarted ? 'Failed before starting' : 'Failed part-way through'
   const title = hidePersona ? `Agent ${session.index + 1}` : `${session.persona} · agent ${session.index + 1}`
   const orientation = session.orientation ?? demoOrientation
 
   return (
     <button
       type="button"
-      onClick={() => onOpen?.(session)}
+      onClick={neverStarted ? undefined : () => onOpen?.(session)}
+      aria-disabled={neverStarted || undefined}
       aria-label={`${title}, ${
-        failed ? `failed, ${session.durationLabel}. ${session.failure ?? ''}` : live ? `live, ${session.durationLabel}` : session.durationLabel
+        failed ? `${failedLine.toLowerCase()}, ${session.durationLabel}` : live ? `live, ${session.durationLabel}` : session.durationLabel
       }`}
       className={[
         'agent-session-card flex flex-col w-full text-left rounded-2xl overflow-hidden',
+        neverStarted ? 'agent-session-card-inert' : '',
         className,
       ]
         .filter(Boolean)
@@ -70,7 +78,10 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
           ambience. Stand-in gradient until real stills ship; the HUD bars keep
           it reading as a game screen. */}
       <RecordingWell
-        scene={current.scene}
+        /* A never-started session has no frame. A flat screen colour rather
+           than no scene at all — no scene is the well's WAITING state, which
+           says a picture is on its way. */
+        scene={neverStarted ? '#0d1424' : current.scene}
         orientation={orientation}
         compact
         className="w-full"
@@ -81,11 +92,13 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
            is precisely what removes the need for that. */
         style={{ aspectRatio: '4 / 3' }}
         pane={
+          neverStarted ? undefined : (
           <span className="absolute left-xxs top-xxs flex gap-xxxs" aria-hidden>
             <i className="block w-[24px] h-[6px] rounded-xs" style={{ backgroundColor: 'rgba(255,220,130,0.5)' }} />
             <i className="block w-[16px] h-[6px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
             <i className="block w-[16px] h-[6px] rounded-xs" style={{ backgroundColor: 'rgba(255,255,255,0.28)' }} />
           </span>
+          )
         }
       >
         {failed ? (
@@ -138,7 +151,7 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
           {session.durationLabel}
         </span>
 
-        {(live || failed) && (
+        {(live || (failed && !neverStarted)) && (
           /* How far it got. Brand while it is still going; red where it
              stopped, so the length of the rule is the length of the session
              that exists. */
@@ -168,11 +181,11 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
           {title}
         </span>
         {/* The one exception to "who played it, and nothing else": a failed
-            card has to say why, or the badge is a verdict with no reason.
-            Two lines at most; the whole sentence is on the session page. */}
-        {failed && session.failure && (
-          <span className="font-body text-xs leading-[1.5] line-clamp-2" style={{ color: 'var(--error)' }} title={session.failure}>
-            {session.failure}
+            card names the stage it failed at. Not a cause — 6labs is not told
+            one, and a guessed reason is worse than none. */}
+        {failed && (
+          <span className="font-body text-xs leading-[1.5]" style={{ color: 'var(--error)' }}>
+            {failedLine}
           </span>
         )}
       </span>

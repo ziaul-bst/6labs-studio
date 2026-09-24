@@ -544,10 +544,10 @@ export function AIAgentSessionView({
                       This is the last screen 6labs has captured for this agent.
                     </span>
                   )}
-                  {/* The reason, at the screen it is about. A failed session is
-                      otherwise a session that ends early for no stated reason —
-                      the card said why in two lines; this is the whole of it. */}
-                  {failed && idx === last && session.failure && (
+                  {/* Said at the screen it is about, so a session that simply
+                      ends early is read as a failure, not as a short recording.
+                      Generic on purpose: 6labs knows where it failed, not why. */}
+                  {failed && idx === last && (
                     <div
                       className="flex items-start gap-xs rounded-l px-s py-xs"
                       style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error)' }}
@@ -557,7 +557,8 @@ export function AIAgentSessionView({
                         <FailedGlyph size={14} />
                       </span>
                       <span className="font-body text-xs leading-[1.55]">
-                        <strong className="font-semibold">The AI player stopped here.</strong> {session.failure}
+                        <strong className="font-semibold">The session failed here.</strong> No further screens
+                        were recorded for this AI player.
                       </span>
                     </div>
                   )}
@@ -649,7 +650,7 @@ export function AIAgentSessionView({
                     {failed
                       ? /* "Played all 6 screens" would be true and misleading: it
                            played all the screens it reached, then stopped. */
-                        `Nothing was flagged before this AI player stopped, ${total} ${total === 1 ? 'screen' : 'screens'} in. Its footage is not part of the run's report.`
+                        `Nothing was flagged before this session failed, ${total} ${total === 1 ? 'screen' : 'screens'} in. Its footage is not part of the run's report.`
                       : `Nothing was flagged in this session. The AI player played all ${total} screens without hitting anything the run reported.`}
                   </p>
                 ) : (

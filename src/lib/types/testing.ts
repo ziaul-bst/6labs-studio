@@ -222,11 +222,14 @@ export interface AgentStep {
 }
 
 /**
- * `failed` is ONE AI player stopping early inside a run that otherwise went
- * on — a login wall it is not allowed past, a device that dropped, a build
- * that crashed. It is not the run failing: the other sessions finished, and the
- * report is written from them. A failed session keeps every screen it reached,
- * so it can still be opened and watched up to the point it stopped.
+ * `failed` is ONE AI player failing inside a run that otherwise went on. It is
+ * not the run failing: the other sessions finished, and the report is written
+ * from them. 6labs knows THAT a player failed and at which point, never why —
+ * so no reason is carried, and every surface says it generically.
+ *
+ * It can fail at any stage. Part-way through, it keeps every screen it
+ * reached and can be opened and watched up to the stop. Before starting, it
+ * has no screens and no recording at all (`reached` 0, `steps` empty).
  */
 export type AgentSessionStatus = 'live' | 'done' | 'failed'
 
@@ -257,8 +260,6 @@ export interface AgentSession {
   durationLabel: string
   /** Defaults to portrait — see RecordingOrientation. */
   orientation?: RecordingOrientation
-  /** Why this AI player stopped — set only when `status` is 'failed'. */
-  failure?: string
   /**
    * How far into its session length a failed player got, 0–1 — 13 minutes
    * of a 30-minute session is 0.43. Its steps end at the stop, so this is the
@@ -279,8 +280,10 @@ export interface AIBehaviouralRunMeta {
   /** Sessions finished — equals `agents` once the run is done. */
   finished: number
   /**
-   * AI players that stopped early in an otherwise finished run, by 0-based
-   * index. Absent or empty on a clean run. See AgentSessionStatus.
+   * AI players that failed in an otherwise finished run, by 0-based index.
+   * Absent or empty on a clean run. See AgentSessionStatus.
    */
   failedIndices?: number[]
+  /** The subset of `failedIndices` that failed before starting — no recording. */
+  neverStartedIndices?: number[]
 }

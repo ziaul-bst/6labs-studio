@@ -113,7 +113,8 @@ export function AIBehaviouralRunView({
   const done = sessions.filter((s) => s.status === 'done').length
   const screensAnalysed = sessions.reduce((acc, s) => acc + s.reached, 0)
   const liveCount = sessions.filter((s) => s.status === 'live').length
-  /* AI players that stopped early in a run that otherwise went on. */
+  /* AI players that failed — part-way or before starting — in a run that
+     otherwise went on. */
   const failedCount = sessions.filter((s) => s.status === 'failed').length
   /* This screen's own beat, keyed on the run AND the tab: Report and Videos
      read different things, so switching between them is a fetch and the tab
@@ -313,7 +314,7 @@ export function AIBehaviouralRunView({
 }
 
 /**
- * Some AI players stopped early; the run did not. Warning, not error: the
+ * Some AI players failed; the run did not. Warning, not error: the
  * report under it is real and complete for the players that finished, and
  * the run-failed notice (RunFailedNotice) is reserved for a run that could not
  * produce one. The one action goes to the failed sessions, filtered — which is
@@ -336,7 +337,7 @@ function PartialFailureNotice({ failed, total, onView }: { failed: number; total
       </span>
       <div className="flex flex-col gap-xxxs min-w-0 flex-1">
         <span className="font-display text-s font-semibold text-text-primary leading-[1.45]">
-          {failed} of {total} AI players stopped early
+          {failed} of {total} AI players failed
         </span>
         <span className="font-body text-s text-text-secondary leading-[1.55]">
           This report is built from the {finished} {finished === 1 ? 'session' : 'sessions'} that finished.
@@ -608,7 +609,7 @@ function ReportBody({
         issues.length === 0
           ? `${reviewed} ${reviewed === 1 ? 'session' : 'sessions'} played ${meta.lengthLabel} each on ${meta.build}, and nothing was flagged.`
           : `${failedN > 0 ? `${reviewed} of ${meta.agents}` : meta.agents} ${agentWord} played ${meta.lengthLabel}${meta.agents === 1 ? '' : ' each'} on ${meta.build}${
-              failedN > 0 ? ` — ${failedN} stopped early` : ''
+              failedN > 0 ? ` — ${failedN} failed` : ''
             }. ${issues.length} finding${
               issues.length === 1 ? '' : 's'
             } across ${screensAnalysed} screens, ranked by how many AI players hit ${issues.length === 1 ? 'it' : 'them'}.`,

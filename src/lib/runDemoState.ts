@@ -105,7 +105,7 @@ export const RUN_DEMO_NOTES: Record<RunDemoState, string> = {
   asking: 'A follow-up asked and still being answered — the pending answer sheet, held open.',
   report: 'The full report: issues ranked by testers affected, with clips.',
   'partial-failure':
-    'A finished run where 3 of 20 AI players stopped early. Opens on Videos: the failed sessions are cards of their own with the reason, and the report says it was built from the 17 that finished.',
+    'A finished run where 3 of 20 AI players failed — two part-way, one before starting. Opens on Videos: each failed session is a card of its own, and the report says it was built from the 17 that finished.',
 }
 
 // ─── Store ───────────────────────────────────────────────────────────────────

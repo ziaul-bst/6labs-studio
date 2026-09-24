@@ -263,7 +263,7 @@ export function AIBehaviouralTestView({
     () =>
       activeRun?.state === 'done'
         ? /* Findings come from the sessions that finished. A player that
-             stopped early is evidence of its own failure, not of the build's
+             failed is evidence of its own failure, not of the build's
              behaviour past the point it stopped. */
           buildAgentIssues(
             sessions.filter((s) => s.status !== 'failed'),
