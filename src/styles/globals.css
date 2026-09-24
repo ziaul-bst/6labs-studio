@@ -3379,7 +3379,6 @@ textarea { resize: none; font-family: var(--font-body); }
  * All of it is dim. It sits where footage will be, and anything with weight
  * here gets mistaken for the footage itself. */
 .recording-well-waiting {
-  --well-caption-reserve: 0px;
   position: absolute;
   inset: 0;
   display: flex;
@@ -3387,14 +3386,12 @@ textarea { resize: none; font-family: var(--font-body); }
   align-items: center;
   justify-content: center;
   gap: 14px;
-  padding: 12px 12px calc(12px + var(--well-caption-reserve));
+  padding: 12px;
   background: radial-gradient(120% 90% at 50% 42%, var(--recording-matte-lift), var(--recording-matte) 72%);
 }
-/* The hero frame carries the agent's action as a caption across its foot, so
-   the silhouette and its copy sit above that band rather than under it. */
-.agent-frame .recording-well-waiting {
-  --well-caption-reserve: 76px;
-}
+/* No caption reserve. The hero used to hold 76px at its foot for the action
+   caption, but a waiting screen has no action yet (the caption is not drawn),
+   so the reserve only pushed the content up off centre. */
 
 /* The silhouette. Sized like the real pane — height-led when portrait,
    width-led when landscape — but held well short of the edges so it reads as
@@ -3417,7 +3414,9 @@ textarea { resize: none; font-family: var(--font-body); }
   aspect-ratio: 9 / 19.5;
 }
 .recording-well[data-orientation='landscape'] .recording-well-waiting-frame {
-  width: 58%;
+  /* 50%, not wider: centred in a 640×360 well it has to clear the
+     "AI playing · live" badge in the top-left corner. */
+  width: 50%;
   aspect-ratio: 16 / 9;
   border-radius: 10px;
 }
@@ -3505,6 +3504,49 @@ textarea { resize: none; font-family: var(--font-body); }
   line-height: 1.55;
   color: rgba(255, 255, 255, 0.52);
 }
+/* ── Waiting at full size: Scan (chosen 2026-09-24) ──
+   The silhouette alone read as nothing at all on a black well. Scan keeps its
+   outline and adds brand colour plus a capture line sweeping it — motion, and
+   a metaphor that is the actual event: a screen being captured. Rings and a
+   blurred held frame were tried beside it and dropped. Thumbnails keep the
+   quiet silhouette. */
+
+/* Scan — the pane outline in brand, a capture line sweeping it. */
+.recording-well-waiting[data-style='scan'] .recording-well-waiting-frame {
+  background: rgba(23, 112, 239, 0.08);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(23, 112, 239, 0.7),
+    0 0 32px rgba(23, 112, 239, 0.25),
+    0 24px 56px rgba(0, 0, 0, 0.5);
+}
+.recording-well-waiting[data-style='scan'] .recording-well-waiting-frame::before {
+  display: none;
+}
+.recording-well-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 36%;
+  background: linear-gradient(180deg, transparent, rgba(23, 112, 239, 0.28) 85%, rgba(120, 180, 255, 0.95) 100%);
+  border-bottom: 1.5px solid rgba(150, 200, 255, 1);
+  animation: recording-well-scan 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes recording-well-scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(280%); }
+}
+.recording-well-waiting[data-style='scan'] .recording-well-waiting-label {
+  font-size: 14px;
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recording-well-scanline {
+    animation: none;
+  }
+}
+
 @keyframes recording-well-breathe {
   0%, 100% { transform: scale(0.92); opacity: 0.8; }
   50%      { transform: scale(1);    opacity: 1; }

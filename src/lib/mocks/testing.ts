@@ -528,15 +528,31 @@ export function buildAgentSessions(runId: string, meta: AIBehaviouralRunMeta, li
       }
     }
     const reached = done ? steps.length : Math.min(steps.length, Math.max(1, liveReached + (i % 4) - 1))
-    /* A live session knows which screen its agent is on a beat before it has
-       the picture of it — the analysis arrives over the wire, the frame after.
-       So the newest screen of a live session carries no frame, and the well
-       shows what it is waiting for. Stripping it here rather than in the step
-       script keeps it a property of being LIVE, which is what it is. */
+    /* The newest screen of a live session is one 6labs knows only the
+       POSITION of: the AI player has moved on to it, and neither its frame nor
+       its account has arrived — they come together. So everything about it is
+       blank here, not just the picture (corrected 2026-09-24; it used to keep
+       the text and drop only the frame). Stripping it here rather than in the
+       step script keeps it a property of being LIVE, which is what it is. */
     const withPendingFrame =
       done || reached < 1
         ? steps
-        : steps.map((s, si) => (si === reached - 1 ? { ...s, scene: undefined } : s))
+        : steps.map((s, si) =>
+            si === reached - 1
+              ? {
+                  ...s,
+                  pending: true,
+                  scene: undefined,
+                  screen: '',
+                  saw: '',
+                  reasoning: '',
+                  action: '',
+                  observed: undefined,
+                  payload: undefined,
+                  flag: undefined,
+                }
+              : s,
+          )
     return {
       id: `${runId}-a${i + 1}`,
       index: i,

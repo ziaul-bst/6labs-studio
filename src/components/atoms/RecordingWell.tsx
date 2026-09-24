@@ -100,6 +100,10 @@ export function RecordingWell({
   style,
 }: RecordingWellProps) {
   const pending = !src && !scene
+  /* Full size scans; a thumbnail keeps the quiet silhouette — at 60px tall a
+     sweeping brand line is noise, and a grid of forty would be a light show.
+     Scan was chosen 2026-09-24 over silhouette, rings and a held frame. */
+  const treatment = compact ? 'silhouette' : 'scan'
 
   return (
     <div
@@ -116,9 +120,9 @@ export function RecordingWell({
       style={style}
     >
       {pending && (
-        <div className="recording-well-waiting">
+        <div className="recording-well-waiting" data-style={treatment}>
           <div className="recording-well-waiting-frame" aria-hidden>
-            <span className="recording-well-waiting-pulse" />
+            {compact ? <span className="recording-well-waiting-pulse" /> : <span className="recording-well-scanline" />}
           </div>
           {pendingLabel && !compact && (
             <span className="recording-well-waiting-copy">

@@ -219,6 +219,13 @@ export interface AgentStep {
   payload?: { label: string; body: string }
   /** Set when this moment fed a finding. The id points into the run's issues. */
   flag?: { kind: 'bug' | 'friction'; issueId: string; note: string }
+  /**
+   * The AI player is on this screen and 6labs has NOTHING of it yet — no
+   * frame, no screen name, no saw / reasoning / did. Only ever the newest step
+   * of a live session. Its text fields are blank rather than filled with what
+   * will eventually arrive, so no surface can show them early by accident.
+   */
+  pending?: boolean
 }
 
 /**

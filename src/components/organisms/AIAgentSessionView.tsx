@@ -33,6 +33,8 @@ import { CheckIcon } from '../icons/CheckIcon'
 import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
 import { IssueKindTag } from '../atoms/IssueKindTag'
 import { RecordingWell } from '../atoms/RecordingWell'
+import { Skeleton, SkeletonText } from '../atoms/Skeleton'
+import { Spinner } from '../atoms/Spinner'
 import { applySessionTextState, useSessionTextDemoState } from '../../lib/sessionTextDemoState'
 import { SessionViewerSkeleton } from '../molecules/TestingSkeletons'
 import { usePageLoading } from '../../lib/pageLoading'
@@ -110,6 +112,12 @@ export function AIAgentSessionView({
   const [playing, setPlaying] = useState(initialStep === undefined)
   const stripRef = useRef<HTMLDivElement>(null)
   const step = session.steps[idx]
+  /* The AI player is on this screen and 6labs has nothing of it yet — no
+     frame, no name, no account. Every surface below draws a wait here, never
+     text: the fields are blank, and blank read as a bug. */
+  const pending = Boolean(step?.pending)
+  /* The newest screen that actually has something in it. */
+  const lastCaptured = session.steps[last]?.pending ? last - 1 : last
   const tone = PERSONA_TONE[session.persona] ?? 'var(--text-secondary)'
   const durationSec = session.steps[total - 1].atSec + 20
   /* Portrait unless the session says otherwise — every 6labs recording is a
@@ -286,8 +294,8 @@ export function AIAgentSessionView({
                      agent's account of the screen and the picture of it arrive
                      on different clocks, and blanking the half that HAS
                      arrived would throw away the only thing known. */
-                  pendingLabel="Waiting for the frame"
-                  pendingNote="6labs has the AI player on this screen — the picture of it is a beat behind."
+                  pendingLabel={`Waiting for screen ${idx + 1}`}
+                  pendingNote="The AI player is on this screen. Its frame and what it did arrive together."
                   /* The HUD stand-in belongs to the game, so it is clipped to
                      the footage — on a portrait clip it would otherwise float
                      out over the ambience and read as 6labs' own chrome. */
@@ -312,12 +320,14 @@ export function AIAgentSessionView({
                       AI playing · live
                     </span>
                   )}
-                  <span
-                    className="absolute right-m top-s px-xs py-xxxs rounded-s font-code text-xs text-white"
-                    style={{ backgroundColor: 'rgba(15,27,51,0.72)' }}
-                  >
-                    {formatSessionTime(step.atSec)}
-                  </span>
+                  {!pending && (
+                    <span
+                      className="absolute right-m top-s px-xs py-xxxs rounded-s font-code text-xs text-white"
+                      style={{ backgroundColor: 'rgba(15,27,51,0.72)' }}
+                    >
+                      {formatSessionTime(step.atSec)}
+                    </span>
+                  )}
 
                   {/* The caption is what the agent did on this screen. Two
                       lines and no more: an action can arrive as a sentence
@@ -325,13 +335,16 @@ export function AIAgentSessionView({
                       the login to continue"), and a caption that grows eats
                       the frame it is captioning. The whole of it is in the
                       panel's Did row, where it has room. */}
-                  <span
-                    title={step.action}
-                    className="absolute left-0 right-0 bottom-0 flex items-center gap-xs px-l pt-xxl pb-m font-display text-s font-semibold text-white leading-[1.5]"
-                    style={{ background: 'linear-gradient(180deg, transparent, rgba(15,27,51,0.85))' }}
-                  >
-                    <span className="line-clamp-2 wrap-anywhere">{step.action}</span>
-                  </span>
+                  {/* No caption on a screen whose action is not known yet. */}
+                  {!pending && (
+                    <span
+                      title={step.action}
+                      className="absolute left-0 right-0 bottom-0 flex items-center gap-xs px-l pt-xxl pb-m font-display text-s font-semibold text-white leading-[1.5]"
+                      style={{ background: 'linear-gradient(180deg, transparent, rgba(15,27,51,0.85))' }}
+                    >
+                      <span className="line-clamp-2 wrap-anywhere">{step.action}</span>
+                    </span>
+                  )}
 
                   <span className="agent-frame-nav absolute inset-0 flex items-center justify-between px-s pointer-events-none">
                     <FrameNav label="Previous screen" onClick={() => select(idx - 1)} disabled={idx === 0}>
@@ -398,8 +411,8 @@ export function AIAgentSessionView({
                         disabled={future}
                         data-active={active}
                         onClick={() => select(i)}
-                        aria-label={`Screen ${i + 1}, ${s.screen}`}
-                        title={s.screen}
+                        aria-label={`Screen ${i + 1}, ${s.pending ? 'waiting for capture' : s.screen}`}
+                        title={s.pending ? 'Waiting for capture' : s.screen}
                         /* The strip keeps ONE thumbnail shape whatever the
                            footage is — it is read as a row of positions in a
                            timeline, and a row of differently-shaped tiles does
@@ -438,7 +451,7 @@ export function AIAgentSessionView({
                     buried. What changes and is worth saying is WHICH screen you
                     are on; the reading itself is there to be read. */}
                 <span className="sr-only" aria-live="polite">
-                  Screen {idx + 1} of {total}. {step.screen}.
+                  Screen {idx + 1} of {total}. {pending ? 'Waiting for capture.' : `${step.screen}.`}
                 </span>
                 {/* The reading scrolls inside the panel rather than growing it.
                     A screen where the agent loaded a skill file, or reasoned
@@ -450,6 +463,10 @@ export function AIAgentSessionView({
                   className="agent-screen-scroll flyout-scrollbar flex flex-col gap-m px-l py-l flex-1 min-h-0"
                   tabIndex={0}
                 >
+                  {pending ? (
+                    <PendingReading index={idx + 1} />
+                  ) : (
+                  <>
                   <div className="flex flex-col gap-xs">
                     <span className="font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]">
                       Screen {idx + 1} · {formatSessionTime(step.atSec)}
@@ -535,11 +552,14 @@ export function AIAgentSessionView({
                       </details>
                     )}
                   </div>
+                  </>
+                  )}
 
                   {/* A live session simply has fewer screens so far — said once,
                       at the end of what has been captured, rather than as a
-                      running commentary. */}
-                  {live && idx === last && (
+                      running commentary. The newest screen may be one 6labs
+                      has not captured yet, so this sits on the one before it. */}
+                  {live && !pending && idx === lastCaptured && (
                     <span className="font-body text-xs text-text-tertiary leading-[1.5]">
                       This is the last screen 6labs has captured for this agent.
                     </span>
@@ -698,6 +718,52 @@ export function AIAgentSessionView({
 }
 
 /* ── Bits ───────────────────────────────────────────────────────────────── */
+
+/**
+ * The reading panel for a screen 6labs has not captured yet.
+ *
+ * The AI player is on it and nothing else is known — not its name, not what
+ * the player saw, reasoned or did. What IS known is the shape every screen's
+ * account takes, so the three blocks are drawn with their real labels and
+ * skeleton lines where the words will land: when the capture arrives it fills
+ * the shape already on screen and nothing moves. One line says what the wait
+ * is, in words, because this is a wait with an AI player behind it and not a
+ * fetch.
+ */
+function PendingReading({ index }: { index: number }) {
+  const eyebrow = 'font-display text-2xs font-medium uppercase tracking-[1px] text-text-tertiary leading-[1.5]'
+  return (
+    <div className="skeleton-surface flex flex-col gap-m" aria-busy>
+      <div className="flex flex-col gap-xs">
+        <span className={eyebrow}>Screen {index} · waiting for capture</span>
+        <Skeleton variant="text" width="58%" height={22} />
+      </div>
+      <span
+        className="inline-flex items-center gap-xs font-body text-s leading-[1.55]"
+        style={{ color: 'var(--text-secondary)' }}
+        role="status"
+      >
+        <Spinner size={16} tone="brand" />
+        The AI player is on this screen. What it saw and did arrives with the frame.
+      </span>
+      <div className="flex flex-col gap-xs">
+        <span className={eyebrow}>Saw</span>
+        <SkeletonText lines={2} lineHeight={12} gap={10} lastWidth="70%" />
+      </div>
+      <div
+        className="flex flex-col gap-xs rounded-xl px-m py-s"
+        style={{ backgroundColor: 'var(--bg-page-pale)', borderLeft: '3px solid var(--border-default)' }}
+      >
+        <span className={eyebrow}>Reasoning</span>
+        <SkeletonText lines={3} lineHeight={12} gap={10} lastWidth="55%" />
+      </div>
+      <div className="flex flex-col gap-xs">
+        <span className={eyebrow}>Did</span>
+        <Skeleton variant="text" width="64%" height={16} />
+      </div>
+    </div>
+  )
+}
 
 function Reading({ label, lines = 3, children }: { label: string; lines?: number; children: ReactNode }) {
   return (
