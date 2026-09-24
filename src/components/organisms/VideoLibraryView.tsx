@@ -81,9 +81,9 @@ import { UploadVideosModal } from './UploadVideosModal'
 import { VideosEmptyState } from '../molecules/VideosEmptyState'
 import { showToast } from '../atoms/Toast'
 import { FilterPill } from '../atoms/FilterPill'
-import { SegmentedControl } from '../atoms/SegmentedControl'
 import Checkbox from '../ui/Checkbox'
 import { TagOverflowMenu } from '../molecules/TagOverflowMenu'
+import { TestingMenuSelect } from '../molecules/TestingMenuSelect'
 import Input from '../ui/Input'
 import Button from '../ui/Button'
 import { VideoLibraryIcon } from '../icons/VideoLibraryIcon'
@@ -464,6 +464,8 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
      that is already narrow once a batch is picked, and four dropdowns beside
      a pill rail read as two filter systems stacked. */
   const [sourceFacet, setSourceFacet] = useState<Facet<VideoUploadSource>>('all')
+  /* Who uploaded it — a teammate's name, CURRENT_USER for "You", or 'all'. */
+  const [uploaderFacet, setUploaderFacet] = useState<string>('all')
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set())
   /* Which clips the tag dialog will write to. The bulk bar hands it the whole
      selection, a card's "Add tags" pill hands it just that clip — one dialog
@@ -492,6 +494,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     setPages(1)
     setActiveTags(new Set())
     setSourceFacet('all')
+    setUploaderFacet('all')
     setQuery('')
     setSelectedId(null)
   }, [state, initialVideos])
@@ -740,15 +743,43 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
     const matchesQuery =
       !q || v.title.toLowerCase().includes(q) || v.tags.some((t) => t.label.toLowerCase().includes(q))
     const matchesSource = sourceFacet === 'all' || v.source === sourceFacet
+    /* A clip an AI player recorded has no uploader, so naming a person always
+       leaves it out — which is right: nobody uploaded it. */
+    const matchesUploader = uploaderFacet === 'all' || v.uploadedBy === uploaderFacet
     /* Tag pills are additive, not narrowing — two batches selected means both
        batches, which is how a tester picks a run's footage. */
     const matchesTag =
       activeTags.size === 0 ||
       v.tags.some((t) => activeTags.has(t.label)) ||
       (activeTags.has(RECENT_TAG) && isRecent(v))
-    return matchesQuery && matchesSource && matchesTag
+    return matchesQuery && matchesSource && matchesUploader && matchesTag
   })
-  const activeFacets = (sourceFacet !== 'all' ? 1 : 0) + activeTags.size
+  const activeFacets = (sourceFacet !== 'all' ? 1 : 0) + (uploaderFacet !== 'all' ? 1 : 0) + activeTags.size
+  /* Everyone who has uploaded something to this library, "You" first, then
+     teammates by how much they have uploaded — the person with the most footage
+     is the one most often looked for. Counts are over the whole library, not
+     the current filter, so picking a person never makes the others' numbers
+     jump. AI-player clips have no uploader and so no row. */
+  const sourceCounts = videos.reduce<Record<string, number>>((acc, v) => {
+    acc[v.source] = (acc[v.source] ?? 0) + 1
+    return acc
+  }, {})
+  const uploaderCounts = videos.reduce<Record<string, number>>((acc, v) => {
+    if (v.uploadedBy) acc[v.uploadedBy] = (acc[v.uploadedBy] ?? 0) + 1
+    return acc
+  }, {})
+  const uploaderOptions = [
+    { value: 'all', label: 'Anyone' },
+    ...Object.keys(uploaderCounts)
+      .sort((a, b) =>
+        a === CURRENT_USER ? -1 : b === CURRENT_USER ? 1 : uploaderCounts[b] - uploaderCounts[a] || a.localeCompare(b),
+      )
+      .map((name) => ({
+        value: name,
+        label: name === CURRENT_USER ? 'You' : name,
+        meta: `${uploaderCounts[name].toLocaleString()} ${uploaderCounts[name] === 1 ? 'session' : 'sessions'}`,
+      })),
+  ]
   /* What "all of them" covers. Under a filter it is the matches, not the
      library — offering "all 1,000 in the library" from inside a search that
      found 40 would be an offer to act on 960 clips the reader cannot see. */
@@ -760,6 +791,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
   const offerWord = activeFacets > 0 || q ? 'matching' : 'available'
   const clearFacets = () => {
     setSourceFacet('all')
+    setUploaderFacet('all')
     setActiveTags(new Set())
   }
 
@@ -794,7 +826,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
      reset and "all 1,000" survived a search that found 286. Comparing against
      committed state is React's own way to adjust state on a change, and it
      survives the double render. */
-  const facetKey = `${q}|${sourceFacet}|${[...activeTags].sort().join(',')}`
+  const facetKey = `${q}|${sourceFacet}|${uploaderFacet}|${[...activeTags].sort().join(',')}`
   const [lastFacetKey, setLastFacetKey] = useState(facetKey)
   if (lastFacetKey !== facetKey) {
     setLastFacetKey(facetKey)
@@ -967,6 +999,7 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                       totalTags={allTags.length}
                       labelFor={(t) => railLabel(t, facetByTag)}
                     />
+
                   </div>
 
                   {/* Toolbar — search · facets. The row gap is wide enough to
@@ -1046,30 +1079,43 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                       </>
                     )}
 
-                    {/* The source segments are what gives way on a narrow
-                        column — they scroll rather than clip, so the last
-                        option stays reachable and the row stays one line. The
-                        other two things on the row cannot do this: a count
-                        half-cut is unreadable, and a search field is the one
-                        control you have to be able to type a word into. */}
-                    <div className="flex items-center gap-s min-w-0 segment-scroll">
-                      <span
-                        className="font-body text-s leading-[1.5] shrink-0"
-                        style={{ color: 'var(--text-tertiary)' }}
-                      >
-                        Source
-                      </span>
-                      <SegmentedControl<VideoUploadSource | 'all'>
-                        ariaLabel="Filter by capture source"
-                        size="sm"
-                        tone="contrast"
+                    {/* Two facets, one control each, the same control. Each is
+                        a compact filter trigger with the facet's name inside it
+                        ("Source  All") — not a grey label beside a 176px box,
+                        which put three heavy fields on the band and left most of
+                        each box empty. They hug their value, share the search
+                        field's height and radius, and tint only while they are
+                        actually narrowing the library. */}
+                    <div className="flex items-center gap-xs shrink-0">
+                      <TestingMenuSelect
+                        variant="filter"
+                        label="Source"
+                        active={sourceFacet !== 'all'}
                         value={sourceFacet}
-                        onChange={setSourceFacet}
+                        onChange={(v) => setSourceFacet(v as Facet<VideoUploadSource>)}
+                        ariaLabel="Filter by capture source"
                         options={[
                           { value: 'all', label: 'All' },
-                          ...SOURCE_ORDER.map((s) => ({ value: s, label: SOURCE_SHORT[s] })),
+                          ...SOURCE_ORDER.map((src) => ({
+                            value: src,
+                            label: SOURCE_SHORT[src],
+                            meta: `${sourceCounts[src] ?? 0} ${(sourceCounts[src] ?? 0) === 1 ? 'session' : 'sessions'}`,
+                          })),
                         ]}
                       />
+                      {/* Only once more than one person has uploaded — a filter
+                          with a single choice is a label. */}
+                      {uploaderOptions.length > 2 && (
+                        <TestingMenuSelect
+                          variant="filter"
+                          label="Uploaded by"
+                          active={uploaderFacet !== 'all'}
+                          value={uploaderFacet}
+                          onChange={setUploaderFacet}
+                          ariaLabel="Filter by who uploaded"
+                          options={uploaderOptions}
+                        />
+                      )}
                     </div>
                     <span className="flex-1" />
 

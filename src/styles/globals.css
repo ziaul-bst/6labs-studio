@@ -2817,6 +2817,18 @@ textarea { resize: none; font-family: var(--font-body); }
   border-radius: var(--radius-input);
 }
 
+/* The toolbar-facet trigger. Same radius as `.library-search .input-wrapper`
+   (12px) and the same 40px height, so a row of filters and a search box read as
+   one kit — a 6px select beside a 12px search looked assembled from two. Hover
+   is a class, not a Tailwind `hover:` on a CSS variable (see CLAUDE.md). */
+.testing-filter-trigger {
+  border-radius: var(--radius-xl);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.testing-filter-trigger:hover {
+  border-color: var(--border-hover);
+}
+
 /* Report toolbars — search, select and the segmented control below them are one
    row of controls, so they take one radius. Without this the search kept the
    pill `.testing-search` gives a filter row and sat next to a 6px select

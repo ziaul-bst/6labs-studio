@@ -190,7 +190,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
     return (
       <FunctionalTestReport
         title={run.name}
-        subtitle={`${run.detail} · build ${run.meta} · executed by AI Player, 3 agents`}
+        subtitle={`${run.detail} · build ${run.meta} · executed by 3 AI players`}
         mode="ai"
         /* Coverage is denominated in the build, not in a recording count: the
            players produced the footage themselves, so "18 recordings" was a

@@ -5,7 +5,13 @@
  *
  * Single-select. The trigger shows the chosen row's label with a caret, so a
  * filled chip still reads as changeable; a `placeholder` shows until something
- * is chosen. An optional trailing action row ("Upload a new build…") sits
+ * is chosen.
+ *
+ * `filter` (2026-09-24) is the toolbar-facet trigger: the facet's name rides
+ * INSIDE the control ("Source  All"), it hugs its content, and it takes the
+ * library search field's height and 12px radius so a row of filters and a
+ * search box read as one kit. Neutral at rest; brand-tinted only while `active`,
+ * which the caller sets when the value is not the facet's "everything" choice. An optional trailing action row ("Upload a new build…") sits
  * under the options, ruled off, because it is a different kind of choice from
  * picking an existing item.
  *
@@ -15,6 +21,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Spinner } from '../atoms/Spinner'
 import { DropdownArrowIcon } from '../icons/DropdownArrowIcon'
+import { ChevronIcon } from '../icons/ChevronIcon'
 
 export interface MenuSelectOption {
   value: string
@@ -40,7 +47,11 @@ export interface TestingMenuSelectProps {
   /** Extra row under the options — an action, not a choice. */
   trailing?: { label: string; meta?: string; icon?: ReactNode; onSelect: () => void }
   /** Chip-shaped trigger for the composer bar, instead of a full field. */
-  variant?: 'field' | 'chip'
+  variant?: 'field' | 'chip' | 'filter'
+  /** `filter` only — the facet's name, shown inside the trigger before its value. */
+  label?: string
+  /** `filter` only — a real narrowing is in force, so the trigger says so. */
+  active?: boolean
   /** Opens upward — for a trigger sitting at the bottom of its card. */
   openUp?: boolean
   className?: string
@@ -55,6 +66,8 @@ export function TestingMenuSelect({
   trailing,
   variant = 'field',
   openUp = false,
+  label,
+  active = false,
   className,
 }: TestingMenuSelectProps) {
   const [open, setOpen] = useState(false)
@@ -78,9 +91,35 @@ export function TestingMenuSelect({
   }, [open])
 
   const chip = variant === 'chip'
+  const filter = variant === 'filter'
 
   return (
-    <div ref={rootRef} className={['relative', chip ? 'inline-block' : 'w-full', className].filter(Boolean).join(' ')}>
+    <div ref={rootRef} className={['relative', chip || filter ? 'inline-block' : 'w-full', className].filter(Boolean).join(' ')}>
+      {filter ? (
+        <button
+          type="button"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-label={ariaLabel}
+          onClick={() => setOpen((v) => !v)}
+          className="testing-filter-trigger inline-flex items-center gap-xs h-[40px] pl-s pr-xs font-body text-s whitespace-nowrap"
+          style={{
+            backgroundColor: active ? 'var(--bg-tint-light)' : 'var(--bg-elements)',
+            border: `1px solid ${active ? 'var(--border-tint)' : 'var(--border-default)'}`,
+          }}
+        >
+          {label && <span style={{ color: 'var(--text-tertiary)' }}>{label}</span>}
+          <span
+            className="font-medium truncate max-w-[180px]"
+            style={{ color: active ? 'var(--text-brand)' : 'var(--text-primary)' }}
+          >
+            {chosen ? chosen.label : placeholder}
+          </span>
+          <span className="shrink-0 flex items-center" style={{ color: 'var(--text-tertiary)' }} aria-hidden>
+            <ChevronIcon size={16} direction="down" />
+          </span>
+        </button>
+      ) : (
       <button
         type="button"
         aria-haspopup="listbox"
@@ -119,6 +158,7 @@ export function TestingMenuSelect({
           />
         )}
       </button>
+      )}
 
       {open && (
         <div
@@ -126,7 +166,7 @@ export function TestingMenuSelect({
           aria-label={ariaLabel}
           className={[
             'absolute left-0 z-40 flex flex-col p-xxs rounded-xl shadow-big',
-            chip ? 'min-w-[420px]' : 'w-full min-w-[320px]',
+            chip ? 'min-w-[420px]' : filter ? 'min-w-[240px]' : 'w-full min-w-[320px]',
             openUp ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+8px)]',
           ].join(' ')}
           style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}

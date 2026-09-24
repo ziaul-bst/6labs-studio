@@ -392,7 +392,7 @@ const AI_ONLY_ISSUES: UserTestIssue[] = [
     group: 'usability',
     category: 'Friction — monetization',
     title: 'Battle pass upgrade path not reachable from the event screen',
-    summary: 'Whale agents told to try the upgrade looked for it inside Frost Festival and gave up after two screens.',
+    summary: 'Whale AI players told to try the upgrade looked for it inside Frost Festival and gave up after two screens.',
     detail: 'Every whale session opened the event, scrolled the rules, and backed out to the store — the upgrade lives three taps away with no link from the event it boosts.',
     step: 'Event › Frost Festival',
     status: 'no-baseline',
@@ -412,7 +412,7 @@ const AI_ONLY_ISSUES: UserTestIssue[] = [
     group: 'usability',
     category: 'Friction — usability',
     title: 'Event rules skipped in under 3 seconds',
-    summary: 'New-player agents scrolled the rules once and started without reading — the text is below the fold.',
+    summary: 'New-player AI players scrolled the rules once and started without reading — the text is below the fold.',
     detail: 'Time on the rules screen was 2–3s in every new-player session. Only the banner is above the fold; the rules start below it.',
     step: 'Event › Frost Festival',
     status: 'no-baseline',
@@ -434,7 +434,31 @@ export const AI_BEHAVIOURAL_RUN_META: Record<string, AIBehaviouralRunMeta> = {
      "sessions played", a one-card grid, a single-row persona split — and it is
      a real way to use the product, not an edge case to be reasoned about. */
   'aib-smoke': { build: 'v2.3.2', agents: 1, personas: ['New player'], personaCounts: { 'New player': 1 }, lengthLabel: '10 min', startedLabel: 'Sep 8', finished: 1 },
+  /* The Frost Festival run with three AI players that stopped early — the
+     "Partly failed" dock preset. Spread across both personas and three failure
+     modes so the Videos grid shows what a partial failure actually looks like:
+     a few red cards among many finished ones, not a block of them. */
+  'demo-partial': {
+    build: 'v2.3.1',
+    agents: 20,
+    personas: ['New player', 'Whale'],
+    personaCounts: { 'New player': 12, Whale: 8 },
+    lengthLabel: '30 min',
+    startedLabel: 'Sep 6',
+    finished: 20,
+    failedIndices: [3, 10, 16],
+  },
 }
+
+/**
+ * Why an AI player stops early, one line each — short enough for a card, and
+ * said as what happened rather than as an error code. Rotated by index.
+ */
+const AGENT_FAILURES = [
+  'Stopped at an account wall — AI players are not allowed past a login without a human.',
+  'The device disconnected mid-session and did not reconnect.',
+  'The build crashed to the home screen and did not relaunch.',
+]
 
 export const formatSessionTime = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 
@@ -471,6 +495,33 @@ export function buildAgentSessions(runId: string, meta: AIBehaviouralRunMeta, li
     /* A live session can walk as far as the run has captured — up to every
        screen. Capping it below the last one parked the live viewer on a
        screen it could never leave. */
+    const failed = (meta.failedIndices ?? []).includes(i)
+    if (failed) {
+      /* Stopped part-way: every screen up to the stop is real and watchable,
+         nothing after it exists. Varied per player so three failures do not
+         all die on the same screen. */
+      const stoppedAt = Math.min(steps.length - 1, 3 + (i % 5))
+      const lengthMin = Number(meta.lengthLabel.match(/\d+/)?.[0] ?? 30)
+      const stoppedMin = Math.max(1, Math.round((stoppedAt / steps.length) * lengthMin))
+      return {
+        id: `${runId}-a${i + 1}`,
+        index: i,
+        persona,
+        personaDetail: PERSONA_DETAIL[persona] ?? '',
+        status: 'failed' as const,
+        reached: stoppedAt,
+        /* Cut at the stop, so every count downstream — "Screen 6 of 6", the
+           transport's length, "6 screens analysed" — is the session that
+           exists. Leaving the script's remaining screens in made the viewer say
+           "Screen 6 of 14", as if eight more were coming. */
+        steps: steps.slice(0, stoppedAt),
+        /* Said against the session's own length — a player that got 4 of 14
+           screens into a 30-minute session stopped about 9 minutes in. */
+        durationLabel: `Stopped at ${stoppedMin}m`,
+        stoppedFraction: stoppedMin / lengthMin,
+        failure: AGENT_FAILURES[(meta.failedIndices ?? []).indexOf(i) % AGENT_FAILURES.length],
+      }
+    }
     const reached = done ? steps.length : Math.min(steps.length, Math.max(1, liveReached + (i % 4) - 1))
     /* A live session knows which screen its agent is on a beat before it has
        the picture of it — the analysis arrives over the wire, the frame after.
@@ -536,7 +587,7 @@ export function buildAgentIssues(
     /* The shared findings were written about human testers; an AI run reads
        them about agents, and never names a tester id. */
     const forAgents = (t: string) =>
-      t.replace(/\s?\((T\d\d)(, T\d\d)*\)/g, '').replace(/Testers/g, 'Agents').replace(/testers/g, 'agents')
+      t.replace(/\s?\((T\d\d)(, T\d\d)*\)/g, '').replace(/Testers/g, 'AI players').replace(/testers/g, 'AI players')
     return {
       ...issue,
       summary: forAgents(issue.summary),

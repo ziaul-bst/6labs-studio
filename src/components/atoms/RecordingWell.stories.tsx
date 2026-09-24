@@ -50,7 +50,7 @@ export const WaitingForTheFrame: Story = {
   args: {
     orientation: 'portrait',
     pendingLabel: 'Waiting for the frame',
-    pendingNote: '6labs has the agent on this screen — the picture of it is a beat behind.',
+    pendingNote: '6labs has the AI player on this screen — the picture of it is a beat behind.',
   },
   render: (args) => (
     <div style={{ width: 440 }}>
@@ -65,7 +65,7 @@ export const WaitingForTheFrameLandscape: Story = {
   args: {
     orientation: 'landscape',
     pendingLabel: 'Waiting for the frame',
-    pendingNote: '6labs has the agent on this screen — the picture of it is a beat behind.',
+    pendingNote: '6labs has the AI player on this screen — the picture of it is a beat behind.',
   },
   render: (args) => (
     <div style={{ width: 440 }}>

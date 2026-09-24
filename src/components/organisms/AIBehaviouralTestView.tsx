@@ -221,6 +221,13 @@ export function AIBehaviouralTestView({
       setOpenRun({ ...base, id: 'demo-analysing', state: 'analysing', result: undefined, when: runDateLabel() })
       setLiveReached(AI_BEHAVIOURAL_STEPS.length)
       setRunTab('report')
+    } else if (state === 'partial-failure') {
+      /* Finished, three AI players short. Videos, not Report: the question
+         this preset answers is what a partial failure looks like in the grid,
+         and the report's own notice is one tab away. */
+      setOpenRun({ ...base, id: 'demo-partial', state: 'done', result: { kind: 'issues', count: 7 }, when: base.when })
+      setLiveReached(AI_BEHAVIOURAL_STEPS.length)
+      setRunTab('videos')
     } else {
       setOpenRun({ ...base, state: 'done' })
       setRunTab('report')
@@ -255,7 +262,13 @@ export function AIBehaviouralTestView({
   const issues = useMemo(
     () =>
       activeRun?.state === 'done'
-        ? buildAgentIssues(sessions, activeRun.result?.kind === 'issues' ? activeRun.result.count : 7)
+        ? /* Findings come from the sessions that finished. A player that
+             stopped early is evidence of its own failure, not of the build's
+             behaviour past the point it stopped. */
+          buildAgentIssues(
+            sessions.filter((s) => s.status !== 'failed'),
+            activeRun.result?.kind === 'issues' ? activeRun.result.count : 7,
+          )
         : [],
     [activeRun, sessions],
   )
@@ -450,7 +463,7 @@ export function AIBehaviouralTestView({
               <PersonaPicker personas={PERSONAS} value={personaIds} onChange={setPersonaIds} />
             </Row>
 
-            <Row label="Agents">
+            <Row label="AI players">
               {personas.length === 0 ? (
                 <span className="font-body text-s text-text-tertiary leading-[1.5] py-xs">Choose personas first.</span>
               ) : (
@@ -472,11 +485,11 @@ export function AIBehaviouralTestView({
                         className="inline-flex items-center h-[32px] overflow-hidden"
                         style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-input)' }}
                         role="group"
-                        aria-label={`${p.label} agents`}
+                        aria-label={`${p.label} AI players`}
                       >
-                        <StepperButton label={`Fewer ${p.label} agents`} onClick={() => setCount(p.id, countOf(p.id) - 1)}>−</StepperButton>
+                        <StepperButton label={`Fewer ${p.label} AI players`} onClick={() => setCount(p.id, countOf(p.id) - 1)}>−</StepperButton>
                         <span className="w-[44px] text-center font-display text-s font-semibold text-text-primary">{countOf(p.id)}</span>
-                        <StepperButton label={`More ${p.label} agents`} onClick={() => setCount(p.id, countOf(p.id) + 1)}>+</StepperButton>
+                        <StepperButton label={`More ${p.label} AI players`} onClick={() => setCount(p.id, countOf(p.id) + 1)}>+</StepperButton>
                       </div>
                     </div>
                   ))}
@@ -487,7 +500,7 @@ export function AIBehaviouralTestView({
                   >
                     {/* One is now the default, so the line has to survive it. */}
                     <span className="font-semibold text-text-primary">
-                      {totalAgents} {totalAgents === 1 ? 'agent' : 'agents'}
+                      {totalAgents} {totalAgents === 1 ? 'AI player' : 'AI players'}
                     </span>{' '}
                     in total
                   </div>

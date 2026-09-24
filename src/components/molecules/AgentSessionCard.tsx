@@ -10,10 +10,18 @@
  * Everything else — the title, the duration — is identical in both, so a grid
  * that is half done reads as one set rather than two.
  *
+ * Failed (2026-09-24) is the third state and the only one that says something
+ * about itself: an AI player that stopped early. Same card, same frame — the
+ * last screen it reached, under a scrim so it cannot be mistaken for a healthy
+ * recording — with a FAILED badge where Live sits, a red rule showing how far
+ * it got, and the reason in one line under the title. It still opens: every
+ * screen up to the stop is real, and the last one is where the reason is.
+ *
  * Code-first prototype — from the PM artifact (screen s47), no Figma source yet.
  */
 
 import { PlayIcon } from '../icons/PlayIcon'
+import { FailedGlyph } from './RunFailedNotice'
 import { RecordingWell } from '../atoms/RecordingWell'
 import { useRecordingDemoState } from '../../lib/recordingDemoState'
 import type { AgentSession } from '../../lib/types/testing'
@@ -29,11 +37,14 @@ export interface AgentSessionCardProps {
 export function AgentSessionCard({ session, onOpen, hidePersona = false, className }: AgentSessionCardProps) {
   const demoOrientation = useRecordingDemoState()
   const live = session.status === 'live'
+  const failed = session.status === 'failed'
   const latest = session.steps[Math.max(0, session.reached - 1)]
   /* A live card shows where the agent is; a finished one shows a screen from
      the middle of its session, varied per agent so a grid of twenty reads as
      twenty recordings rather than one. */
-  const current = live ? latest : session.steps[Math.min(session.steps.length - 1, 2 + (session.index % 6))]
+  /* A failed card shows where it stopped — that is the frame the reason is about. */
+  const current =
+    live || failed ? latest : session.steps[Math.min(session.steps.length - 1, 2 + (session.index % 6))]
   const title = hidePersona ? `Agent ${session.index + 1}` : `${session.persona} · agent ${session.index + 1}`
   const orientation = session.orientation ?? demoOrientation
 
@@ -41,7 +52,9 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
     <button
       type="button"
       onClick={() => onOpen?.(session)}
-      aria-label={`${title}, ${live ? `live, ${session.durationLabel}` : session.durationLabel}`}
+      aria-label={`${title}, ${
+        failed ? `failed, ${session.durationLabel}. ${session.failure ?? ''}` : live ? `live, ${session.durationLabel}` : session.durationLabel
+      }`}
       className={[
         'agent-session-card flex flex-col w-full text-left rounded-2xl overflow-hidden',
         className,
@@ -75,7 +88,26 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
           </span>
         }
       >
-        {live ? (
+        {failed ? (
+          <>
+            {/* The scrim is what separates a stopped recording from a finished
+                one at a glance — the frame is real, the session is not whole. */}
+            <span className="absolute inset-0" style={{ backgroundColor: 'rgba(15,27,51,0.55)' }} aria-hidden />
+            <span
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center w-[36px] h-[36px] rounded-round"
+              style={{ backgroundColor: 'var(--error)', color: '#fff' }}
+              aria-hidden
+            >
+              <FailedGlyph size={18} />
+            </span>
+            <span
+              className="absolute right-s top-s inline-flex items-center gap-xxs px-xs py-xxxs rounded-round font-display text-2xs font-semibold uppercase tracking-[0.08em]"
+              style={{ backgroundColor: 'var(--bg-elements)', color: 'var(--error)' }}
+            >
+              Failed
+            </span>
+          </>
+        ) : live ? (
           <span
             className="absolute right-s top-s inline-flex items-center gap-xxs px-xs py-xxxs rounded-round font-display text-2xs font-semibold uppercase tracking-[0.08em]"
             style={{ backgroundColor: 'var(--bg-elements)', color: 'var(--error)' }}
@@ -106,11 +138,17 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
           {session.durationLabel}
         </span>
 
-        {live && (
+        {(live || failed) && (
+          /* How far it got. Brand while it is still going; red where it
+             stopped, so the length of the rule is the length of the session
+             that exists. */
           <span className="absolute left-0 right-0 bottom-0 h-[3px]" style={{ backgroundColor: 'rgba(255,255,255,0.25)' }} aria-hidden>
             <i
               className="block h-full transition-[width] duration-500 ease-out"
-              style={{ width: `${(session.reached / session.steps.length) * 100}%`, backgroundColor: 'var(--brand)' }}
+              style={{
+                width: `${(failed ? session.stoppedFraction ?? 1 : session.reached / session.steps.length) * 100}%`,
+                backgroundColor: failed ? 'var(--error)' : 'var(--brand)',
+              }}
             />
           </span>
         )}
@@ -125,10 +163,18 @@ export function AgentSessionCard({ session, onOpen, hidePersona = false, classNa
           of that persona — it belongs to the persona, not to this recording.
           The dot went with them: it encoded the persona a second time, beside a
           title that already names it. */}
-      <span className="flex flex-col px-m py-s min-w-0">
+      <span className="flex flex-col gap-xxxs px-m py-s min-w-0">
         <span className="font-display text-s font-semibold text-text-primary leading-[1.45] truncate">
           {title}
         </span>
+        {/* The one exception to "who played it, and nothing else": a failed
+            card has to say why, or the badge is a verdict with no reason.
+            Two lines at most; the whole sentence is on the session page. */}
+        {failed && session.failure && (
+          <span className="font-body text-xs leading-[1.5] line-clamp-2" style={{ color: 'var(--error)' }} title={session.failure}>
+            {session.failure}
+          </span>
+        )}
       </span>
     </button>
   )

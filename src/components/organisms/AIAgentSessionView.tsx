@@ -24,6 +24,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PageTopbar } from '../molecules/PageTopbar'
+import { FailedGlyph } from '../molecules/RunFailedNotice'
 import { RunFacts } from '../molecules/RunFacts'
 import Button from '../ui/Button'
 import { PlayIcon } from '../icons/PlayIcon'
@@ -98,11 +99,14 @@ export function AIAgentSessionView({
     [sessionProp, textState],
   )
   const live = session.status === 'live'
+  /* Stopped early. Lands on the screen it stopped at, like a live session
+     lands on its newest one — that is where the reason is. */
+  const failed = session.status === 'failed'
   const reached = session.reached
   const total = session.steps.length
   const last = reached - 1
   const demoOrientation = useRecordingDemoState()
-  const [idx, setIdx] = useState(() => Math.min(initialStep ?? (live ? last : 0), last))
+  const [idx, setIdx] = useState(() => Math.min(initialStep ?? (live || failed ? last : 0), last))
   const [playing, setPlaying] = useState(initialStep === undefined)
   const stripRef = useRef<HTMLDivElement>(null)
   const step = session.steps[idx]
@@ -122,10 +126,10 @@ export function AIAgentSessionView({
      captured — the rest of the walk is the reader's. */
   const landed = useRef(false)
   useEffect(() => {
-    if (!live || initialStep !== undefined || landed.current) return
+    if (!(live || failed) || initialStep !== undefined || landed.current) return
     landed.current = true
     setIdx(last)
-  }, [live, initialStep, last])
+  }, [live, failed, initialStep, last])
 
   /* Replay — the same walk for a live session and a finished one. */
   useEffect(() => {
@@ -188,6 +192,10 @@ export function AIAgentSessionView({
           <StatusPill bg="var(--bg-tint)" ink="var(--text-brand)">
             <i className="agent-live-dot" aria-hidden />
             Live
+          </StatusPill>
+        ) : failed ? (
+          <StatusPill bg="var(--error-bg)" ink="var(--error)">
+            Failed · {session.durationLabel.toLowerCase()}
           </StatusPill>
         ) : undefined
       }
@@ -279,7 +287,7 @@ export function AIAgentSessionView({
                      on different clocks, and blanking the half that HAS
                      arrived would throw away the only thing known. */
                   pendingLabel="Waiting for the frame"
-                  pendingNote="6labs has the agent on this screen — the picture of it is a beat behind."
+                  pendingNote="6labs has the AI player on this screen — the picture of it is a beat behind."
                   /* The HUD stand-in belongs to the game, so it is clipped to
                      the footage — on a portrait clip it would otherwise float
                      out over the ambience and read as 6labs' own chrome. */
@@ -536,6 +544,23 @@ export function AIAgentSessionView({
                       This is the last screen 6labs has captured for this agent.
                     </span>
                   )}
+                  {/* The reason, at the screen it is about. A failed session is
+                      otherwise a session that ends early for no stated reason —
+                      the card said why in two lines; this is the whole of it. */}
+                  {failed && idx === last && session.failure && (
+                    <div
+                      className="flex items-start gap-xs rounded-l px-s py-xs"
+                      style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error)' }}
+                      role="status"
+                    >
+                      <span className="shrink-0 mt-[2px]" aria-hidden>
+                        <FailedGlyph size={14} />
+                      </span>
+                      <span className="font-body text-xs leading-[1.55]">
+                        <strong className="font-semibold">The AI player stopped here.</strong> {session.failure}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Same 56px as the transport beside it, so the two rows read
@@ -621,8 +646,11 @@ export function AIAgentSessionView({
                   /* A clean session is a result, not an absence — it is the
                      outcome this run most wants to be able to report. */
                   <p className="font-body text-s text-text-secondary leading-[1.7] m-0 max-w-[92ch]">
-                    Nothing was flagged in this session. The agent played all {total} screens without
-                    hitting anything the run reported.
+                    {failed
+                      ? /* "Played all 6 screens" would be true and misleading: it
+                           played all the screens it reached, then stopped. */
+                        `Nothing was flagged before this AI player stopped, ${total} ${total === 1 ? 'screen' : 'screens'} in. Its footage is not part of the run's report.`
+                      : `Nothing was flagged in this session. The AI player played all ${total} screens without hitting anything the run reported.`}
                   </p>
                 ) : (
                   <ul className="flex flex-col gap-xxs w-full m-0 p-0" style={{ listStyle: 'none' }}>
@@ -677,7 +705,7 @@ function Reading({ label, lines = 3, children }: { label: string; lines?: number
       {/* An observation quotes the screen, and a screen can be a wall of rules
           text — folded, opened with one click. See the fold budget on the
           Reasoning block for why it is three lines and not six. */}
-      <ExpandableText lines={lines} moreLabel="Show everything the agent saw">
+      <ExpandableText lines={lines} moreLabel="Show everything the AI player saw">
         <span className="font-body text-s text-text-secondary leading-[1.6] wrap-anywhere">{children}</span>
       </ExpandableText>
     </div>

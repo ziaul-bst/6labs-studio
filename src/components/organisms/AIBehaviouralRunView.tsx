@@ -28,7 +28,7 @@ import { FilterPill } from '../atoms/FilterPill'
 import { ProgressBar } from '../atoms/ProgressBar'
 import { Spinner } from '../atoms/Spinner'
 import { Skeleton, SkeletonText } from '../atoms/Skeleton'
-import { RunFailedNotice, runFailureText } from '../molecules/RunFailedNotice'
+import { FailedGlyph, RunFailedNotice, runFailureText } from '../molecules/RunFailedNotice'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import { DownloadIcon } from '../icons/DownloadIcon'
@@ -60,7 +60,7 @@ export interface AIBehaviouralRunViewProps {
   className?: string
 }
 
-export type VideosStatusFilter = 'all' | 'live' | 'done'
+export type VideosStatusFilter = 'all' | 'live' | 'done' | 'failed'
 
 /** Cards per page in the Videos grid — the same 12 the Gameplay Library pages at. */
 const PAGE_SIZE = 12
@@ -112,7 +112,9 @@ export function AIBehaviouralRunView({
   const failure = runFailureText(run)
   const done = sessions.filter((s) => s.status === 'done').length
   const screensAnalysed = sessions.reduce((acc, s) => acc + s.reached, 0)
-  const liveCount = sessions.length - done
+  const liveCount = sessions.filter((s) => s.status === 'live').length
+  /* AI players that stopped early in a run that otherwise went on. */
+  const failedCount = sessions.filter((s) => s.status === 'failed').length
   /* This screen's own beat, keyed on the run AND the tab: Report and Videos
      read different things, so switching between them is a fetch and the tab
      that arrives should arrive the way the first one did. */
@@ -200,15 +202,24 @@ export function AIBehaviouralRunView({
                   onClick={() => setPersona(p)}
                 />
               ))}
-              {inProgress && (
+              {(inProgress || failedCount > 0) && (
                 <>
                   <span className="w-px h-[24px] mx-xxs" style={{ backgroundColor: 'var(--border-subtle)' }} aria-hidden />
                   {/* "Live", the same word the card's own badge, the topbar
                       pill and the history row's button all use. It read
                       "Playing" here and "Live" three inches away on every card
                       it filtered to. */}
-                  <FilterPill label="Live" count={liveCount} selected={status === 'live'} onClick={() => setStatus(status === 'live' ? 'all' : 'live')} />
+                  {inProgress && (
+                    <FilterPill label="Live" count={liveCount} selected={status === 'live'} onClick={() => setStatus(status === 'live' ? 'all' : 'live')} />
+                  )}
                   <FilterPill label="Finished" count={done} selected={status === 'done'} onClick={() => setStatus(status === 'done' ? 'all' : 'done')} />
+                  {/* The way to the failures. The status row used to exist
+                      only while a run was live, so a finished run with three
+                      dead sessions had no filter for them at all — the cards
+                      were the only place the failure was said. */}
+                  {failedCount > 0 && (
+                    <FilterPill label="Failed" count={failedCount} selected={status === 'failed'} onClick={() => setStatus(status === 'failed' ? 'all' : 'failed')} />
+                  )}
                 </>
               )}
               <span className="flex-1" />
@@ -259,14 +270,29 @@ export function AIBehaviouralRunView({
                 onWatch={() => onTabChange('videos')}
               />
             ) : (
-              <ReportBody
-                run={run}
-                meta={meta}
-                sessions={sessions}
-                issues={issues}
-                screensAnalysed={screensAnalysed}
-                onOpenSession={onOpenSession}
-              />
+              <>
+                {/* A partial failure is said on the report, not only in the
+                    grid — otherwise the report reads as if all 20 played and
+                    the reader has no reason to go and look. */}
+                {failedCount > 0 && (
+                  <PartialFailureNotice
+                    failed={failedCount}
+                    total={sessions.length}
+                    onView={() => {
+                      setStatus('failed')
+                      onTabChange('videos')
+                    }}
+                  />
+                )}
+                <ReportBody
+                  run={run}
+                  meta={meta}
+                  sessions={sessions}
+                  issues={issues}
+                  screensAnalysed={screensAnalysed}
+                  onOpenSession={onOpenSession}
+                />
+              </>
             )
           ) : loadPhase ? (
             <MediaGridSkeleton label={`Loading sessions for ${run.name}`} count={Math.min(8, Math.max(4, sessions.length || 8))} />
@@ -282,6 +308,43 @@ export function AIBehaviouralRunView({
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Some AI players stopped early; the run did not. Warning, not error: the
+ * report under it is real and complete for the players that finished, and
+ * the run-failed notice (RunFailedNotice) is reserved for a run that could not
+ * produce one. The one action goes to the failed sessions, filtered — which is
+ * the only place the reason for each is written.
+ */
+function PartialFailureNotice({ failed, total, onView }: { failed: number; total: number; onView: () => void }) {
+  const finished = total - failed
+  return (
+    <div
+      className="flex items-center gap-m w-full rounded-2xl px-l py-m"
+      style={{ backgroundColor: 'var(--warning-bg)', border: '1px solid var(--border-subtle)' }}
+      role="status"
+    >
+      <span
+        className="flex items-center justify-center shrink-0 w-[32px] h-[32px] rounded-l"
+        style={{ backgroundColor: 'var(--bg-elements)', color: 'var(--warning)' }}
+        aria-hidden
+      >
+        <FailedGlyph size={18} />
+      </span>
+      <div className="flex flex-col gap-xxxs min-w-0 flex-1">
+        <span className="font-display text-s font-semibold text-text-primary leading-[1.45]">
+          {failed} of {total} AI players stopped early
+        </span>
+        <span className="font-body text-s text-text-secondary leading-[1.55]">
+          This report is built from the {finished} {finished === 1 ? 'session' : 'sessions'} that finished.
+        </span>
+      </div>
+      <Button variant="secondary" size="md" onClick={onView}>
+        View failed sessions
+      </Button>
     </div>
   )
 }
@@ -371,7 +434,7 @@ function ReportPending({
             {!idle && <Spinner size={16} tone="brand" />}
             <span>
               {queued ? (
-                <>Queued · {total === 1 ? 'the agent starts' : `${total} agents start`} as soon as devices free up</>
+                <>Queued · {total === 1 ? 'the AI player starts' : `${total} AI players start`} as soon as devices free up</>
               ) : none ? (
                 <>No behaviour to analyse yet · waiting for the first session on {meta.build}</>
               ) : playing ? (
@@ -453,7 +516,7 @@ function ReportPending({
               : none
                 ? 'nothing recorded yet'
                 : playing
-                  ? 'ranked once the last agent has played'
+                  ? 'ranked once the last AI player has played'
                   : 'being ranked now'
           }
         />
@@ -494,7 +557,11 @@ function ReportBody({
   /* Reviewed, not played: footage is generated first and analysed second, and
      on a run still in flight the two numbers differ. The report is written from
      the reviewed ones. */
-  const reviewed = sessions.length
+  /* Only the players that finished were analysed — a failed one stopped part-
+     way and its footage is not part of the report. On a clean run this is
+     every session. */
+  const reviewed = sessions.filter((s) => s.status !== 'failed').length
+  const failedN = sessions.length - reviewed
   const agentWord = meta.agents === 1 ? 'AI player' : 'AI players'
   /* Hours of footage, not a count of sessions: "20 sessions reviewed" sat next
      to "20 sessions played" and the pair read as the same number printed twice.
@@ -508,7 +575,7 @@ function ReportBody({
       kicker: REPORT_KICKER,
       /* The noun each finding counts against — "16 / 20 agents". Still needed
          alongside `tiles`, which only replaces the masthead numbers. */
-      sessionsLabel: 'agents',
+      sessionsLabel: 'AI players',
       title: run.name,
       /* No subtitle line. It read "20 AI players · New player & Whale" directly
          above a tile row that now counts both of those things, and the tiles
@@ -516,7 +583,9 @@ function ReportBody({
       game: '',
       generated: meta.startedLabel,
       runId: runIdLabel(run),
-      sessions: meta.agents,
+      /* Each finding counts against the players that were analysed — "9 / 17",
+         not "9 / 20" with three silent zeros in the denominator. */
+      sessions: reviewed,
       footageLabel: `${screensAnalysed}`,
       /* What the run was made of, then what came out of it: how many kinds of
          player, how many sessions they produced, how many hours of that the
@@ -538,11 +607,13 @@ function ReportBody({
       narrative:
         issues.length === 0
           ? `${reviewed} ${reviewed === 1 ? 'session' : 'sessions'} played ${meta.lengthLabel} each on ${meta.build}, and nothing was flagged.`
-          : `${meta.agents} ${agentWord} played ${meta.lengthLabel}${meta.agents === 1 ? '' : ' each'} on ${meta.build}. ${issues.length} finding${
+          : `${failedN > 0 ? `${reviewed} of ${meta.agents}` : meta.agents} ${agentWord} played ${meta.lengthLabel}${meta.agents === 1 ? '' : ' each'} on ${meta.build}${
+              failedN > 0 ? ` — ${failedN} stopped early` : ''
+            }. ${issues.length} finding${
               issues.length === 1 ? '' : 's'
-            } across ${screensAnalysed} screens, ranked by how many agents hit ${issues.length === 1 ? 'it' : 'them'}.`,
+            } across ${screensAnalysed} screens, ranked by how many AI players hit ${issues.length === 1 ? 'it' : 'them'}.`,
     }),
-    [run, meta, agentWord, played, reviewed, footageHours, bugs, friction, screensAnalysed, issues.length],
+    [run, meta, agentWord, played, reviewed, failedN, footageHours, bugs, friction, screensAnalysed, issues.length],
   )
 
   return (
@@ -811,8 +882,8 @@ function VideosEmpty({
             </span>
             <span className="font-body text-s text-text-secondary leading-[1.7] max-w-[62ch]">
               {preparing === 'queued'
-                ? 'The run is waiting for devices. Sessions appear here one at a time as the agents pick the build up — nothing needs to stay open for them to land.'
-                : 'The agents are playing. Each session appears here the moment its recording is ready — they arrive one at a time, and nothing needs to stay open for them to land.'}
+                ? 'The run is waiting for devices. Sessions appear here one at a time as the AI players pick the build up — nothing needs to stay open for them to land.'
+                : 'The AI players are playing. Each session appears here the moment its recording is ready — they arrive one at a time, and nothing needs to stay open for them to land.'}
             </span>
           </div>
           {/* The shape the first sessions will land in, under the sentence that
@@ -845,7 +916,7 @@ function VideosEmpty({
       <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
         <VideosEmptyState
           title="No sessions yet"
-          message="The AI players have not recorded anything on this build yet. Each session appears here as its agent finishes the first screen — there is nothing to do but wait."
+          message="The AI players have not recorded anything on this build yet. Each session appears here as its AI player finishes the first screen — there is nothing to do but wait."
         />
       </div>
     )

@@ -32,6 +32,7 @@ export type RunDemoState =
   | 'summary'
   | 'asking'
   | 'report'
+  | 'partial-failure'
 
 /**
  * The screens a test can be held on, per test — they no longer share one list,
@@ -75,6 +76,7 @@ export const RUN_DEMO_STATES_AI_BEHAVIOURAL: RunDemoState[] = [
   'running',
   'analysing',
   'report',
+  'partial-failure',
 ]
 
 export const RUN_DEMO_LABELS: Record<RunDemoState, string> = {
@@ -87,6 +89,7 @@ export const RUN_DEMO_LABELS: Record<RunDemoState, string> = {
   summary: 'Run page',
   asking: 'Follow-up loading',
   report: 'Report',
+  'partial-failure': 'Partly failed',
 }
 
 export const RUN_DEMO_NOTES: Record<RunDemoState, string> = {
@@ -101,6 +104,8 @@ export const RUN_DEMO_NOTES: Record<RunDemoState, string> = {
   summary: 'The run page — what the run found, and how big it was.',
   asking: 'A follow-up asked and still being answered — the pending answer sheet, held open.',
   report: 'The full report: issues ranked by testers affected, with clips.',
+  'partial-failure':
+    'A finished run where 3 of 20 AI players stopped early. Opens on Videos: the failed sessions are cards of their own with the reason, and the report says it was built from the 17 that finished.',
 }
 
 // ─── Store ───────────────────────────────────────────────────────────────────
