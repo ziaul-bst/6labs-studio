@@ -339,7 +339,7 @@ export function UserTestReport({
                   }}
                 >
                   <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
-                    No findings in this run
+                    No issues found
                   </span>
                   <span className="font-body text-m text-text-secondary leading-[1.7] max-w-[74ch]">
                     Nothing blocked a session and nothing recoverable was recorded across the{' '}

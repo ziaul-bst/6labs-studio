@@ -35,6 +35,7 @@ import { SourcesGrid, type SourceItem } from '../molecules/SourcesGrid'
 import { ReportCtaBand } from '../molecules/ReportCtaBand'
 import { StatTile } from '../molecules/StatTile'
 import { FindingsByCategoryTable, categoryRowsFor } from '../molecules/FindingsByCategoryTable'
+import { CheckIcon } from '../icons/CheckIcon'
 import { ClipLightbox } from '../molecules/ClipLightbox'
 import { Spinner } from '../atoms/Spinner'
 import { RunPageSkeleton } from '../molecules/TestingSkeletons'
@@ -155,7 +156,7 @@ export function UserTestRunSummary({
   footageLabel = '2h 14m',
   sources = DEFAULT_SOURCES,
   categories = USER_TEST_CATEGORY_ROWS,
-  headline = DEFAULT_HEADLINE,
+  headline,
   askTurns,
   onAskTurnsChange,
   onBack,
@@ -169,6 +170,11 @@ export function UserTestRunSummary({
      analysing run is a wait with the agent behind it and says so in words —
      a skeleton there would claim the page is still arriving. */
   const loadPhase = usePageLoading(runName)
+  /* Nothing found. A clean run is the result a test most wants to be able to
+     report, so it gets its own middle rather than an empty findings list and a
+     band offering "All 0 findings, their clips and a recommendation". */
+  const clean = issues.length === 0
+  const lede = headline ?? DEFAULT_HEADLINE
   const bugs = issues.filter((i) => i.kind === 'bug').length
   const friction = issues.filter((i) => i.kind === 'friction').length
   const categoryRows = useMemo(() => categoryRowsFor(issues, categories), [issues, categories])
@@ -405,6 +411,10 @@ export function UserTestRunSummary({
               </div>
 
               <Section number="01" title="Summary">
+                {/* On a clean run the verdict leads and the numbers support it —
+                    a reader should meet "No issues found" before "0 bugs", not
+                    after it. */}
+                {clean && <NoIssuesVerdict sessions={analysedCount ?? sessionCount} />}
                 <div className="stat-tiles gap-s">
                   {analysedCount !== undefined && analysedCount !== sessionCount ? (
                     <StatTile
@@ -422,9 +432,14 @@ export function UserTestRunSummary({
                     are one document at two depths, and the summary was setting
                     its prose at 14px secondary while the report set the same
                     sentence at 16px primary — which reads as two products. */}
-                <p className="font-body text-m font-normal text-text-primary leading-[1.75] pt-m max-w-[86ch]">
-                  {headline}
-                </p>
+                {/* No narrative on a clean run: the verdict above IS the
+                    result, said once — not a paragraph that the section below
+                    then repeated in a green box. */}
+                {!clean && (
+                  <p className="font-body text-m font-normal text-text-primary leading-[1.75] pt-m max-w-[86ch]">
+                    {lede}
+                  </p>
+                )}
 
                 {/* Where the run's damage is concentrated, before any single
                     finding is read. The same table the full report opens with —
@@ -444,7 +459,10 @@ export function UserTestRunSummary({
 
               {/* Ranking needs no caption: the count on the right of every row
                   is the thing the list is sorted by, and it says so itself. */}
-              <Section number="02" title="Top findings" divided>
+              <Section number="02" title={clean ? 'What was checked' : 'Top findings'} divided>
+                {clean ? (
+                  <CheckedCategories categories={categories} onOpenLibrary={onOpenLibrary} />
+                ) : (
                 <div className="flex flex-col gap-xxs">
                   {issues.slice(0, previewCount).map((issue) => (
                     <UserTestIssueCard
@@ -460,13 +478,16 @@ export function UserTestRunSummary({
                     />
                   ))}
                 </div>
+                )}
               </Section>
 
               {/* The way down to the evidence — the one thing this message asks
                   you to do, so it takes the message's whole width, the brand
                   tint and a primary button, rather than sitting inset and pale
                   like a footnote. */}
-              <ReportCtaBand findingCount={issues.length} onOpenReport={onOpenReport} />
+              {/* Not on a clean run: there is no evidence to go down to, and
+                  the report would print the same result this page just did. */}
+              {!clean && <ReportCtaBand findingCount={issues.length} onOpenReport={onOpenReport} />}
             </Panel>
           </div>
           )}
@@ -560,3 +581,81 @@ function Section({
   )
 }
 
+/**
+ * The verdict of a run that found nothing — the whole of the Summary's prose
+ * on a clean run. A result, in the success pair, with the scope it covers:
+ * "no issues" is a claim about these sessions, not about the build.
+ */
+function NoIssuesVerdict({ sessions }: { sessions: number }) {
+  return (
+    <div
+      className="flex items-center gap-m w-full rounded-2xl px-l py-m mb-s"
+      style={{ backgroundColor: 'var(--success-bg)', border: '1px solid var(--border-subtle)' }}
+      role="status"
+    >
+      <span
+        className="flex items-center justify-center shrink-0 w-[44px] h-[44px] rounded-round text-white"
+        style={{ backgroundColor: 'var(--success)', boxShadow: '0 0 0 6px rgba(22, 163, 74, 0.14)' }}
+        aria-hidden
+      >
+        <CheckIcon size={24} />
+      </span>
+      <div className="flex flex-col gap-xxxs min-w-0">
+        <span className="font-display text-l font-semibold text-text-primary leading-[1.3]">No issues found</span>
+        <span className="font-body text-s text-text-secondary leading-[1.55]">
+          Nothing in {sessions === 1 ? 'this session' : `these ${sessions} sessions`} needs fixing.
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * What a clean run looked for. Findings on a clean run are the empty set, and
+ * an empty set has nothing to show — so the section shows its coverage
+ * instead: every category the report sorts findings into, each cleared. It is
+ * the evidence behind the verdict above rather than a second copy of it.
+ */
+function CheckedCategories({
+  categories,
+  onOpenLibrary,
+}: {
+  categories: UserTestCategoryRow[]
+  onOpenLibrary?: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-s">
+      <div className="flex flex-col w-full rounded-xl overflow-hidden" style={{ border: '1px solid var(--border-subtle)' }}>
+        {categories.map((c, i) => (
+          <div
+            key={c.label}
+            className="flex items-center gap-s px-l py-s"
+            style={{ borderTop: i === 0 ? undefined : '1px solid var(--border-subtle)' }}
+          >
+            <span
+              className="w-[7px] h-[7px] rounded-round shrink-0"
+              style={{ backgroundColor: c.tone === 'bug' ? 'var(--error)' : 'var(--warning)' }}
+              aria-hidden
+            />
+            <span className="font-body text-s text-text-primary leading-[1.5] flex-1 min-w-0 truncate">{c.label}</span>
+            <span
+              className="inline-flex items-center gap-xxs font-body text-s font-medium leading-[1.5] shrink-0"
+              style={{ color: 'var(--success)' }}
+            >
+              <CheckIcon size={16} />
+              None found
+            </span>
+          </div>
+        ))}
+      </div>
+      <span className="flex flex-wrap items-center gap-xs font-body text-s text-text-tertiary leading-[1.5]">
+        The footage stays in the Gameplay Library.
+        {onOpenLibrary && (
+          <button type="button" onClick={onOpenLibrary} className="font-semibold text-text-brand hover:underline">
+            Watch the sessions
+          </button>
+        )}
+      </span>
+    </div>
+  )
+}

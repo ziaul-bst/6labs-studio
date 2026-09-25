@@ -33,6 +33,7 @@ export type RunDemoState =
   | 'asking'
   | 'report'
   | 'partial-failure'
+  | 'no-issues'
 
 /**
  * The screens a test can be held on, per test — they no longer share one list,
@@ -49,6 +50,9 @@ export const RUN_DEMO_STATES_USER_TEST: RunDemoState[] = [
   'queued',
   'question',
   'summary',
+  /* A finished run the agent found nothing in — its own result, not an
+     empty list. */
+  'no-issues',
   /* The follow-up loader is only up for ANSWER_DELAY_MS — too short to review
      without a preset holding it. */
   'asking',
@@ -90,6 +94,7 @@ export const RUN_DEMO_LABELS: Record<RunDemoState, string> = {
   asking: 'Follow-up loading',
   report: 'Report',
   'partial-failure': 'Partly failed',
+  'no-issues': 'No issues found',
 }
 
 export const RUN_DEMO_NOTES: Record<RunDemoState, string> = {
@@ -104,6 +109,8 @@ export const RUN_DEMO_NOTES: Record<RunDemoState, string> = {
   summary: 'The run page — what the run found, and how big it was.',
   asking: 'A follow-up asked and still being answered — the pending answer sheet, held open.',
   report: 'The full report: issues ranked by testers affected, with clips.',
+  'no-issues':
+    'A finished run where the agent flagged nothing: the run page leads with the result, the findings section says so, and there is no report band to open.',
   'partial-failure':
     'A finished run where 3 of 20 AI players failed — two part-way, one before starting. Opens on Videos: each failed session is a card of its own, and the report says it was built from the 17 that finished.',
 }

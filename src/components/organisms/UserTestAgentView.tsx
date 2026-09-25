@@ -171,6 +171,15 @@ export function UserTestAgentView({
             ]
           : [],
     )
+    if (state === 'no-issues') {
+      setOpen({
+        run: { ...SEED_REPORT, id: 'demo-clean', state: 'done', result: { kind: 'issues', count: 0 } },
+        gameContext: 'Onboarding flow v3',
+        videoCount: 10,
+      })
+      setStage('summary')
+      return
+    }
     if (state === 'queued') {
       setOpen({
         run: { ...SEED_REPORT, id: 'demo-queued', state: 'queued', result: undefined, when: runDateLabel() },
@@ -193,6 +202,10 @@ export function UserTestAgentView({
   })
 
   const screen: UserTestScreen = open ? stage : 'home'
+  /* A run whose result is zero findings gets zero findings — every page of it
+     reads the same set, so a clean run cannot show the seeded ones by accident. */
+  const openResult = open?.run.result
+  const runIssues = openResult?.kind === 'issues' && openResult.count === 0 ? [] : USER_TEST_ISSUES
   /* Resolved against the list, so a run that was queued when it was opened
      moves through analysing to its report without anyone reopening it. */
   const liveRun = (open && runs.find((r) => r.id === open.run.id)) || open?.run || SEED_REPORT
@@ -344,7 +357,7 @@ export function UserTestAgentView({
         <UserTestRunSummary
           className="flex-1"
           runName={open.run.name}
-          issues={USER_TEST_ISSUES}
+          issues={runIssues}
           /* One page, four middles. The row's own state decides which: queued
              and analysing are waits, a question is a single answer sheet, and
              a finished report is the summary. */
@@ -385,7 +398,15 @@ export function UserTestAgentView({
       {screen === 'report' && (
         <UserTestReport
           runName={open?.run.name ?? SEED_REPORT.name}
-          issues={USER_TEST_ISSUES}
+          issues={runIssues}
+          meta={
+            runIssues.length === 0
+              ? {
+                  ...USER_TEST_REPORT_META,
+                  narrative: `No issues found. The agent read ${USER_TEST_REPORT_META.analysedSessions ?? USER_TEST_REPORT_META.sessions} sessions and flagged no bugs and no friction.`,
+                }
+              : undefined
+          }
           onBackToRun={() => setStage('summary')}
         />
       )}

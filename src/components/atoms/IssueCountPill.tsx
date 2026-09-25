@@ -32,7 +32,7 @@ export function IssueCountPill({ count, className }: IssueCountPillProps) {
           : { backgroundColor: 'var(--warning-bg)' }
       }
     >
-      {clean ? 'No findings' : `${count} ${count === 1 ? 'finding' : 'findings'}`}
+      {clean ? 'No issues found' : `${count} ${count === 1 ? 'finding' : 'findings'}`}
     </span>
   )
 }

@@ -18,6 +18,7 @@ import { CloseIcon } from '../icons/CloseIcon'
 import { CopyIcon } from '../icons/CopyIcon'
 import { CheckIcon } from '../icons/CheckIcon'
 import { UploadIcon } from '../icons/UploadIcon'
+import { InfoFilledIcon } from '../icons/InfoFilledIcon'
 import { SegmentedControl } from '../atoms/SegmentedControl'
 import { ACTIVE_GAME } from '../../lib/activeGame'
 
@@ -402,24 +403,17 @@ function CliTab({
         background, retries on failure, and resumes interrupted uploads.
       </p>
 
-      <CodeBlock label="1 · Install" code="npm install -g @6labs/cli" />
+      {/* The prerequisite rides under the command it gates rather than as a
+          step of its own: it is not something to do, it is a condition on the
+          line above, and read after the command it answers "why did that
+          fail?" at the moment someone would ask. */}
+      <CodeBlock label="1 · Install" code="npm install -g @6labs/cli" note="Requires Node 18.17 or newer." />
       <CodeBlock label="2 · Authenticate" code={`6labs login`} sublabel="Opens your browser to authorize this machine." />
       <CodeBlock
         label="3 · Upload a folder"
         code={uploadCmd}
         sublabel={hasTags ? `Using the tags you set: ${cliTags}` : undefined}
       />
-
-      <div
-        className="flex items-start gap-s p-s rounded-lg"
-        style={{ backgroundColor: 'var(--bg-tint-light)', border: '1px solid var(--bg-tint)' }}
-      >
-        <span className="font-body text-xs leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
-          Globs like <code className="font-mono">./gameplay/**/*.mp4</code> upload nested folders.
-          <code className="font-mono"> --concurrency</code> controls parallel uploads. Clips appear in the library
-          as each one finishes.
-        </span>
-      </div>
 
       {/* Prototype affordance — show the batch result without a real CLI */}
       <button
@@ -486,7 +480,19 @@ function CopyLink({ text, toast }: { text: string; toast: string }) {
 
 // ─── Copyable code block ────────────────────────────────────────────────────────
 
-function CodeBlock({ label, sublabel, code }: { label: string; sublabel?: string; code: string }) {
+function CodeBlock({
+  label,
+  sublabel,
+  note,
+  code,
+}: {
+  label: string
+  /** Above the command — what the step does. */
+  sublabel?: string
+  /** Below the command — a condition on it, e.g. a version requirement. */
+  note?: string
+  code: string
+}) {
   return (
     <div className="flex flex-col gap-xxs">
       <div className="flex items-center justify-between gap-m">
@@ -506,6 +512,20 @@ function CodeBlock({ label, sublabel, code }: { label: string; sublabel?: string
       >
         {code}
       </pre>
+      {/* The product's compact info note — the same icon, pale fill and rule as
+          the case-sheet note under a test-case upload — so a condition on a
+          step reads as a note, not as more of the step's copy. */}
+      {note && (
+        <div
+          className="flex items-start gap-s w-full px-s py-xs rounded-l mt-xxs"
+          style={{ backgroundColor: 'var(--bg-page-pale)', border: '1px solid var(--border-subtle)' }}
+        >
+          <span className="shrink-0 mt-[2px] text-text-tertiary" aria-hidden>
+            <InfoFilledIcon size={16} />
+          </span>
+          <p className="font-body text-xs text-text-tertiary leading-[1.6] min-w-0 m-0">{note}</p>
+        </div>
+      )}
     </div>
   )
 }

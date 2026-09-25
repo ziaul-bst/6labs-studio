@@ -25,6 +25,7 @@ export type HistoryDemoState =
   | 'failed'
   | 'many'
   | 'reports'
+  | 'clean'
 
 export const HISTORY_DEMO_STATES: HistoryDemoState[] = [
   'seeded',
@@ -32,6 +33,8 @@ export const HISTORY_DEMO_STATES: HistoryDemoState[] = [
   'queued',
   'progress',
   'failed',
+  /* User Test only — it is the only list whose result can be "nothing". */
+  'clean',
   'many',
   'reports',
 ]
@@ -71,6 +74,7 @@ export const HISTORY_DEMO_LABELS: Record<HistoryDemoState, string> = {
   failed: 'Failed run',
   many: 'Long history',
   reports: 'Reports only',
+  clean: 'No issues found',
 }
 
 /** Shown under the row so a reviewer knows what they are looking at. */
@@ -85,6 +89,7 @@ export const HISTORY_DEMO_NOTES: Record<HistoryDemoState, string> = {
   failed: 'A run that stopped sits on top — red tile, Failed pill, the reason in its line. Open it for the notice.',
   many: 'Forty-two runs: the list pages, ten a screen, with the range and page count in its footer.',
   reports: 'Questions removed, so the kind filter above the list disappears.',
+  clean: 'A finished run the agent found nothing in sits on top, with the green No issues found result. Open it for the clean run page.',
 }
 
 /**
@@ -178,6 +183,23 @@ export function seedHistory(
         runs: [from('demo-queued', 'queued'), from('demo-queued-running', 'progress'), ...base],
         highlightId: null,
       }
+    }
+    /* A run that found nothing. Every seeded run has findings, so the green
+       result had no row to appear on and the clean run page no way in. */
+    case 'clean': {
+      const first = base.find((r) => (r.kind ?? 'report') === 'report') ?? base[0]
+      const clean: TestRunHistoryItem = first
+        ? {
+            ...first,
+            id: 'demo-clean',
+            kind: 'report',
+            name: 'Build V2.3 — onboarding recheck',
+            state: 'done',
+            result: { kind: 'issues', count: 0 },
+            when: runDateLabel(),
+          }
+        : { id: 'demo-clean', name: 'Run', detail: '—', meta: '—', state: 'done', result: { kind: 'issues', count: 0 }, when: runDateLabel() }
+      return { runs: [clean, ...base], highlightId: clean.id }
     }
     case 'progress': {
       const first = base.find((r) => (r.kind ?? 'report') === 'report') ?? base[0]
