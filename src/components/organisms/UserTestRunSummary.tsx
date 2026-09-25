@@ -461,7 +461,7 @@ export function UserTestRunSummary({
                   is the thing the list is sorted by, and it says so itself. */}
               <Section number="02" title={clean ? 'What was checked' : 'Top findings'} divided>
                 {clean ? (
-                  <CheckedCategories categories={categories} onOpenLibrary={onOpenLibrary} />
+                  <CheckedCategories categories={categories} />
                 ) : (
                 <div className="flex flex-col gap-xxs">
                   {issues.slice(0, previewCount).map((issue) => (
@@ -616,13 +616,7 @@ function NoIssuesVerdict({ sessions }: { sessions: number }) {
  * instead: every category the report sorts findings into, each cleared. It is
  * the evidence behind the verdict above rather than a second copy of it.
  */
-function CheckedCategories({
-  categories,
-  onOpenLibrary,
-}: {
-  categories: UserTestCategoryRow[]
-  onOpenLibrary?: () => void
-}) {
+function CheckedCategories({ categories }: { categories: UserTestCategoryRow[] }) {
   return (
     <div className="flex flex-col gap-s">
       <div className="flex flex-col w-full rounded-xl overflow-hidden" style={{ border: '1px solid var(--border-subtle)' }}>
@@ -648,14 +642,6 @@ function CheckedCategories({
           </div>
         ))}
       </div>
-      <span className="flex flex-wrap items-center gap-xs font-body text-s text-text-tertiary leading-[1.5]">
-        The footage stays in the Gameplay Library.
-        {onOpenLibrary && (
-          <button type="button" onClick={onOpenLibrary} className="font-semibold text-text-brand hover:underline">
-            Watch the sessions
-          </button>
-        )}
-      </span>
     </div>
   )
 }
