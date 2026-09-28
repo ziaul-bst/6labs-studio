@@ -795,9 +795,15 @@ export function MediaGridSkeleton({
  */
 export function LibrarySkeleton({
   label = 'Loading Gameplay Library',
+  actionWidths = [140],
+  banner = false,
   className,
 }: {
   label?: string
+  /** One block per header button, in order — so the header does not jump when they arrive. */
+  actionWidths?: number[]
+  /** Reserve the Recorder setup card's row while it is showing. */
+  banner?: boolean
   className?: string
 }) {
   return (
@@ -812,8 +818,15 @@ export function LibrarySkeleton({
           <Skeleton variant="text" width={240} height={26} radius="rounded-m" />
           <Skeleton variant="text" width={380} height={13} radius="rounded-xs" />
         </div>
-        <Skeleton variant="block" width={140} height={40} radius="rounded-l" />
+        {actionWidths.map((w, i) => (
+          <Skeleton key={i} variant="block" width={w} height={40} radius="rounded-l" />
+        ))}
       </div>
+      {banner && (
+        <div aria-hidden>
+          <Skeleton variant="block" width="100%" height={74} radius="rounded-3xl" />
+        </div>
+      )}
       <div className="flex items-center gap-xs flex-wrap w-full" aria-hidden>
         {[64, 96, 86, 78, 70].map((w) => (
           <Skeleton key={w} variant="block" width={w} height={32} radius="rounded-round" />

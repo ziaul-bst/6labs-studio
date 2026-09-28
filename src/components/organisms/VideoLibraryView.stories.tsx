@@ -31,6 +31,14 @@ export const Default: Story = {
   args: {},
 }
 
+/**
+ * As HomePage mounts it: with `onGetRecorder`, the header carries "Get
+ * recorder" beside Upload, and it stays when the library is empty.
+ */
+export const WithRecorder: Story = {
+  args: { onGetRecorder: () => {} },
+}
+
 export const Empty: Story = {
   args: {
     initialVideos: [],

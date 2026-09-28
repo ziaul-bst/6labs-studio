@@ -94,6 +94,9 @@ import { PlusIcon } from '../icons/PlusIcon'
 import { CheckIcon } from '../icons/CheckIcon'
 import { ChevronIcon } from '../icons/ChevronIcon'
 import { SearchIcon } from '../icons/SearchIcon'
+import { DownloadIcon } from '../icons/DownloadIcon'
+import { RecorderSetupCard } from '../molecules/RecorderSetupCard'
+import { setRecorderSetupCardHidden, useRecorderSetupCardHidden } from '../../lib/recorder'
 import {
   SOURCE_ORDER,
   SOURCE_SHORT,
@@ -424,16 +427,29 @@ export interface VideoLibraryViewProps {
    * Re-seeds on change, and `initialVideos` still wins.
    */
   demoState?: LibraryDemoState
+  /**
+   * Opens the Gameplay Recorder page. The header's "Get recorder" button only
+   * renders when this is passed.
+   */
+  onGetRecorder?: () => void
 }
 
 type Facet<T extends string> = T | 'all'
 
-export function VideoLibraryView({ className, initialVideos, demoState }: VideoLibraryViewProps) {
+export function VideoLibraryView({ className, initialVideos, demoState, onGetRecorder }: VideoLibraryViewProps) {
   /* This screen's own beat. The library is the one screen here that really
      does fetch a list on arrival, so it is the one where a skeleton stands for
      something real rather than for a prototype's module import. */
   const loadPhase = usePageLoading()
   const storeState = useLibraryDemoState()
+  const recorderCardHidden = useRecorderSetupCardHidden()
+  /* Hiding the card unmounts the button that was pressed; focus goes to
+     "Get recorder", the way back to what the card offered. */
+  const getRecorderRef = useRef<HTMLButtonElement>(null)
+  const hideRecorderCard = () => {
+    setRecorderSetupCardHidden(true)
+    requestAnimationFrame(() => getRecorderRef.current?.focus())
+  }
   const state = demoState ?? storeState
   const [videos, setVideos] = useState<LibraryVideo[]>(() => initialVideos ?? seedForDemoState(state))
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -853,7 +869,15 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
 
   const isEmpty = videos.length === 0
 
-  if (loadPhase) return <LibrarySkeleton className={className} />
+  if (loadPhase) {
+    return (
+      <LibrarySkeleton
+        className={className}
+        actionWidths={[...(onGetRecorder ? [168] : []), ...(isEmpty ? [] : [140])]}
+        banner={!recorderCardHidden}
+      />
+    )
+  }
 
   return (
     <div className="flex w-full h-full overflow-hidden">
@@ -888,12 +912,34 @@ export function VideoLibraryView({ className, initialVideos, demoState }: VideoL
                 iconGradient="linear-gradient(135deg, #6431E0 0%, #7B4CFF 55%, #8FA8F8 100%)"
                 icon={<VideoLibraryIcon size={40} />}
               />
-              {!isEmpty && (
-                <Button variant="primary" size="lg" leftIcon={<UploadIcon size={20} />} onClick={() => openUpload()}>
-                  Upload videos
-                </Button>
+              {/* "Get recorder" stays on an empty library, where Upload steps
+                  aside for the drop zone — the Recorder is the other way in. */}
+              {(onGetRecorder || !isEmpty) && (
+                <div className="flex items-center gap-s shrink-0">
+                  {onGetRecorder && (
+                    <Button
+                      ref={getRecorderRef}
+                      variant="secondary"
+                      size="lg"
+                      leftIcon={<DownloadIcon size={20} />}
+                      onClick={onGetRecorder}
+                    >
+                      Get recorder
+                    </Button>
+                  )}
+                  {!isEmpty && (
+                    <Button variant="primary" size="lg" leftIcon={<UploadIcon size={20} />} onClick={() => openUpload()}>
+                      Upload videos
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
+
+            {/* The Recorder nudge — above the library whether it is empty or
+                not, since both are moments to get footage in. Hidden for the
+                session once dismissed; the header button stays. */}
+            {!recorderCardHidden && <RecorderSetupCard onHide={hideRecorderCard} />}
 
             {isEmpty ? (
               /* ── Empty library ── */

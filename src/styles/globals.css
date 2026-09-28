@@ -2671,6 +2671,178 @@ textarea { resize: none; font-family: var(--font-body); }
   .pitch-clip { animation: none; }
 }
 
+/* ─── Gameplay Recorder page ────────────────────────────────────────────────
+   The connect card, the hero and the "How it works" flow go two- or three-up
+   when their own box is wide enough, measured against the card rather than
+   the viewport because the sidebar changes the width the page gets. Tracks
+   are minmax(0, 1fr) so a long word cannot widen a column. */
+.recorder-host {
+  container-type: inline-size;
+}
+
+/* Warm — the How-it-works stage that runs on the studio's own machine.
+   Token gap: Apparatus has --warning (#FFB700) for fills but no darker warm ink
+   for text on a light surface, where amber fails contrast. Mixed from the two
+   tokens rather than hardcoded, so the warm follows either if it changes. */
+.recorder-page {
+  --recorder-warm-ink: color-mix(in srgb, var(--warning) 45%, var(--text-primary));
+  --recorder-warm-line: color-mix(in srgb, var(--warning) 35%, var(--bg-elements));
+  --recorder-warm-tint: color-mix(in srgb, var(--warning) 12%, var(--bg-elements));
+}
+
+/* Connect card: the explanation, then the App ID in a well of its own. The
+   rule between them turns from a top edge to a left edge as the card widens. */
+.recorder-connect {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.recorder-connect > * {
+  padding: var(--space-xl) var(--space-xxl);
+}
+.recorder-connect > * + * {
+  border-top: 1px solid var(--border-subtle);
+}
+@container (min-width: 720px) {
+  .recorder-connect {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .recorder-connect > * + * {
+    border-top: 0;
+    border-left: 1px solid var(--border-subtle);
+  }
+}
+
+.recorder-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-xxl);
+  align-items: center;
+}
+/* Stacked, the example window keeps a window's proportions rather than
+   stretching across the whole band. */
+.recorder-hero > :last-child {
+  width: 100%;
+  max-width: 560px;
+}
+/* Two-up only once the copy column can hold the CTA row on one line
+   (button 239 + 12 + link 171 = 422px): (800 - 32) x 1.1/2 = 422. */
+@container (min-width: 800px) {
+  .recorder-hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  }
+  .recorder-hero > :last-child {
+    max-width: none;
+  }
+}
+
+/* Three cards in a row with the arrow in a track of its own, or stacked with
+   the arrow turned to point down the column. */
+.recorder-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-xs);
+}
+.recorder-flow-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(90deg);
+}
+@container (min-width: 760px) {
+  .recorder-flow {
+    grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr) 32px minmax(0, 1fr);
+    align-items: stretch;
+  }
+  .recorder-flow-arrow {
+    transform: none;
+  }
+}
+
+/* The example window's state pips. The current state stretches into a bar;
+   every other pip is the same grey. (A green "Setup done" pip was dropped —
+   nothing on screen said why one dot was green.) */
+/* Each pip is a 24x24 target at least (WCAG 2.5.8) around an 8px dot, so a
+   tap near the boundary does not land on the neighbouring state. */
+.recorder-pip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 9999px;
+}
+.recorder-pip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(23, 112, 239, 0.4);
+}
+.recorder-panel:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--border-focus);
+}
+.recorder-pip-dot {
+  position: relative;
+  display: block;
+  width: 8px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background-color: var(--border-default);
+  transition: width 240ms ease, background-color 160ms ease;
+}
+.recorder-pip[aria-selected='false']:hover .recorder-pip-dot {
+  background-color: var(--brand-hover);
+}
+/* The active pip is a short track that fills with its state's progress. The
+   track is an opaque brand/white mix so the brand fill reads against it. */
+.recorder-pip[aria-selected='true'] .recorder-pip-dot {
+  width: 40px;
+  background-color: color-mix(in srgb, var(--brand) 22%, var(--bg-elements));
+}
+
+/* How long the current state has left, drawn inside the active pip. The
+   window advances on this fill's animationend, so the fill and the timer
+   cannot drift apart, and pausing is one play-state switch. Flat right edge —
+   the pip's rounded clip shapes the ends. */
+@keyframes recorder-dwell {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.recorder-dwell-fill {
+  position: absolute;
+  inset: 0;
+  background-color: var(--brand);
+  transform-origin: left center;
+  transform: scaleX(0);
+  animation: recorder-dwell var(--dwell, 4000ms) linear forwards;
+}
+.recorder-dwell-fill[data-paused='true'] {
+  animation-play-state: paused;
+}
+
+@keyframes recorder-pane-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+.recorder-pane {
+  animation: recorder-pane-in 340ms ease both;
+}
+@keyframes recorder-row-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.recorder-row-in {
+  animation: recorder-row-in 400ms ease both;
+  animation-delay: var(--row-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recorder-pip-dot { transition: none; }
+  .recorder-dwell-fill { animation: none; }
+  .recorder-pane,
+  .recorder-row-in { animation: none; }
+}
+
 /* ─── Wait language — Spinner + Skeleton atoms ──────────────────────────────
    One ring and one grey bar for every wait in the product. The ring rotates
    while its arc lengthens and shortens (so it reads as effort, not as a clock);

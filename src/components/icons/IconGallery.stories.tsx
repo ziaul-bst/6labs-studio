@@ -4,6 +4,8 @@ import type { IconProps } from './types'
 
 // ── Top-level icons ──
 import { AISparkleIcon } from './AISparkleIcon'
+import { AndroidIcon } from './AndroidIcon'
+import { AppleIcon } from './AppleIcon'
 import { BaristaIcon } from './BaristaIcon'
 import { BlueStacksIcon } from './BlueStacksIcon'
 import { BulbIcon } from './BulbIcon'
@@ -50,6 +52,7 @@ import { UploadIcon } from './UploadIcon'
 import { UserProfileStatIcon } from './UserProfileStatIcon'
 import { VideoPlayIcon } from './VideoPlayIcon'
 import { VolumeIcon } from './VolumeIcon'
+import { WindowsIcon } from './WindowsIcon'
 
 // ── Connector icons ──
 import { AppsFlyerIcon } from './connectors/AppsFlyerIcon'
@@ -144,6 +147,8 @@ function IconGrid({ icons, size = 24 }: { icons: IconEntry[]; size?: IconProps['
 
 const TOP_LEVEL_ICONS: IconEntry[] = [
   { name: 'AISparkleIcon', component: AISparkleIcon },
+  { name: 'AndroidIcon', component: AndroidIcon },
+  { name: 'AppleIcon', component: AppleIcon },
   { name: 'BaristaIcon', component: BaristaIcon },
   { name: 'BlueStacksIcon', component: BlueStacksIcon },
   { name: 'BulbIcon', component: BulbIcon },
@@ -189,6 +194,7 @@ const TOP_LEVEL_ICONS: IconEntry[] = [
   { name: 'UserProfileStatIcon', component: UserProfileStatIcon },
   { name: 'VideoPlayIcon', component: VideoPlayIcon },
   { name: 'VolumeIcon', component: VolumeIcon },
+  { name: 'WindowsIcon', component: WindowsIcon },
 ]
 
 const CONNECTOR_ICONS: IconEntry[] = [

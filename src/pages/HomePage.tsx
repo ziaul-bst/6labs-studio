@@ -30,6 +30,8 @@ import { DEFAULT_ORACLE_HISTORY, SEEDED_ORACLE_THREADS } from '../lib/mocks/orac
 import { ContextUploadsView } from '../components/organisms/ContextUploadsView'
 import { SpecializedAgentsView } from '../components/organisms/SpecializedAgentsView'
 import { VideoLibraryView } from '../components/organisms/VideoLibraryView'
+import { GameplayRecorderView } from '../components/organisms/GameplayRecorderView'
+import { setRecorderSetupCardHidden, useRecorderSetupCardHidden } from '../lib/recorder'
 import { getLibraryTagOptions, filterLibraryByTags } from '../lib/librarySessions'
 import { MOCK_SESSIONS } from '../lib/mocks/radiologist-sessions'
 import { ContextConnectorsView, CONNECTORS } from '../components/organisms/ContextConnectorsView'
@@ -212,6 +214,8 @@ type ActiveNav =
   // sidebar callback type-checks; they are disabled and never navigate.
   | 'testing-home' | 'functional-test' | 'agency-test' | 'user-test' | 'beta-test'
   | 'ai-functional-test' | 'ai-behavioural-test' | 'ai-scale-test' | 'test-case-gen' | 'lqa'
+  // The Gameplay Recorder page — a child of the Library, no sidebar row.
+  | 'library-recorder'
 type RadiologistView = 'home' | 'results' | 'details'
 
 // ── URL-hash navigation (deep-link + reload support) ───────────────────────────
@@ -270,8 +274,10 @@ function parseExcerptReviewHash(): { placement: ExcerptPlacement; shape: Excerpt
 
 function parseNavHash(): { nav: ActiveNav; agentId: string | null } {
   const raw = window.location.hash.replace(/^#\/?/, '')
-  const [seg, sub] = raw.split('/')
+  const [seg, sub, sub2] = raw.split('/')
   if (seg === 'testing') {
+    // `#/testing/library/recorder` — the Recorder page sits under the Library.
+    if (sub === 'library' && sub2 === 'recorder') return { nav: 'library-recorder', agentId: null }
     // `#/testing` is the Overview. Anything unknown (including the pre-revamp
     // `runs` and `ai-player`) lands there too rather than on a blank screen.
     if (sub && (TESTING_HASH_NAVS as string[]).includes(sub)) return { nav: sub as ActiveNav, agentId: null }
@@ -294,6 +300,7 @@ function navToHash(
   }
   if (nav === 'radiologist' && radiologistSub) return `#/radiologist/${radiologistSub}`
   if (nav === 'testing-home') return '#/testing'
+  if (nav === 'library-recorder') return '#/testing/library/recorder'
   if (areaOfNav(nav) === 'testing') return `#/testing/${nav}`
   if (nav === 'home') return '#/'
   return `#/${nav}`
@@ -495,6 +502,7 @@ export function HomePage() {
   const barista = useBarista()
   const [activeNav, setActiveNav] = useState<ActiveNav>(() => parseNavHash().nav)
   const libraryDemoState = useLibraryDemoState()
+  const recorderCardHidden = useRecorderSetupCardHidden()
   const recordingDemoState = useRecordingDemoState()
   const connectorsDemoState = useConnectorsDemoState()
   const uploadsDemoState = useUploadsDemoState()
@@ -1057,7 +1065,18 @@ export function HomePage() {
       // the restructure, reached from Testing rather than Intelligence.
       case 'library':
         return (
-          <VideoLibraryView />
+          <VideoLibraryView onGetRecorder={() => setActiveNav('library-recorder')} />
+        )
+
+      // Gameplay Recorder — what the desktop recorder is, the App ID to paste
+      // into it, and the installer. A Library child: back goes to the Library.
+      case 'library-recorder':
+        return (
+          <GameplayRecorderView
+            onBack={() => setActiveNav('library')}
+            onOpenLibrary={() => setActiveNav('library')}
+            onOpenTesting={() => setActiveNav('testing-home')}
+          />
         )
 
       // Testing's front door — both groups laid out as tiles.
@@ -1075,8 +1094,14 @@ export function HomePage() {
       case 'user-test':
         return (
           <UserTestAgentView
-            libraryVideoCount={42}
+            /* An empty Library fixture empties User Test too, which is the one
+               place its zero state — and its "Get the Recorder app" — shows.
+               Not while the session picker is open: the Library row is there to
+               review the picker's own empty state, and swapping the screen out
+               would unmount the picker under the cursor. */
+            libraryVideoCount={libraryDemoState === 'empty' && !pickerOpen ? 0 : 42}
             gameContextAdded
+            onGetRecorder={() => setActiveNav('library-recorder')}
             onScreenChange={setUserTestScreen}
             onTabChange={setTestingTab}
             onPickerOpenChange={setPickerOpen}
@@ -1258,8 +1283,12 @@ export function HomePage() {
       <div className="sticky top-0 h-screen shrink-0">
         <Sidebar
           collapsed={sidebarCollapsed}
-          /* The review screen has no sidebar entry, so nothing should highlight. */
-          activeNav={activeNav === 'excerpt-review' ? undefined : activeNav}
+          /* The review screen has no sidebar entry, so nothing should highlight.
+             The Recorder page has none either, but it is a Library child — the
+             Library row stays lit, as the place the chevron goes back to. */
+          activeNav={
+            activeNav === 'excerpt-review' ? undefined : activeNav === 'library-recorder' ? 'library' : activeNav
+          }
           onNavChange={(nav) => {
             if (nav !== activeNav || nav !== 'radiologist') {
               resetRadiologistState()
@@ -1358,7 +1387,7 @@ export function HomePage() {
                moment the pipeline starts it is a reading surface and takes the
                detail treatment, like a report, rather than waiting for the
                answer to land. */
-            activeNav === 'home' || (activeNav === 'oracle' && activeHistoryId === null && !oracleRunning) || activeNav === 'uploads' || activeNav === 'library' || (activeNav === 'radiologist' && radiologistView === 'home') || (activeNav === 'specialized' && specializedAgentId === null) || (activeNav === 'connectors' && selectedConnectorId === null) || (activeNav === 'user-test' && (userTestScreen === 'home' || activeTestLocked)) || activeNav === 'testing-home' || (['functional-test', 'ai-functional-test', 'ai-behavioural-test'].includes(activeNav) && (testingSubScreen === 'home' || activeTestLocked))
+            activeNav === 'home' || (activeNav === 'oracle' && activeHistoryId === null && !oracleRunning) || activeNav === 'uploads' || activeNav === 'library' || activeNav === 'library-recorder' || (activeNav === 'radiologist' && radiologistView === 'home') || (activeNav === 'specialized' && specializedAgentId === null) || (activeNav === 'connectors' && selectedConnectorId === null) || (activeNav === 'user-test' && (userTestScreen === 'home' || activeTestLocked)) || activeNav === 'testing-home' || (['functional-test', 'ai-functional-test', 'ai-behavioural-test'].includes(activeNav) && (testingSubScreen === 'home' || activeTestLocked))
               ? 'home'
               : 'detail'
           }
@@ -1663,6 +1692,23 @@ export function HomePage() {
                     note: LIBRARY_DEMO_NOTES[key],
                   })),
                   onChange: (key: string) => setLibraryDemoState(key as LibraryDemoState),
+                } satisfies StateMachineDockRow,
+              ]
+            : []),
+          /* The Recorder card hides for the session, so a reviewer who
+             dismissed it needs a way to bring it back short of a reload. */
+          ...(activeNav === 'library'
+            ? [
+                {
+                  id: 'recorder-card',
+                  label: 'Recorder card',
+                  value: recorderCardHidden ? 'hidden' : 'shown',
+                  options: [
+                    { key: 'shown', label: 'Shown', note: 'The setup card with the Windows download, above the library' },
+                    { key: 'hidden', label: 'Dismissed', note: 'Hidden for the session — "Get recorder" in the header stays' },
+                  ],
+                  onChange: (key: string) => setRecorderSetupCardHidden(key === 'hidden'),
+                  defaultKey: 'shown',
                 } satisfies StateMachineDockRow,
               ]
             : []),

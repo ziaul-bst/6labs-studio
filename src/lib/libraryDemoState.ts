@@ -51,7 +51,7 @@ export const LIBRARY_DEMO_LABELS: Record<LibraryDemoState, string> = {
 /** Shown under the pill so a reviewer knows what they are looking at. */
 export const LIBRARY_DEMO_NOTES: Record<LibraryDemoState, string> = {
   default: 'The seeded library — a few batches across every source.',
-  empty: 'No videos at all: the first-run drop zone. The picker shows its own empty state.',
+  empty: 'No videos at all: the first-run drop zone. The picker shows its own empty state; User Test, with the picker closed, shows its zero state.',
   'many-tags': '40+ tags, so the “+N more” menu has to scroll. Open it to check the list caps and scrolls.',
   'long-labels':
     'Tags and titles as they really arrive from an import — 40+ characters with nothing to break on. Every pill folds at one measure; the full string is on hover.',

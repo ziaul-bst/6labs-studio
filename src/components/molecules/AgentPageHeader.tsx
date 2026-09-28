@@ -52,7 +52,9 @@ export function AgentPageHeader({
         <h1 className="font-display text-2xl font-extrabold text-text-primary whitespace-nowrap">
           {title}
         </h1>
-        <p className="font-body text-s font-normal text-base-700">
+        {/* Balanced, so a description squeezed by header actions breaks into
+            two even lines rather than leaving one word on the second. */}
+        <p className="font-body text-s font-normal text-base-700 text-balance">
           {description}
         </p>
       </div>

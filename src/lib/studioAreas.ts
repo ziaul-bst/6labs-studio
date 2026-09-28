@@ -222,6 +222,9 @@ const TESTING_NAVS = new Set([
   'test-case-gen',
   'lqa',
   'library',
+  // The Gameplay Recorder page — a child of the Library with no sidebar row of
+  // its own. Listed so the area stays Testing while it is open.
+  'library-recorder',
 ])
 
 /**

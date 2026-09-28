@@ -47,6 +47,38 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: ReactNode
 }
 
+/**
+ * The class string for a Button's look. Exported so `LinkButton` — an anchor
+ * that has to navigate or download — wears exactly the same variant and size
+ * rules rather than a second copy of them.
+ */
+export function buttonClassName({
+  variant = 'primary',
+  size = 'md',
+  pill = false,
+  iconOnly = false,
+  iconRound = false,
+  className = '',
+}: {
+  variant?: ButtonVariant
+  size?: ButtonSize
+  pill?: boolean
+  iconOnly?: boolean
+  iconRound?: boolean
+  className?: string
+}): string {
+  return [
+    'btn',
+    `btn-${variant}`,
+    iconOnly
+      ? [`btn-icon`, `btn-icon-${size}`, iconRound ? 'btn-icon-round' : ''].filter(Boolean).join(' ')
+      : [`btn-${size}`, pill ? 'btn-pill' : ''].filter(Boolean).join(' '),
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
     variant = 'primary',
@@ -62,16 +94,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   },
   ref
 ) {
-  const classes = [
-    'btn',
-    `btn-${variant}`,
-    iconOnly
-      ? [`btn-icon`, `btn-icon-${size}`, iconRound ? 'btn-icon-round' : ''].filter(Boolean).join(' ')
-      : [`btn-${size}`, pill ? 'btn-pill' : ''].filter(Boolean).join(' '),
-    className,
-  ]
-    .filter(Boolean)
-    .join(' ')
+  const classes = buttonClassName({ variant, size, pill, iconOnly, iconRound, className })
 
   return (
     <button ref={ref} className={classes} {...props}>

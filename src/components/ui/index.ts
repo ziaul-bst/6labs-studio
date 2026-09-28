@@ -1,5 +1,6 @@
 export { default as Button } from './Button'
 export type { ButtonVariant, ButtonSize, ButtonShape, ButtonIconStyle } from './Button'
+export { default as LinkButton } from './LinkButton'
 
 export { default as Input } from './Input'
 export type { InputSize } from './Input'
