@@ -42,6 +42,7 @@ import { PlayIcon } from './PlayIcon'
 import { PlusIcon } from './PlusIcon'
 import { RadarIcon } from './RadarIcon'
 import { RadiologistIcon } from './RadiologistIcon'
+import { RecordIcon } from './RecordIcon'
 import { SendIcon } from './SendIcon'
 import { SessionInfoIcon } from './SessionInfoIcon'
 import { SettingsIcon } from './SettingsIcon'
@@ -184,6 +185,7 @@ const TOP_LEVEL_ICONS: IconEntry[] = [
   { name: 'PlusIcon', component: PlusIcon },
   { name: 'RadarIcon', component: RadarIcon },
   { name: 'RadiologistIcon', component: RadiologistIcon },
+  { name: 'RecordIcon', component: RecordIcon },
   { name: 'SendIcon', component: SendIcon },
   { name: 'SessionInfoIcon', component: SessionInfoIcon },
   { name: 'SettingsIcon', component: SettingsIcon },

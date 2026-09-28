@@ -94,7 +94,7 @@ import { PlusIcon } from '../icons/PlusIcon'
 import { CheckIcon } from '../icons/CheckIcon'
 import { ChevronIcon } from '../icons/ChevronIcon'
 import { SearchIcon } from '../icons/SearchIcon'
-import { DownloadIcon } from '../icons/DownloadIcon'
+import { RecordIcon } from '../icons/RecordIcon'
 import { RecorderSetupCard } from '../molecules/RecorderSetupCard'
 import { setRecorderSetupCardHidden, useRecorderSetupCardHidden } from '../../lib/recorder'
 import {
@@ -905,8 +905,14 @@ export function VideoLibraryView({ className, initialVideos, demoState, onGetRec
             {/* ── Header ── mb on top of the stack's gap-xl puts 40px under the
                  page header, without loosening the note-to-container rhythm
                  inside the content block below it. */}
-            <div className="flex items-center justify-between gap-xl w-full mb-m">
+            {/* Wraps: with two actions the row outgrows narrow columns (1024px),
+                and the buttons then drop under the title, left-aligned. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-xl gap-y-l w-full mb-m">
+              {/* flex-1 = a 0% basis: the header is measured by its content
+                  rather than its w-full, so the actions wrap only when they
+                  genuinely do not fit beside it. */}
               <AgentPageHeader
+                className="flex-1"
                 title="Gameplay Library"
                 description="Every recording, from every source. Tests pick their batches from here."
                 iconGradient="linear-gradient(135deg, #6431E0 0%, #7B4CFF 55%, #8FA8F8 100%)"
@@ -921,7 +927,7 @@ export function VideoLibraryView({ className, initialVideos, demoState, onGetRec
                       ref={getRecorderRef}
                       variant="secondary"
                       size="lg"
-                      leftIcon={<DownloadIcon size={20} />}
+                      leftIcon={<RecordIcon size={20} />}
                       onClick={onGetRecorder}
                     >
                       Get recorder

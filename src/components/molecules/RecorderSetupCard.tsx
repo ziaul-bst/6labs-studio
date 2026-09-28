@@ -15,9 +15,11 @@
  */
 import Button from '../ui/Button'
 import LinkButton from '../ui/LinkButton'
-import { DownloadIcon } from '../icons/DownloadIcon'
+import { WindowsIcon } from '../icons/WindowsIcon'
 import { CloseIcon } from '../icons/CloseIcon'
+import { RecordIcon } from '../icons/RecordIcon'
 import { RECORDER_DOWNLOAD_URL } from '../../lib/recorder'
+import { TESTING_ACCENT_VARS } from '../../lib/studioAreas'
 
 export interface RecorderSetupCardProps {
   /** Omit to render the card without a hide control. */
@@ -32,7 +34,18 @@ export function RecorderSetupCard({ onHide, className }: RecorderSetupCardProps)
       className={['flex items-center gap-m flex-wrap w-full rounded-3xl pl-s pr-m py-s', className].filter(Boolean).join(' ')}
       style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
     >
-      <RecThumb />
+      {/* The Recorder's own mark, in the tile the Recorder page opens with — the
+          nudge and the page it leads to wear one identity. */}
+      <span
+        className="flex items-center justify-center shrink-0 w-12 h-12 rounded-xl text-white"
+        style={{
+          background: TESTING_ACCENT_VARS.purple.gradient,
+          boxShadow: '0 6px 16px color-mix(in srgb, var(--purple) 24%, transparent)',
+        }}
+        aria-hidden
+      >
+        <RecordIcon size={24} />
+      </span>
 
       <div className="flex flex-col gap-xxxs flex-1 min-w-[240px]">
         <h2 className="font-display text-m font-semibold text-text-primary leading-[1.4]">
@@ -48,7 +61,7 @@ export function RecorderSetupCard({ onHide, className }: RecorderSetupCardProps)
           href={RECORDER_DOWNLOAD_URL}
           variant="primary"
           size="md"
-          leftIcon={<DownloadIcon size={16} />}
+          leftIcon={<WindowsIcon size={16} />}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -64,26 +77,3 @@ export function RecorderSetupCard({ onHide, className }: RecorderSetupCardProps)
   )
 }
 
-/**
- * A small dark frame with a REC chip — footage being captured, drawn in the
- * library's own thumbnail vocabulary (dark scene, translucent overlay chip,
- * the pulsing live dot) rather than as an icon.
- */
-function RecThumb() {
-  return (
-    <span
-      className="relative block shrink-0 w-[72px] h-[48px] rounded-l overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #243A6B 0%, #15224A 100%)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}
-      aria-hidden
-    >
-      <span className="absolute inset-x-0 top-0 h-[12px]" style={{ backgroundColor: 'rgba(255,255,255,0.10)' }} />
-      <span
-        className="absolute left-xs bottom-xs inline-flex items-center gap-xxs px-xxs rounded-s font-display text-2xs font-bold text-white leading-[1.5]"
-        style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-      >
-        <i className="agent-live-dot" style={{ width: 6, height: 6, color: 'var(--error)' }} />
-        REC
-      </span>
-    </span>
-  )
-}

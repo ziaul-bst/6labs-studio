@@ -44,6 +44,7 @@ import { CopyIcon } from '../icons/CopyIcon'
 import { DownloadIcon } from '../icons/DownloadIcon'
 import { InfoFilledIcon } from '../icons/InfoFilledIcon'
 import { LogoMark } from '../icons/LogoMark'
+import { RecordIcon } from '../icons/RecordIcon'
 import { VideoLibraryIcon } from '../icons/VideoLibraryIcon'
 import { WindowsIcon } from '../icons/WindowsIcon'
 import { AndroidIcon } from '../icons/AndroidIcon'
@@ -259,7 +260,7 @@ function Hero({ onDownload }: { onDownload: () => void }) {
               style={{ background: purple.gradient, boxShadow: '0 10px 24px color-mix(in srgb, var(--purple) 28%, transparent)' }}
               aria-hidden
             >
-              <RecordGlyph size={24} />
+              <RecordIcon size={24} />
             </span>
 
             <div className="flex flex-col items-start gap-m">
@@ -297,7 +298,10 @@ function Hero({ onDownload }: { onDownload: () => void }) {
               quieter way to read more — two filled buttons side by side read as
               two asks, and they no longer fit one row once the hero goes two-up. */}
           <div className="flex items-center gap-s flex-wrap">
-            <Button variant="primary" size="lg" leftIcon={<DownloadIcon size={20} />} onClick={onDownload}>
+            {/* The platform's mark, not a download arrow: the button names the
+                platform, and it scrolls to the platform list rather than
+                downloading, so an arrow would over-promise. */}
+            <Button variant="primary" size="lg" leftIcon={<WindowsIcon size={20} />} onClick={onDownload}>
               Download for Windows
             </Button>
             <LinkButton variant="link" size="lg" href={RECORDER_DOCS_URL} {...EXTERNAL}>
@@ -379,7 +383,7 @@ function HowItWorks({ onOpenLibrary, onOpenTesting }: { onOpenLibrary: () => voi
       kicker: 'Recording & upload',
       product: 'Gameplay Recorder',
       place: 'On your test machine',
-      icon: <RecordGlyph />,
+      icon: <RecordIcon size={20} />,
       steps: [
         { title: 'Install & setup', detail: "Configure the Recorder with your game's App ID." },
         { title: 'Gameplay recording', detail: 'Records gameplay video and user actions. Starts when the configured game launches.' },
@@ -524,22 +528,6 @@ function HowItWorks({ onOpenLibrary, onOpenTesting }: { onOpenLibrary: () => voi
         </p>
       </div>
     </section>
-  )
-}
-
-/**
- * Record mark — a ring and a dot, drawn as two boxes rather than a path.
- * STAND-IN: Apparatus has no record glyph yet; replace with its export once added.
- */
-function RecordGlyph({ size = 18 }: { size?: number }) {
-  /* Dot and gap in whole pixels on both sides, or the dot snaps a pixel off
-     centre: the ring's content is size − 2×2px border, the dot half of that
-     rounded to an even number. 18 → 8px dot in 14; 24 → 10px in 20. */
-  const dot = Math.round((size - 4) / 4) * 2
-  return (
-    <span className="flex items-center justify-center rounded-round" style={{ width: size, height: size, border: '2px solid currentColor' }}>
-      <span className="block rounded-round bg-current" style={{ width: dot, height: dot }} />
-    </span>
   )
 }
 
