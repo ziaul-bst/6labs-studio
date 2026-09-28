@@ -26,7 +26,7 @@ import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
 import { SelectedVideosStrip } from '../molecules/SelectedVideosStrip'
 import { TestingMenuSelect } from '../molecules/TestingMenuSelect'
-import { FieldLabel, SetupNote } from '../molecules/TestingSetupPieces'
+import { FieldLabel, SetupLock, SetupNote } from '../molecules/TestingSetupPieces'
 import { UserTestRunSetupModal } from './UserTestRunSetupModal'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
@@ -62,6 +62,13 @@ export interface UserTestHomeProps {
    */
   onPickerOpenChange?: (open: boolean) => void
   onOpenSample?: () => void
+  /**
+   * The plan does not include User Test. The composer stays on screen with
+   * every control off. The sample card goes: the sample is the one row in
+   * Run history now, and a switched-off copy of it here would say it cannot
+   * be opened when it can.
+   */
+  locked?: boolean
   initialTab?: 'new' | 'history'
   initialMode?: UserTestHomeMode
   className?: string
@@ -82,6 +89,7 @@ export function UserTestHome({
   onTabChange,
   onPickerOpenChange,
   onOpenSample,
+  locked = false,
   initialTab = 'new',
   initialMode = 'report',
   className,
@@ -178,231 +186,233 @@ export function UserTestHome({
       {loadPhase === 'refresh' ? (
         <TestingBodySkeleton body={skeletonBody} />
       ) : tab === 'new' ? (
-        <div className="flex flex-col gap-m w-full">
-          <div
-            className="flex flex-col w-full rounded-4xl px-xl pt-l pb-m"
-            style={{
-              backgroundColor: 'var(--bg-elements)',
-              border: '1px solid var(--border-subtle)',
-              boxShadow: '0 10px 40px var(--bg-tint-light)',
-            }}
-          >
-            {/* Mode — the one decision the card turns on */}
-            <div className="flex items-center gap-m pb-m mb-m" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-              <div
-                role="radiogroup"
-                aria-label="What to do with the selected videos"
-                className="inline-flex items-center gap-xxs rounded-xl p-xxs"
-                /* The page grey, matching SegmentedControl's track: on a white
-                   card --bg-subtle read as a filled component of its own. */
-                style={{ backgroundColor: 'var(--bg-page)' }}
-              >
-                <ModeButton on={mode === 'report'} onClick={() => setMode('report')} icon={<ReportGlyph />}>
-                  Generate report
-                </ModeButton>
-                <ModeButton on={mode === 'ask'} onClick={() => setMode('ask')} icon={<ChatGlyph />}>
-                  Ask questions
-                </ModeButton>
+        <SetupLock locked={locked}>
+          <div className="flex flex-col gap-m w-full">
+            <div
+              className="flex flex-col w-full rounded-4xl px-xl pt-l pb-m"
+              style={{
+                backgroundColor: 'var(--bg-elements)',
+                border: '1px solid var(--border-subtle)',
+                boxShadow: '0 10px 40px var(--bg-tint-light)',
+              }}
+            >
+              {/* Mode — the one decision the card turns on */}
+              <div className="flex items-center gap-m pb-m mb-m" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                <div
+                  role="radiogroup"
+                  aria-label="What to do with the selected videos"
+                  className="inline-flex items-center gap-xxs rounded-xl p-xxs"
+                  /* The page grey, matching SegmentedControl's track: on a white
+                     card --bg-subtle read as a filled component of its own. */
+                  style={{ backgroundColor: 'var(--bg-page)' }}
+                >
+                  <ModeButton on={mode === 'report'} onClick={() => setMode('report')} icon={<ReportGlyph />}>
+                    Generate report
+                  </ModeButton>
+                  <ModeButton on={mode === 'ask'} onClick={() => setMode('ask')} icon={<ChatGlyph />}>
+                    Ask questions
+                  </ModeButton>
+                </div>
               </div>
-            </div>
 
-            {/* Selection */}
-            <div className="flex flex-col justify-center gap-m min-h-[132px]">
-              {hasVideos ? (
-                /* Filling the slot must not remove the slot. The empty state is
-                   a framed box; without the same frame here the strip floated
-                   loose in the card and read as a broken layout rather than a
-                   filled one. Solid border, not dashed — dashed means "drop
-                   something here", and something has been dropped. */
-                <div
-                  className="flex items-center rounded-3xl px-l py-m"
-                  style={{ border: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-page-pale)' }}
-                >
-                  <SelectedVideosStrip
-                    videos={selected}
-                    onChange={() => setPickerOpen(true)}
-                    onClear={() => setSelectedIds([])}
+              {/* Selection */}
+              <div className="flex flex-col justify-center gap-m min-h-[132px]">
+                {hasVideos ? (
+                  /* Filling the slot must not remove the slot. The empty state is
+                     a framed box; without the same frame here the strip floated
+                     loose in the card and read as a broken layout rather than a
+                     filled one. Solid border, not dashed — dashed means "drop
+                     something here", and something has been dropped. */
+                  <div
+                    className="flex items-center rounded-3xl px-l py-m"
+                    style={{ border: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-page-pale)' }}
+                  >
+                    <SelectedVideosStrip
+                      videos={selected}
+                      onChange={() => setPickerOpen(true)}
+                      onClear={() => setSelectedIds([])}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="flex flex-col items-center justify-center gap-xs rounded-3xl py-l"
+                    style={{ border: '1px dashed var(--border-default)' }}
+                  >
+                    <Button variant="primary" size="lg" leftIcon={<PlusIcon size={16} />} onClick={() => setPickerOpen(true)}>
+                      Add videos
+                    </Button>
+                    <span className="font-body text-s text-text-tertiary leading-[1.5]">
+                      Select sessions from your Gameplay Library by tag or source.
+                    </span>
+                  </div>
+                )}
+
+                {/* The box stands whether or not videos are picked. A suggested
+                    prompt pressed first has somewhere to land, and a reader who
+                    knows what they want to ask can type it before choosing what
+                    to ask it of. */}
+                {mode === 'ask' && (
+                  <textarea
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        ask()
+                      }
+                    }}
+                    placeholder={hasVideos ? 'Ask anything about these sessions…' : 'Ask anything about these sessions…'}
+                    aria-label="Ask anything about these sessions"
+                    rows={2}
+                    autoFocus
+                    className="composer-input w-full resize-none bg-transparent border-0 outline-none font-body text-l text-text-primary placeholder:text-text-placeholder leading-[1.5] py-xs"
                   />
-                </div>
-              ) : (
-                <div
-                  className="flex flex-col items-center justify-center gap-xs rounded-3xl py-l"
-                  style={{ border: '1px dashed var(--border-default)' }}
-                >
-                  <Button variant="primary" size="lg" leftIcon={<PlusIcon size={16} />} onClick={() => setPickerOpen(true)}>
-                    Add videos
-                  </Button>
-                  <span className="font-body text-s text-text-tertiary leading-[1.5]">
-                    Select sessions from your Gameplay Library by tag or source.
-                  </span>
-                </div>
-              )}
+                )}
 
-              {/* The box stands whether or not videos are picked. A suggested
-                  prompt pressed first has somewhere to land, and a reader who
-                  knows what they want to ask can type it before choosing what
-                  to ask it of. */}
-              {mode === 'ask' && (
-                <textarea
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      ask()
-                    }
-                  }}
-                  placeholder={hasVideos ? 'Ask anything about these sessions…' : 'Ask anything about these sessions…'}
-                  aria-label="Ask anything about these sessions"
-                  rows={2}
-                  autoFocus
-                  className="composer-input w-full resize-none bg-transparent border-0 outline-none font-body text-l text-text-primary placeholder:text-text-placeholder leading-[1.5] py-xs"
+                {/* A report is filed and read later, so it needs a name to be
+                    found by — the same field every other test carries. It is part
+                    of the run's shape, not a consequence of the selection, so it
+                    stands whether or not videos are picked yet. A question is
+                    answered in place and never filed, so it has none. */}
+                {mode === 'report' && (
+                  <label className="flex flex-col gap-xs">
+                    <FieldLabel optional>Run name</FieldLabel>
+                    <Input
+                      value={runName}
+                      onChange={(e) => setRunName(e.target.value)}
+                      placeholder={gameContext ?? 'User test'}
+                      aria-label="Run name"
+                      size="lg"
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Bar — context on the left, the action on the right */}
+              <div className="flex items-center gap-s pt-m mt-m" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                <TestingMenuSelect
+                  variant="chip"
+                  openUp
+                  ariaLabel="Game context"
+                  placeholder="Add game context"
+                  value={docId}
+                  onChange={(v) => setDocId(v === NO_CONTEXT ? null : v)}
+                  options={[
+                    ...GAME_CONTEXT_DOCS.map((d) => ({
+                      value: d.id,
+                      label: d.name,
+                      meta: d.meta,
+                      badge: d.fileType.toUpperCase(),
+                    })),
+                    ...uploads.map((u) => ({
+                      value: u.id,
+                      label: u.name,
+                      meta: u.uploading ? 'Uploading…' : 'Added just now',
+                      badge: u.fileType.toUpperCase(),
+                      pending: u.uploading,
+                    })),
+                    { value: NO_CONTEXT, label: 'None', meta: 'Findings per video, not grouped by step.', badge: '—' },
+                  ]}
+                  trailing={{ label: 'Upload new', meta: 'PDF, DOCX, or image', onSelect: uploadDoc }}
                 />
-              )}
-
-              {/* A report is filed and read later, so it needs a name to be
-                  found by — the same field every other test carries. It is part
-                  of the run's shape, not a consequence of the selection, so it
-                  stands whether or not videos are picked yet. A question is
-                  answered in place and never filed, so it has none. */}
-              {mode === 'report' && (
-                <label className="flex flex-col gap-xs">
-                  <FieldLabel optional>Run name</FieldLabel>
-                  <Input
-                    value={runName}
-                    onChange={(e) => setRunName(e.target.value)}
-                    placeholder={gameContext ?? 'User test'}
-                    aria-label="Run name"
-                    size="lg"
-                  />
-                </label>
-              )}
-            </div>
-
-            {/* Bar — context on the left, the action on the right */}
-            <div className="flex items-center gap-s pt-m mt-m" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-              <TestingMenuSelect
-                variant="chip"
-                openUp
-                ariaLabel="Game context"
-                placeholder="Add game context"
-                value={docId}
-                onChange={(v) => setDocId(v === NO_CONTEXT ? null : v)}
-                options={[
-                  ...GAME_CONTEXT_DOCS.map((d) => ({
-                    value: d.id,
-                    label: d.name,
-                    meta: d.meta,
-                    badge: d.fileType.toUpperCase(),
-                  })),
-                  ...uploads.map((u) => ({
-                    value: u.id,
-                    label: u.name,
-                    meta: u.uploading ? 'Uploading…' : 'Added just now',
-                    badge: u.fileType.toUpperCase(),
-                    pending: u.uploading,
-                  })),
-                  { value: NO_CONTEXT, label: 'None', meta: 'Findings per video, not grouped by step.', badge: '—' },
-                ]}
-                trailing={{ label: 'Upload new', meta: 'PDF, DOCX, or image', onSelect: uploadDoc }}
-              />
-              <span className="flex-1" />
-              {mode === 'report' ? (
-                <Button
-                  variant="primary"
-                  size="lg"
-                  disabled={!hasVideos}
-                  /* The host decides where this lands — it opens the new run's
-                     own page, which is where the queue, the analysis and then
-                     the report each report themselves. Flipping this
-                     composer's own tab to the history on the way out is a
-                     leftover from when the list was the destination, and it
-                     runs on a component that unmounts in the same commit. */
-                  onClick={() => onGenerate?.(selectedIds, gameContext, runName)}
-                >
-                  Generate report
-                </Button>
-              ) : (
-                <>
-                  {/* No readiness hint beside the send button (removed
-                      2026-09-23 on the PM brief). The two things it named are
-                      the two empty controls directly above it. */}
+                <span className="flex-1" />
+                {mode === 'report' ? (
                   <Button
                     variant="primary"
                     size="lg"
-                    iconOnly
-                    iconRound
-                    disabled={!canAsk}
-                    aria-label="Ask"
-                    onClick={ask}
+                    disabled={!hasVideos}
+                    /* The host decides where this lands — it opens the new run's
+                       own page, which is where the queue, the analysis and then
+                       the report each report themselves. Flipping this
+                       composer's own tab to the history on the way out is a
+                       leftover from when the list was the destination, and it
+                       runs on a component that unmounts in the same commit. */
+                    onClick={() => onGenerate?.(selectedIds, gameContext, runName)}
                   >
-                    <SendIcon size={20} />
+                    Generate report
                   </Button>
-                </>
-              )}
+                ) : (
+                  <>
+                    {/* No readiness hint beside the send button (removed
+                        2026-09-23 on the PM brief). The two things it named are
+                        the two empty controls directly above it. */}
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      iconOnly
+                      iconRound
+                      disabled={!canAsk}
+                      aria-label="Ask"
+                      onClick={ask}
+                    >
+                      <SendIcon size={20} />
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
+
+            {/* What the run produces and that it is not something to sit and
+                watch — the same closing note the other three composers carry, in
+                the same slot. */}
+            <SetupNote>
+              {mode === 'report'
+                ? 'Reports identify UX issues, friction points, frustration markers and drop-off by game step, each with supporting clips. Analysis runs in the background — the report lands in Run history when it is done.'
+                : 'Answers are drawn from the selected sessions only, with clips as evidence.'}
+            </SetupNote>
+
+            {mode === 'ask' && (
+              <div className="flex flex-col gap-s pt-l">
+                <span className="font-display text-s font-semibold text-text-secondary text-center">
+                  Try our suggested prompts
+                </span>
+                <div className="grid gap-m" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                  {USER_TEST_HOME_PROMPTS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      /* Pre-fill and stop. Opening the picker on top of the
+                         click threw the reader into a modal they did not ask
+                         for, and cancelling it lost the prompt as well. The
+                         question is now in the box, the hint beside the send
+                         button says videos are still needed, and they choose
+                         when to go and get them. */
+                      onClick={() => setQuestion(p)}
+                      className="suggestion-card-hover flex items-start gap-s text-left rounded-2xl px-l py-m font-body text-m text-text-primary leading-[1.5]"
+                      style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
+                    >
+                      <span className="shrink-0 mt-xxxs text-text-tertiary" aria-hidden>
+                        <BulbIcon size={16} />
+                      </span>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {mode === 'report' && !locked && (
+              <div
+                className="flex items-center gap-l rounded-3xl px-xl py-l mt-l"
+                style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
+              >
+                <SamplePreview />
+                <div className="flex flex-col gap-xxxs flex-1 min-w-0">
+                  <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
+                    Sample Report
+                  </span>
+                  <span className="font-body text-s text-text-secondary leading-[1.5]">
+                    Completed sample report on 10 gameplay sessions: findings grouped by categories with
+                    clips &amp; recommendations.
+                  </span>
+                </div>
+                <Button variant="secondary" size="lg" onClick={onOpenSample}>
+                  View Report
+                </Button>
+              </div>
+            )}
           </div>
-
-          {/* What the run produces and that it is not something to sit and
-              watch — the same closing note the other three composers carry, in
-              the same slot. */}
-          <SetupNote>
-            {mode === 'report'
-              ? 'Reports identify UX issues, friction points, frustration markers and drop-off by game step, each with supporting clips. Analysis runs in the background — the report lands in Run history when it is done.'
-              : 'Answers are drawn from the selected sessions only, with clips as evidence.'}
-          </SetupNote>
-
-          {mode === 'ask' && (
-            <div className="flex flex-col gap-s pt-l">
-              <span className="font-display text-s font-semibold text-text-secondary text-center">
-                Try our suggested prompts
-              </span>
-              <div className="grid gap-m" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-                {USER_TEST_HOME_PROMPTS.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    /* Pre-fill and stop. Opening the picker on top of the
-                       click threw the reader into a modal they did not ask
-                       for, and cancelling it lost the prompt as well. The
-                       question is now in the box, the hint beside the send
-                       button says videos are still needed, and they choose
-                       when to go and get them. */
-                    onClick={() => setQuestion(p)}
-                    className="suggestion-card-hover flex items-start gap-s text-left rounded-2xl px-l py-m font-body text-m text-text-primary leading-[1.5]"
-                    style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)' }}
-                  >
-                    <span className="shrink-0 mt-xxxs text-text-tertiary" aria-hidden>
-                      <BulbIcon size={16} />
-                    </span>
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {mode === 'report' && (
-            <div
-              className="flex items-center gap-l rounded-3xl px-xl py-l mt-l"
-              style={{ backgroundColor: 'var(--bg-elements)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
-            >
-              <SamplePreview />
-              <div className="flex flex-col gap-xxxs flex-1 min-w-0">
-                <span className="font-display text-m font-semibold text-text-primary leading-[1.4]">
-                  Sample Report
-                </span>
-                <span className="font-body text-s text-text-secondary leading-[1.5]">
-                  Completed sample report on 10 gameplay sessions: findings grouped by categories with
-                  clips &amp; recommendations.
-                </span>
-              </div>
-              <Button variant="secondary" size="lg" onClick={onOpenSample}>
-                View Report
-              </Button>
-            </div>
-          )}
-        </div>
+        </SetupLock>
       ) : (
         <RunHistoryList
           runs={history}

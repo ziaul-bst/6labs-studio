@@ -73,7 +73,7 @@ import { BaristaTaskDetailPage } from '../components/organisms/BaristaTaskDetail
 import { BaristaPage } from '../components/organisms/BaristaPage'
 import { useBarista } from '../state/BaristaContext'
 import { AreaLockedPitch } from '../components/organisms/AreaLockedPitch'
-import { TestLockedPitch } from '../components/organisms/TestLockedPitch'
+import { PlanLockedBanner } from '../components/molecules/PlanLockedBanner'
 import { ContactSalesDialog } from '../components/molecules/ContactSalesDialog'
 import { StateMachineDock, type StateMachineDockRow } from '../components/organisms/StateMachineDock'
 import { TESTING_PLAN_LABELS } from '../lib/studioAreas'
@@ -195,7 +195,6 @@ import {
   areaOfNav,
   ENTITLEMENT_PRESETS,
   isEntitled,
-  includedTestLabels,
   isTestLocked,
   landingNav,
   lockedTests,
@@ -573,10 +572,15 @@ export function HomePage() {
   const testingPlan = TESTING_PLAN_PRESETS[testingPlanKey]
   const lockedTestIds = lockedTests(testingPlan)
   const activeTestLocked = isTestLocked(testingPlan, activeNav)
+  /* A locked test opens as itself, under the plan bar — see PlanLockedBanner. */
+  const lockedTest = activeTestLocked ? TESTING_TESTS.find((t) => t.id === activeNav) : undefined
   /* "Contact sales" has no in-product purchase behind it — tests are
      enabled per workspace by our team — so it resolves to the support
      address instead of a fake "request sent" confirmation. */
   const [contactSalesTest, setContactSalesTest] = useState<TestingTestMeta | null>(null)
+  /* The dialog names one test. A trip elsewhere underneath it — the back
+     button, a deep link — must not leave it open over a different one. */
+  useEffect(() => setContactSalesTest(null), [activeNav])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [language, setLanguage] = useState('EN')
   /* Oracle is the default entry point on New Query. */
@@ -920,21 +924,6 @@ export function HomePage() {
   }
 
   const renderContent = () => {
-    /* A locked test never opens an empty product — it resolves to its pitch. */
-    if (activeTestLocked) {
-      const test = TESTING_TESTS.find((t) => t.id === activeNav)
-      if (test) {
-        return (
-          <TestLockedPitch
-            test={test}
-            includedTests={includedTestLabels(testingPlan)}
-            carriesOver="Your 14 Gameplay Library recordings and game context carry over — nothing to set up again."
-            onContactSales={(t) => setContactSalesTest(t)}
-            onSeeSample={() => setTestingPlanKey('unlocked')}
-          />
-        )
-      }
-    }
     switch (activeNav) {
       case 'barista':
         return <BaristaPage />
@@ -1091,9 +1080,13 @@ export function HomePage() {
       // User Test — composer home → run thread → full report. Screen state
       // lives inside the view; only the nav row is in the hash, because a run
       // has no id until it runs.
+      /* Each test remounts when the plan locks or unlocks it: a locked view
+         starts from the sample, an unlocked one from the studio's own runs. */
       case 'user-test':
         return (
           <UserTestAgentView
+            key={activeTestLocked ? 'user-test-locked' : 'user-test'}
+            locked={activeTestLocked}
             /* An empty Library fixture empties User Test too, which is the one
                place its zero state — and its "Get the Recorder app" — shows.
                Not while the session picker is open: the Library row is there to
@@ -1116,8 +1109,9 @@ export function HomePage() {
       case 'functional-test':
         return (
           <FunctionalTestView
-            key="functional"
+            key={activeTestLocked ? 'functional-locked' : 'functional'}
             variant="functional"
+            locked={activeTestLocked}
             onScreenChange={setTestingSubScreen}
             onTabChange={setTestingTab}
             onPickerOpenChange={setPickerOpen}
@@ -1126,11 +1120,20 @@ export function HomePage() {
         )
 
       case 'ai-functional-test':
-        return <AIFunctionalTestView onScreenChange={setTestingSubScreen} onTabChange={setTestingTab} />
+        return (
+          <AIFunctionalTestView
+            key={activeTestLocked ? 'ai-functional-locked' : 'ai-functional'}
+            locked={activeTestLocked}
+            onScreenChange={setTestingSubScreen}
+            onTabChange={setTestingTab}
+          />
+        )
 
       case 'ai-behavioural-test':
         return (
           <AIBehaviouralTestView
+            key={activeTestLocked ? 'ai-behavioural-locked' : 'ai-behavioural'}
+            locked={activeTestLocked}
             onScreenChange={setTestingSubScreen}
             onTabChange={setTestingTab}
             onOpenLibrary={() => setActiveNav('library')}
@@ -1351,7 +1354,7 @@ export function HomePage() {
       </div>
 
       {/* ── Main content area — mesh pinned, content scrolls ── */}
-      <main className="relative flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-in-out homepage-content-bg">
+      <main className="relative flex flex-col flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-in-out homepage-content-bg">
         {barista.setupStatus === 'in-setup' && (
           <div className="absolute inset-0 z-20 overflow-hidden">
             <BaristaSetupPage
@@ -1387,15 +1390,26 @@ export function HomePage() {
                moment the pipeline starts it is a reading surface and takes the
                detail treatment, like a report, rather than waiting for the
                answer to land. */
-            activeNav === 'home' || (activeNav === 'oracle' && activeHistoryId === null && !oracleRunning) || activeNav === 'uploads' || activeNav === 'library' || activeNav === 'library-recorder' || (activeNav === 'radiologist' && radiologistView === 'home') || (activeNav === 'specialized' && specializedAgentId === null) || (activeNav === 'connectors' && selectedConnectorId === null) || (activeNav === 'user-test' && (userTestScreen === 'home' || activeTestLocked)) || activeNav === 'testing-home' || (['functional-test', 'ai-functional-test', 'ai-behavioural-test'].includes(activeNav) && (testingSubScreen === 'home' || activeTestLocked))
+            activeNav === 'home' || (activeNav === 'oracle' && activeHistoryId === null && !oracleRunning) || activeNav === 'uploads' || activeNav === 'library' || activeNav === 'library-recorder' || (activeNav === 'radiologist' && radiologistView === 'home') || (activeNav === 'specialized' && specializedAgentId === null) || (activeNav === 'connectors' && selectedConnectorId === null) || (activeNav === 'user-test' && userTestScreen === 'home') || activeNav === 'testing-home' || (['functional-test', 'ai-functional-test', 'ai-behavioural-test'].includes(activeNav) && testingSubScreen === 'home')
               ? 'home'
               : 'detail'
           }
         />
 
-        {/* Scrollable content */}
+        {/* A test the plan does not include opens as itself, under this bar.
+            Outside the scroll, so it stays put while the page moves and
+            follows the reader into the sample report. */}
+        {areaEntitled && lockedTest && (
+          <PlanLockedBanner
+            testLabel={lockedTest.label}
+            onContactSales={() => setContactSalesTest(lockedTest)}
+          />
+        )}
+
+        {/* Scrollable content — the rest of main's height, under the bar when
+            there is one. */}
         <div className={[
-          'relative z-10 h-full',
+          'relative z-10 flex-1 min-h-0',
           // A purchasable area owns the whole content region — the sidebar's
           // rows are visible but nothing behind them is real yet.
           !areaEntitled ? 'overflow-hidden' : '',
@@ -1812,8 +1826,9 @@ export function HomePage() {
                 } satisfies StateMachineDockRow,
               ]
             : []),
-          /* The AI tests' build picker — every state a build passes through. */
-          ...((activeNav === 'ai-functional-test' || activeNav === 'ai-behavioural-test') && onTestHomeScreen && testingTab === 'new'
+          /* The AI tests' build picker — every state a build passes through.
+             Not on a locked test: its picker cannot open. */
+          ...((activeNav === 'ai-functional-test' || activeNav === 'ai-behavioural-test') && onTestHomeScreen && testingTab === 'new' && !activeTestLocked
             ? [
                 {
                   id: 'builds',
@@ -1864,7 +1879,9 @@ export function HomePage() {
                 } satisfies StateMachineDockRow,
               ]
             : []),
-          ...(area === 'testing' && HISTORY_STATE_NAVS.has(activeNav) && !onHistoryTab
+          /* Neither on a locked test. Running is off, so there is no run to
+             hold open, and its history is the sample and nothing else. */
+          ...(area === 'testing' && HISTORY_STATE_NAVS.has(activeNav) && !onHistoryTab && !activeTestLocked
             ? [
                 {
                   id: 'run',
@@ -1887,7 +1904,7 @@ export function HomePage() {
                 } satisfies StateMachineDockRow,
               ]
             : []),
-          ...(area === 'testing' && HISTORY_STATE_NAVS.has(activeNav) && onHistoryTab
+          ...(area === 'testing' && HISTORY_STATE_NAVS.has(activeNav) && onHistoryTab && !activeTestLocked
             ? [
                 {
                   id: 'history',

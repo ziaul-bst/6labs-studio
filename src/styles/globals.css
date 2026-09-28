@@ -2645,6 +2645,61 @@ textarea { resize: none; font-family: var(--font-body); }
   color: var(--text-primary);
 }
 
+/* ─── Locked test — the top bar and the switched-off composer ────────────────
+   A test the plan does not include opens as itself, under a bar that says why
+   (PlanLockedBanner), with its New run tab switched off (SetupLock).
+
+   Grey, chosen 2026-09-28 over five other drafts: solid --brand with white
+   type glared; a flat brand tint was a cold slab on the lavender and mint of
+   the Testing mesh; deep blue and navy were too dark; amber, at three
+   strengths, lost to this. Surface grey is the studio's word for "not
+   available", which is what a locked test is, and it leaves Contact sales the
+   only colour on the bar. Straight from the surface tokens — nothing mixed. */
+.plan-locked-banner {
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-default);
+  /* The content region below reserves its scrollbar's width (.page-scroll).
+     Reserving the same here puts the two page measures on the same pixels. */
+  overflow: hidden;
+  scrollbar-gutter: stable;
+}
+/* 28 around a 16 glyph — six pixels a side, so the lock centres on whole
+   pixels. White, so the one mark on a grey bar reads as a mark rather than a
+   darker patch of the bar. */
+.plan-locked-banner-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-m);
+  background-color: var(--bg-elements);
+  color: var(--text-secondary);
+}
+/* The secondary is a pale grey chip whose border is this bar's own grey, so
+   on the bar it had no edge. White on the bar's line keeps it a button. */
+.plan-locked-banner .btn-secondary {
+  background-color: var(--bg-elements);
+  border-color: var(--border-default);
+}
+.plan-locked-banner .btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg-page-pale);
+  border-color: var(--border-default);
+}
+
+/* The switched-off composer. Hover and the pointer are already gone (inert);
+   the tab steps back as a whole, so all of it reads as unavailable rather than
+   only its button. */
+.setup-lock {
+  min-width: 0;
+  width: 100%;
+  opacity: 0.5;
+}
+
 /* ─── Locked pitch — the one animated surface in the studio ─────────────────
    A page that is entirely an argument earns some motion; a page the reader
    works on does not. So this lives here and nowhere else: the bands arrive on

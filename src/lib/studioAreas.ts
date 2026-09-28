@@ -470,8 +470,9 @@ export const TESTING_TESTS: TestingTestMeta[] = [
 /**
  * Tests are sold separately. `locked` is a different state from `soon`: a SOON
  * test does not exist yet and is inert; a locked test exists, stays visible in
- * the sidebar and on the Overview, and resolves to a pitch instead of the
- * product. Never hide a locked test — it is the upsell.
+ * the sidebar and on the Overview, and opens as itself under the plan bar
+ * (PlanLockedBanner) — New run switched off, one sample report in its Run
+ * history. Never hide a locked test — it is the upsell.
  */
 export type TestEntitlement = 'entitled' | 'locked'
 export type TestingPlan = Partial<Record<TestingTestId, TestEntitlement>>

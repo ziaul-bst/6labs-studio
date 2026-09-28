@@ -16,6 +16,8 @@
  *                It lives inside the card, never loose on the page: a rule
  *                spanning the page ground with a button under it read as a
  *                stray element, not as the form's submit.
+ *  - SetupLock   the whole New run tab switched off, for a test the plan does
+ *                not include.
  *
  * Code-first prototype — no Figma source yet.
  */
@@ -518,6 +520,27 @@ export function SetupNote({ children }: { children: ReactNode }) {
       </span>
       <p className="font-body text-s text-text-tertiary leading-[1.6] min-w-0">{children}</p>
     </div>
+  )
+}
+
+/**
+ * The New run tab of a test the plan does not include. The composer stays on
+ * screen — it is the plainest picture of what the test asks for — with every
+ * control in it off: the fieldset disables the native controls so each wears
+ * its own disabled state, `inert` takes the rest (links, picker triggers) out
+ * of reach and out of the tab order, and the tab steps back as a whole so it
+ * reads as unavailable before anything is tried.
+ *
+ * Why it is off, and the way out, live in the page's top bar
+ * (PlanLockedBanner) — never in a panel laid over the form. A lock that covers
+ * the thing it is about hides the only argument for unlocking it.
+ */
+export function SetupLock({ locked, children }: { locked?: boolean; children: ReactNode }) {
+  if (!locked) return <>{children}</>
+  return (
+    <fieldset disabled className="setup-lock" {...{ inert: '' }}>
+      {children}
+    </fieldset>
   )
 }
 

@@ -25,3 +25,13 @@ export const ExternalAgency: Story = {
 export const ReportHistory: Story = {
   args: { variant: 'functional', initialTab: 'history' },
 }
+
+/** Not on the plan — the composer is switched off. The top bar that says why is the page's (PlanLockedBanner). */
+export const Locked: Story = {
+  args: { variant: 'functional', locked: true },
+}
+
+/** Not on the plan — Run history holds the one sample report. */
+export const LockedHistory: Story = {
+  args: { variant: 'functional', locked: true, initialTab: 'history' },
+}

@@ -26,7 +26,7 @@ import { TestingBodySkeleton, TestingPageSkeleton } from '../molecules/TestingSk
 import { usePageLoading } from '../../lib/pageLoading'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
-import { InstructionsField, SetupNote } from '../molecules/TestingSetupPieces'
+import { InstructionsField, SetupLock, SetupNote } from '../molecules/TestingSetupPieces'
 import { PersonaPicker } from '../molecules/PersonaPicker'
 import { SegmentedControl } from '../atoms/SegmentedControl'
 import { AIBehaviouralRunView, type AIBehaviouralRunTab, type VideosStatusFilter } from './AIBehaviouralRunView'
@@ -39,6 +39,7 @@ import { AIBehaviouralIcon } from '../icons/AIBehaviouralIcon'
 import {
   AI_BEHAVIOURAL_HISTORY,
   AI_BEHAVIOURAL_RUN_META,
+  AI_BEHAVIOURAL_SAMPLE_RUN,
   AI_BEHAVIOURAL_STEPS,
   PERSONAS,
   PERSONA_TONE,
@@ -96,6 +97,12 @@ export interface AIBehaviouralTestViewProps {
   /** Kept for the HomePage wiring; the run screens no longer hand off to the Library or Oracle. */
   onOpenLibrary?: () => void
   onAskOracle?: (question: string) => void
+  /**
+   * The plan does not include this test. The composer stays on screen with
+   * every control off, and Run history holds one sample report instead of runs
+   * of the studio's own. Why, and the way on, is the page's top bar.
+   */
+  locked?: boolean
   className?: string
 }
 
@@ -120,6 +127,7 @@ export function AIBehaviouralTestView({
   onScreenChange,
   initialTab = 'new',
   onTabChange,
+  locked = false,
   className,
 }: AIBehaviouralTestViewProps) {
   const [tab, setTab] = useState<'new' | 'history'>(initialTab)
@@ -149,7 +157,7 @@ export function AIBehaviouralTestView({
   const [length, setLength] = useState<SessionLength>('15')
   const [customLength, setCustomLength] = useState('45')
   const [instructions, setInstructions] = useState('')
-  const [runs, setRuns] = useState<TestRunHistoryItem[]>(AI_BEHAVIOURAL_HISTORY)
+  const [runs, setRuns] = useState<TestRunHistoryItem[]>(locked ? [AI_BEHAVIOURAL_SAMPLE_RUN] : AI_BEHAVIOURAL_HISTORY)
   const [openRun, setOpenRun] = useState<TestRunHistoryItem | null>(null)
   const [runTab, setRunTab] = useState<AIBehaviouralRunTab>('report')
   /* Seeds the run screen's Videos filter — 'live' when the reader came in from
@@ -169,16 +177,21 @@ export function AIBehaviouralTestView({
   useEffect(() => {
     onScreenChange?.(openSession ? 'session' : openRun ? 'run' : 'home')
   }, [openRun, openSession, onScreenChange])
-  /* Review dock: reseed the history and show it. */
+  /* Review dock: reseed the history and show it. Not on a locked test, whose
+     history is the sample and nothing else. */
   useHistoryDemoSeed(AI_BEHAVIOURAL_HISTORY, ({ runs: seeded, highlightId: hl, initial }) => {
+    if (locked) return
     setRuns(seeded)
     setHighlightId(hl)
     if (!initial) setTab('history')
   })
   /* Run-flow presets. No thread step here: 'thread' lands on the report — see
      lib/runDemoState. A live run opens on its Videos tab, a finished one on
-     its Report — the same landing the history row gives each. */
+     its Report — the same landing the history row gives each. A locked test
+     has no runs to hold open; the dock hides the row, and this ignores a state
+     chosen before the plan changed. */
   useRunDemoSeed((state) => {
+    if (locked) return
     setOpenSession(null)
     setRunVideosStatus('all')
     if (state === 'composer') {
@@ -423,149 +436,151 @@ export function AIBehaviouralTestView({
       {loadPhase === 'refresh' ? (
         <TestingBodySkeleton body={skeletonBody} />
       ) : tab === 'new' ? (
-        <div className="flex flex-col gap-m w-full">
-          <div
-            className="flex flex-col w-full rounded-4xl px-xl pt-l pb-m"
-            style={{
-              backgroundColor: 'var(--bg-elements)',
-              border: '1px solid var(--border-subtle)',
-              boxShadow: '0 10px 40px var(--bg-tint-light)',
-            }}
-          >
-            {/* The heading alone. "Personas are derived from the player model and
-                improve with every human session added" is a claim about the
-                product, not an instruction for this form — it is made on the
-                Overview, where someone is deciding whether to use the test, and
-                here it sat in the one line a reader skims on the way to the
-                first field. */}
+        <SetupLock locked={locked}>
+          <div className="flex flex-col gap-m w-full">
             <div
-              className="flex items-center gap-m pb-m mb-s"
-              style={{ borderBottom: '1px solid var(--border-subtle)' }}
+              className="flex flex-col w-full rounded-4xl px-xl pt-l pb-m"
+              style={{
+                backgroundColor: 'var(--bg-elements)',
+                border: '1px solid var(--border-subtle)',
+                boxShadow: '0 10px 40px var(--bg-tint-light)',
+              }}
             >
-              <span className="font-display text-m font-semibold text-text-primary">Set up a run</span>
-            </div>
-
-            <Row label="Run name">
-              <Input
-                value={runName}
-                onChange={(e) => setRunName(e.target.value)}
-                aria-label="Run name"
-                size="lg"
-                placeholder="e.g. Frost Festival — new player & whale"
-              />
-            </Row>
-
-            <Row label="Build">
-              <BuildField value={build} onChange={setBuild} />
-            </Row>
-
-            <Row label="Personas">
-              <PersonaPicker personas={PERSONAS} value={personaIds} onChange={setPersonaIds} />
-            </Row>
-
-            <Row label="AI players">
-              {personas.length === 0 ? (
-                <span className="font-body text-s text-text-tertiary leading-[1.5] py-xs">Choose personas first.</span>
-              ) : (
-                <div
-                  className="flex flex-col w-full rounded-xl overflow-hidden"
-                  style={{ border: '1px solid var(--border-default)' }}
-                >
-                  {personas.map((p, i) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center gap-m px-m py-xs"
-                      style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)' }}
-                    >
-                      <i className="shrink-0 w-[8px] h-[8px] rounded-round" style={{ backgroundColor: PERSONA_TONE[p.label] ?? 'var(--text-secondary)' }} aria-hidden />
-                      <span className="font-display text-s font-semibold text-text-primary leading-[1.5] whitespace-nowrap">{p.label}</span>
-                      <span className="font-body text-xs text-text-tertiary leading-[1.5] truncate min-w-0">{p.detail}</span>
-                      <span className="flex-1" />
-                      <div
-                        className="inline-flex items-center h-[32px] overflow-hidden"
-                        style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-input)' }}
-                        role="group"
-                        aria-label={`${p.label} AI players`}
-                      >
-                        <StepperButton label={`Fewer ${p.label} AI players`} onClick={() => setCount(p.id, countOf(p.id) - 1)}>−</StepperButton>
-                        <span className="w-[44px] text-center font-display text-s font-semibold text-text-primary">{countOf(p.id)}</span>
-                        <StepperButton label={`More ${p.label} AI players`} onClick={() => setCount(p.id, countOf(p.id) + 1)}>+</StepperButton>
-                      </div>
-                    </div>
-                  ))}
-                  {/* The total is the number the run is remembered by. */}
-                  <div
-                    className="flex items-center gap-xs px-m py-xs font-body text-s text-text-tertiary leading-[1.5]"
-                    style={{ borderTop: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-page-pale)' }}
-                  >
-                    {/* One is now the default, so the line has to survive it. */}
-                    <span className="font-semibold text-text-primary">
-                      {totalAgents} {totalAgents === 1 ? 'AI player' : 'AI players'}
-                    </span>{' '}
-                    in total
-                  </div>
-                </div>
-              )}
-            </Row>
-
-            <Row label="Session length">
-              <div className="flex items-center gap-s flex-wrap">
-                <SegmentedControl<SessionLength>
-                  ariaLabel="Session length"
-                  value={length}
-                  onChange={setLength}
-                  options={[
-                    { value: '15', label: '15 min' },
-                    { value: '30', label: '30 min' },
-                    { value: '60', label: '60 min' },
-                    { value: 'custom', label: 'Custom' },
-                  ]}
-                />
-                {length === 'custom' && (
-                  <span className="inline-flex items-center gap-xs">
-                    <input
-                      value={customLength}
-                      onChange={(e) => setCustomLength(e.target.value.replace(/\D/g, ''))}
-                      inputMode="numeric"
-                      aria-label="Custom session length in minutes"
-                      className="w-[72px] rounded-m px-s py-xs font-body text-s text-text-primary outline-none testing-focus-ring"
-                      style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elements)' }}
-                    />
-                    <span className="font-body text-s text-text-tertiary">min</span>
-                  </span>
-                )}
+              {/* The heading alone. "Personas are derived from the player model and
+                  improve with every human session added" is a claim about the
+                  product, not an instruction for this form — it is made on the
+                  Overview, where someone is deciding whether to use the test, and
+                  here it sat in the one line a reader skims on the way to the
+                  first field. */}
+              <div
+                className="flex items-center gap-m pb-m mb-s"
+                style={{ borderBottom: '1px solid var(--border-subtle)' }}
+              >
+                <span className="font-display text-m font-semibold text-text-primary">Set up a run</span>
               </div>
-            </Row>
 
-            <Row label="Instructions" optional>
-              <InstructionsField
-                value={instructions}
-                onChange={setInstructions}
-                ariaLabel="Instructions for the AI players"
-                placeholder="e.g. Focus on the new Frost Festival event. Whales should try the battle pass upgrade path."
-              />
-            </Row>
+              <Row label="Run name">
+                <Input
+                  value={runName}
+                  onChange={(e) => setRunName(e.target.value)}
+                  aria-label="Run name"
+                  size="lg"
+                  placeholder="e.g. Frost Festival — new player & whale"
+                />
+              </Row>
 
-            <div
-              className="flex items-center justify-end gap-s pt-m mt-s"
-              style={{ borderTop: '1px solid var(--border-subtle)' }}
-            >
-              {/* No readiness hint beside the button (removed 2026-09-23 on
-                  the PM brief). Build and Personas are two labelled, empty,
-                  required rows a few inches above it — the form already says
-                  what is missing, in the place it is missing from, and a line
-                  restating it at the foot was the third copy of the same fact. */}
-              <Button variant="primary" size="lg" disabled={personas.length === 0 || !build} onClick={submit}>
-                Submit
-              </Button>
+              <Row label="Build">
+                <BuildField value={build} onChange={setBuild} />
+              </Row>
+
+              <Row label="Personas">
+                <PersonaPicker personas={PERSONAS} value={personaIds} onChange={setPersonaIds} />
+              </Row>
+
+              <Row label="AI players">
+                {personas.length === 0 ? (
+                  <span className="font-body text-s text-text-tertiary leading-[1.5] py-xs">Choose personas first.</span>
+                ) : (
+                  <div
+                    className="flex flex-col w-full rounded-xl overflow-hidden"
+                    style={{ border: '1px solid var(--border-default)' }}
+                  >
+                    {personas.map((p, i) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-m px-m py-xs"
+                        style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)' }}
+                      >
+                        <i className="shrink-0 w-[8px] h-[8px] rounded-round" style={{ backgroundColor: PERSONA_TONE[p.label] ?? 'var(--text-secondary)' }} aria-hidden />
+                        <span className="font-display text-s font-semibold text-text-primary leading-[1.5] whitespace-nowrap">{p.label}</span>
+                        <span className="font-body text-xs text-text-tertiary leading-[1.5] truncate min-w-0">{p.detail}</span>
+                        <span className="flex-1" />
+                        <div
+                          className="inline-flex items-center h-[32px] overflow-hidden"
+                          style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-input)' }}
+                          role="group"
+                          aria-label={`${p.label} AI players`}
+                        >
+                          <StepperButton label={`Fewer ${p.label} AI players`} onClick={() => setCount(p.id, countOf(p.id) - 1)}>−</StepperButton>
+                          <span className="w-[44px] text-center font-display text-s font-semibold text-text-primary">{countOf(p.id)}</span>
+                          <StepperButton label={`More ${p.label} AI players`} onClick={() => setCount(p.id, countOf(p.id) + 1)}>+</StepperButton>
+                        </div>
+                      </div>
+                    ))}
+                    {/* The total is the number the run is remembered by. */}
+                    <div
+                      className="flex items-center gap-xs px-m py-xs font-body text-s text-text-tertiary leading-[1.5]"
+                      style={{ borderTop: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-page-pale)' }}
+                    >
+                      {/* One is now the default, so the line has to survive it. */}
+                      <span className="font-semibold text-text-primary">
+                        {totalAgents} {totalAgents === 1 ? 'AI player' : 'AI players'}
+                      </span>{' '}
+                      in total
+                    </div>
+                  </div>
+                )}
+              </Row>
+
+              <Row label="Session length">
+                <div className="flex items-center gap-s flex-wrap">
+                  <SegmentedControl<SessionLength>
+                    ariaLabel="Session length"
+                    value={length}
+                    onChange={setLength}
+                    options={[
+                      { value: '15', label: '15 min' },
+                      { value: '30', label: '30 min' },
+                      { value: '60', label: '60 min' },
+                      { value: 'custom', label: 'Custom' },
+                    ]}
+                  />
+                  {length === 'custom' && (
+                    <span className="inline-flex items-center gap-xs">
+                      <input
+                        value={customLength}
+                        onChange={(e) => setCustomLength(e.target.value.replace(/\D/g, ''))}
+                        inputMode="numeric"
+                        aria-label="Custom session length in minutes"
+                        className="w-[72px] rounded-m px-s py-xs font-body text-s text-text-primary outline-none testing-focus-ring"
+                        style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elements)' }}
+                      />
+                      <span className="font-body text-s text-text-tertiary">min</span>
+                    </span>
+                  )}
+                </div>
+              </Row>
+
+              <Row label="Instructions" optional>
+                <InstructionsField
+                  value={instructions}
+                  onChange={setInstructions}
+                  ariaLabel="Instructions for the AI players"
+                  placeholder="e.g. Focus on the new Frost Festival event. Whales should try the battle pass upgrade path."
+                />
+              </Row>
+
+              <div
+                className="flex items-center justify-end gap-s pt-m mt-s"
+                style={{ borderTop: '1px solid var(--border-subtle)' }}
+              >
+                {/* No readiness hint beside the button (removed 2026-09-23 on
+                    the PM brief). Build and Personas are two labelled, empty,
+                    required rows a few inches above it — the form already says
+                    what is missing, in the place it is missing from, and a line
+                    restating it at the foot was the third copy of the same fact. */}
+                <Button variant="primary" size="lg" disabled={personas.length === 0 || !build} onClick={submit}>
+                  Submit
+                </Button>
+              </div>
             </div>
-          </div>
 
-          <SetupNote>
-            AI players run as selected personas for the set session length. Once finished, a behavioural
-            and usability report is generated, you may track in Run history.
-          </SetupNote>
-        </div>
+            <SetupNote>
+              AI players run as selected personas for the set session length. Once finished, a behavioural
+              and usability report is generated, you may track in Run history.
+            </SetupNote>
+          </div>
+        </SetupLock>
       ) : (
         <RunHistoryList
           runs={runs}

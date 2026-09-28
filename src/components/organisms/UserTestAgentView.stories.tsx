@@ -48,3 +48,20 @@ export const RunSummary: Story = {
     initialScreen: 'summary',
   },
 }
+
+/** Not on the plan — the composer is switched off and the sample card is gone. The top bar that says why is the page's (PlanLockedBanner). */
+export const Locked: Story = {
+  args: {
+    initialScreen: 'home',
+    locked: true,
+  },
+}
+
+/** Not on the plan — History holds the one sample report. */
+export const LockedHistory: Story = {
+  args: {
+    initialScreen: 'home',
+    initialTab: 'history',
+    locked: true,
+  },
+}

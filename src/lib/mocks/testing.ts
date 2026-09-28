@@ -54,6 +54,45 @@ export const AI_BEHAVIOURAL_HISTORY: TestRunHistoryItem[] = [
   { id: 'aib-season', name: 'Season 9 — full sweep', detail: '32 sessions · 60 min · v2.3.1', meta: 'Generic ×8, New player ×8, Core ×8, Whale ×8', tags: ['Generic ×8', 'New player ×8', 'Core ×8', 'Whale ×8'], state: 'done', result: { kind: 'issues', count: 14 }, when: 'Sep 4' },
 ]
 
+// ── Sample reports (locked tests) ─────────────────────────────────────────────
+
+/*
+ * The one row a locked test's Run history holds. A test the plan does not
+ * include has never run for this studio, so it has no history of its own —
+ * the tab offers a finished report to read instead, opened on the same screen
+ * a real run opens on.
+ *
+ * "Sample report —" leads every name so the row can never be read as the
+ * studio's own work. Each keeps its seeded id, because the screens behind it
+ * are keyed on the id (the behavioural run's meta and its sessions).
+ */
+export const USER_TEST_SAMPLE_RUN: TestRunHistoryItem = {
+  id: 'sample',
+  name: 'Sample report — Whiteout Survival onboarding',
+  detail: '10 sessions · Onboarding flow v3',
+  meta: 'Build V2.1',
+  tags: ['Build V2.1'],
+  state: 'done',
+  result: { kind: 'issues', count: 7 },
+  when: 'Aug 26',
+}
+export const FUNCTIONAL_SAMPLE_RUN: TestRunHistoryItem = {
+  ...FUNCTIONAL_HISTORY[0],
+  name: 'Sample report — Tutorial regression',
+}
+/* The seeded run's sheet is the studio's own game PRD — a sample carrying it
+   would read as this studio's data. */
+export const AI_FUNCTIONAL_SAMPLE_RUN: TestRunHistoryItem = {
+  ...AI_FUNCTIONAL_HISTORY[0],
+  name: 'Sample report — Season 9 core loop',
+  detail: '24 cases · season-9-core-loop.xlsx',
+  caseFiles: [{ name: 'season-9-core-loop.xlsx', meta: '24 cases', href: '#/files/season-9-core-loop.xlsx' }],
+}
+export const AI_BEHAVIOURAL_SAMPLE_RUN: TestRunHistoryItem = {
+  ...AI_BEHAVIOURAL_HISTORY[0],
+  name: 'Sample report — Frost Festival',
+}
+
 // ── Functional report ─────────────────────────────────────────────────────────
 
 

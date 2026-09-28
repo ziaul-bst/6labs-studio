@@ -32,7 +32,7 @@ import { UserTestRunSummary } from './UserTestRunSummary'
 import { MembersIcon } from '../icons/MembersIcon'
 import { showToast } from '../atoms/Toast'
 import { answerFor, askQuestion } from './UserTestAskPanel'
-import { USER_TEST_HISTORY } from '../../lib/mocks/testing'
+import { USER_TEST_HISTORY, USER_TEST_SAMPLE_RUN } from '../../lib/mocks/testing'
 import { useHistoryDemoSeed } from '../../lib/historyDemoState'
 import { PICKER_VIDEOS, USER_TEST_ISSUES, USER_TEST_REPORT_META } from '../../lib/mocks/user-test'
 import type { TestRunHistoryItem } from '../../lib/types/testing'
@@ -75,6 +75,12 @@ export interface UserTestAgentViewProps {
    * answer User Test declined to give — see UserTestAskPanel.
    */
   onAskOracle?: (question: string) => void
+  /**
+   * The plan does not include User Test. The composer stays on screen with
+   * every control off, and History holds the sample report instead of runs of
+   * the studio's own. Why, and the way on, is the page's top bar.
+   */
+  locked?: boolean
   className?: string
 }
 
@@ -86,15 +92,6 @@ const SIMULATED_RUN_MS = 16000
    open. Row zero is a question, and seeding a queued run from it put a
    question's own sentence in the bar of a page reporting on ten sessions. */
 const SEED_REPORT = USER_TEST_HISTORY.find((r) => (r.kind ?? 'report') === 'report') ?? USER_TEST_HISTORY[0]
-const SAMPLE_RUN: TestRunHistoryItem = {
-  id: 'sample',
-  name: 'Sample report — Whiteout Survival onboarding',
-  detail: '10 sessions · Onboarding flow v3',
-  meta: 'Build V2.1',
-  state: 'done',
-  result: { kind: 'issues', count: 7 },
-  when: 'Aug 26',
-}
 
 /** The run being read, and what it was run over. */
 interface OpenRun {
@@ -116,14 +113,17 @@ export function UserTestAgentView({
   onOpenLibrary,
   onGetRecorder,
   onAskOracle,
+  locked = false,
   className,
 }: UserTestAgentViewProps) {
-  const [runs, setRuns] = useState<TestRunHistoryItem[]>(USER_TEST_HISTORY)
+  const [runs, setRuns] = useState<TestRunHistoryItem[]>(locked ? [USER_TEST_SAMPLE_RUN] : USER_TEST_HISTORY)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   /* Review dock: a history preset reseeds the list and, when chosen on this
-     screen, remounts the home on its History tab so the change is in view. */
+     screen, remounts the home on its History tab so the change is in view.
+     Not on a locked test, whose history is the sample and nothing else. */
   const [homeSeed, setHomeSeed] = useState(0)
   useHistoryDemoSeed(USER_TEST_HISTORY, ({ runs: seeded, highlightId: hl, initial }) => {
+    if (locked) return
     setRuns(seeded)
     setHighlightId(hl)
     if (!initial) setHomeSeed((n) => n + 1)
@@ -147,8 +147,11 @@ export function UserTestAgentView({
 
   /* Run-flow presets — see lib/runDemoState. There is no 'running' here any
      more: a new run lands on the History tab as a row in progress, so the only
-     thing a preset could hold open is a screen nothing routes to. */
+     thing a preset could hold open is a screen nothing routes to. A locked test
+     has no runs to hold open; the dock hides the row, and this ignores a state
+     chosen before the plan changed. */
   useRunDemoSeed((state) => {
+    if (locked) return
     if (state === 'composer') {
       setOpen(null)
       setStage('summary')
@@ -213,7 +216,9 @@ export function UserTestAgentView({
     onScreenChange?.(screen)
   }, [screen, onScreenChange])
 
-  const hasSessions = libraryVideoCount > 0
+  /* A locked test never shows the zero state. Its way forward is adding
+     recordings, which does nothing for a test the plan does not include. */
+  const hasSessions = libraryVideoCount > 0 || locked
 
   const finishRun = (id: string) =>
     setRuns((prev) =>
@@ -304,6 +309,7 @@ export function UserTestAgentView({
             onPickerOpenChange={onPickerOpenChange}
             onOpenLibrary={onOpenLibrary}
             onOpenRun={openRun}
+            locked={locked}
             onGenerate={generate}
             onAsk={(question, videoIds, gameContext) => {
               setAskTurns([])
@@ -338,7 +344,7 @@ export function UserTestAgentView({
             onOpenSample={() => {
               setAskTurns([])
               setStage('summary')
-              setOpen({ run: SAMPLE_RUN, gameContext: 'Onboarding flow v3', videoCount: 10 })
+              setOpen({ run: USER_TEST_SAMPLE_RUN, gameContext: 'Onboarding flow v3', videoCount: 10 })
             }}
           />
         ) : (

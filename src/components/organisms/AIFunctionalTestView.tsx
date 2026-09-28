@@ -29,6 +29,7 @@ import {
   SampleSheetLink,
   SetupCard,
   SetupFooter,
+  SetupLock,
   SetupNote,
   SetupZone,
   ZoneFileList,
@@ -42,7 +43,12 @@ import Button from '../ui/Button'
 import Input from '../ui/Input'
 import { AIFunctionalIcon } from '../icons/AIFunctionalIcon'
 import { UploadIcon } from '../icons/UploadIcon'
-import { AI_FUNCTIONAL_HISTORY, SAMPLE_TEST_CASE_FILES, SAMPLE_TEST_CASE_SHEET } from '../../lib/mocks/testing'
+import {
+  AI_FUNCTIONAL_HISTORY,
+  AI_FUNCTIONAL_SAMPLE_RUN,
+  SAMPLE_TEST_CASE_FILES,
+  SAMPLE_TEST_CASE_SHEET,
+} from '../../lib/mocks/testing'
 import { useHistoryDemoSeed } from '../../lib/historyDemoState'
 import type { TestCaseFile, TestRunHistoryItem } from '../../lib/types/testing'
 
@@ -57,6 +63,12 @@ export interface AIFunctionalTestViewProps {
    * this component knows it.
    */
   onTabChange?: (tab: 'new' | 'history') => void
+  /**
+   * The plan does not include this test. The composer stays on screen with
+   * every control off, and Run history holds one sample report instead of runs
+   * of the studio's own. Why, and the way on, is the page's top bar.
+   */
+  locked?: boolean
   className?: string
 }
 
@@ -69,7 +81,13 @@ const MAX_CASE_FILES = 3
 /** How long an attached sheet spends transferring before it is readable. */
 const SIMULATED_UPLOAD_MS = 1800
 
-export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTabChange, className }: AIFunctionalTestViewProps) {
+export function AIFunctionalTestView({
+  onScreenChange,
+  initialTab = 'new',
+  onTabChange,
+  locked = false,
+  className,
+}: AIFunctionalTestViewProps) {
   const [tab, setTab] = useState<'new' | 'history'>(initialTab)
   useEffect(() => {
     onTabChange?.(tab)
@@ -81,7 +99,7 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
   const chosenBuild = builds.find((b) => b.status === 'ready' && versionOf(b) === build) ?? null
   const [runName, setRunName] = useState('Season 9 — core loop')
   const [instructions, setInstructions] = useState('')
-  const [runs, setRuns] = useState<TestRunHistoryItem[]>(AI_FUNCTIONAL_HISTORY)
+  const [runs, setRuns] = useState<TestRunHistoryItem[]>(locked ? [AI_FUNCTIONAL_SAMPLE_RUN] : AI_FUNCTIONAL_HISTORY)
   const [openRun, setOpenRun] = useState<TestRunHistoryItem | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   /* The home's own beat, restarted on a tab change. The report has its own. */
@@ -95,8 +113,11 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
   /* Run-flow presets. This view had none, so the dock's Run row rendered here
      and did nothing when pressed — the one screen it could hold open, the
      report, was reachable only by sitting through a 14-second run. Two states,
-     the same two the human functional test has. */
+     the same two the human functional test has. A locked test has no runs to
+     hold open; the dock hides the row, and this ignores a state chosen before
+     the plan changed. */
   useRunDemoSeed((state) => {
+    if (locked) return
     if (state === 'composer') {
       setOpenRun(null)
       return
@@ -113,8 +134,10 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
     }
     setOpenRun({ ...AI_FUNCTIONAL_HISTORY[0], state: 'done' })
   })
-  /* Review dock: reseed the history and show it. */
+  /* Review dock: reseed the history and show it. Not on a locked test, whose
+     history is the sample and nothing else. */
   useHistoryDemoSeed(AI_FUNCTIONAL_HISTORY, ({ runs: seeded, highlightId: hl, initial }) => {
+    if (locked) return
     setRuns(seeded)
     setHighlightId(hl)
     if (!initial) setTab('history')
@@ -250,136 +273,138 @@ export function AIFunctionalTestView({ onScreenChange, initialTab = 'new', onTab
       {loadPhase === 'refresh' ? (
         <TestingBodySkeleton body={skeletonBody} />
       ) : tab === 'new' ? (
-        <div className="flex flex-col gap-m w-full">
-          {/* The two inputs a run needs, side by side, in the same order the
-              human functional test asks for them: what the cases run against
-              first, then the cases. Cases were on the left here, so the two
-              functional composers mirrored each other — and the case-sheet note
-              hung under the left column where it read as a footnote to the page
-              rather than to the zone it belongs to. */}
-          <div className="grid gap-m w-full" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-            <SetupZone
-              filled={build !== null}
-              icon={<UploadIcon size={20} />}
-              title="Choose a build"
-              filledTitle="Build"
-              description="Upload an APK or select an uploaded build."
-              formats="APK"
-              required
-              accent="success"
-              onClick={() => setBuildPickerOpen(true)}
-            >
-              {/* Not the compact row the case sheet uses. A zone that can only
-                  ever hold one build has the whole card to itself, and the row
-                  spent that space truncating the file name to fit a list shape
-                  it is never in a list of. The version gets the heading, its
-                  file gets a full line under it. */}
-              {/* The package mark, not a tick — the same badge the build
-                  picker and the behavioural composer's build field carry, so a
-                  chosen build looks the same wherever it is shown. The tick
-                  only said "attached", which the filled zone already is. */}
-              <ZoneFilledHeader
-                icon={<BuildPlatformBadge plain>{chosenBuild?.platform ?? 'APK'}</BuildPlatformBadge>}
-                title={build ?? ''}
-                onRemove={() => setBuild(null)}
-              />
-              {chosenBuild && (
-                <p className="font-body text-s text-text-secondary leading-[1.5] m-0 truncate">
-                  {chosenBuild.fileName} · {chosenBuild.sizeLabel} · {chosenBuild.uploadedLabel}
-                  {chosenBuild.newest ? ' · newest' : ''}
-                </p>
-              )}
-              <ZoneFooter>
-                <button type="button" onClick={() => setBuildPickerOpen(true)} className="font-semibold text-text-brand hover:underline">
-                  Change build
-                </button>
-              </ZoneFooter>
-            </SetupZone>
-
-            <SetupZone
-              filled={files.length > 0}
-              icon={<UploadIcon size={20} />}
-              title="Add test cases"
-              filledTitle="Test cases"
-              description="Upload a CSV or XLSX file with one test case per row."
-              formats="CSV · XLSX"
-              required
-              accent="success"
-              /* Empty only: once a sheet is attached the link moves into the
-                 file list's own footer row, opposite "Add another file". */
-              note={
-                files.length === 0 ? (
-                  <CaseSheetNote
-                    required={SAMPLE_TEST_CASE_SHEET.required}
-                    href={SAMPLE_TEST_CASE_SHEET.href}
-                    label={SAMPLE_TEST_CASE_SHEET.label}
-                  />
-                ) : undefined
-              }
-              onClick={() => attachFile(SAMPLE_TEST_CASE_FILES[0])}
-            >
-              <ZoneFileList
-                files={files}
-                limit={MAX_CASE_FILES}
-                limitReason={`${MAX_CASE_FILES} files is the most one run can execute.`}
-                trailing={<SampleSheetLink href={SAMPLE_TEST_CASE_SHEET.href} label={SAMPLE_TEST_CASE_SHEET.label} />}
-                onRemove={(f) => setFiles((prev) => prev.filter((x) => x.name !== f.name))}
-                onAdd={() => {
-                  const next = SAMPLE_TEST_CASE_FILES.find((f) => !files.some((p) => p.name === f.name))
-                  if (next) attachFile(next)
-                }}
-              />
-            </SetupZone>
-          </div>
-
-          <BuildPickerModal
-            isOpen={buildPickerOpen}
-            value={build}
-            onClose={() => setBuildPickerOpen(false)}
-            onPick={setBuild}
-          />
-
-          {/* No heading. "Name this run" sat directly above a field labelled
-              RUN NAME, and its hint explained the value of naming things. */}
-          <SetupCard
-            /* The action closes the last card rather than floating under a
-               page-wide rule. Its hint only speaks when something is actually
-               in the way: both zones above carry REQUIRED, and a line restating
-               them under a visibly disabled button was the third place one
-               screen asked for the same two things. */
-            footer={
-              <SetupFooter
-                hint={uploading ? 'Waiting for the test cases to finish uploading.' : undefined}
+        <SetupLock locked={locked}>
+          <div className="flex flex-col gap-m w-full">
+            {/* The two inputs a run needs, side by side, in the same order the
+                human functional test asks for them: what the cases run against
+                first, then the cases. Cases were on the left here, so the two
+                functional composers mirrored each other — and the case-sheet note
+                hung under the left column where it read as a footnote to the page
+                rather than to the zone it belongs to. */}
+            <div className="grid gap-m w-full" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              <SetupZone
+                filled={build !== null}
+                icon={<UploadIcon size={20} />}
+                title="Choose a build"
+                filledTitle="Build"
+                description="Upload an APK or select an uploaded build."
+                formats="APK"
+                required
+                accent="success"
+                onClick={() => setBuildPickerOpen(true)}
               >
-                <Button variant="primary" size="lg" disabled={!ready} onClick={startRun}>
-                  Run test
-                </Button>
-              </SetupFooter>
-            }
-          >
-            <label className="flex flex-col gap-xs">
-              <FieldLabel optional>Run name</FieldLabel>
-              <Input value={runName} onChange={(e) => setRunName(e.target.value)} aria-label="Run name" size="lg" />
-            </label>
-            <div className="flex flex-col gap-xs">
-              <FieldLabel optional>Instructions</FieldLabel>
-              <InstructionsField
-                value={instructions}
-                onChange={setInstructions}
-                ariaLabel="Instructions for the AI players"
-                placeholder="e.g. Start from a fresh install. Skip the tutorial for cases TC-10 onward. Use the test account bp_tester_03."
-              />
-            </div>
-          </SetupCard>
+                {/* Not the compact row the case sheet uses. A zone that can only
+                    ever hold one build has the whole card to itself, and the row
+                    spent that space truncating the file name to fit a list shape
+                    it is never in a list of. The version gets the heading, its
+                    file gets a full line under it. */}
+                {/* The package mark, not a tick — the same badge the build
+                    picker and the behavioural composer's build field carry, so a
+                    chosen build looks the same wherever it is shown. The tick
+                    only said "attached", which the filled zone already is. */}
+                <ZoneFilledHeader
+                  icon={<BuildPlatformBadge plain>{chosenBuild?.platform ?? 'APK'}</BuildPlatformBadge>}
+                  title={build ?? ''}
+                  onRemove={() => setBuild(null)}
+                />
+                {chosenBuild && (
+                  <p className="font-body text-s text-text-secondary leading-[1.5] m-0 truncate">
+                    {chosenBuild.fileName} · {chosenBuild.sizeLabel} · {chosenBuild.uploadedLabel}
+                    {chosenBuild.newest ? ' · newest' : ''}
+                  </p>
+                )}
+                <ZoneFooter>
+                  <button type="button" onClick={() => setBuildPickerOpen(true)} className="font-semibold text-text-brand hover:underline">
+                    Change build
+                  </button>
+                </ZoneFooter>
+              </SetupZone>
 
-          {/* What the run produces and that it is not something to wait on —
-              same closing note the other three composers carry. */}
-          <SetupNote>
-            AI players execute the provided test cases on the selected build. Test cases are marked
-            Passed, Failed, Needs review, or Not verified, with explanations and supporting clips where
-            available. Once completed reports appear in Run history.
-          </SetupNote>
-        </div>
+              <SetupZone
+                filled={files.length > 0}
+                icon={<UploadIcon size={20} />}
+                title="Add test cases"
+                filledTitle="Test cases"
+                description="Upload a CSV or XLSX file with one test case per row."
+                formats="CSV · XLSX"
+                required
+                accent="success"
+                /* Empty only: once a sheet is attached the link moves into the
+                   file list's own footer row, opposite "Add another file". */
+                note={
+                  files.length === 0 ? (
+                    <CaseSheetNote
+                      required={SAMPLE_TEST_CASE_SHEET.required}
+                      href={SAMPLE_TEST_CASE_SHEET.href}
+                      label={SAMPLE_TEST_CASE_SHEET.label}
+                    />
+                  ) : undefined
+                }
+                onClick={() => attachFile(SAMPLE_TEST_CASE_FILES[0])}
+              >
+                <ZoneFileList
+                  files={files}
+                  limit={MAX_CASE_FILES}
+                  limitReason={`${MAX_CASE_FILES} files is the most one run can execute.`}
+                  trailing={<SampleSheetLink href={SAMPLE_TEST_CASE_SHEET.href} label={SAMPLE_TEST_CASE_SHEET.label} />}
+                  onRemove={(f) => setFiles((prev) => prev.filter((x) => x.name !== f.name))}
+                  onAdd={() => {
+                    const next = SAMPLE_TEST_CASE_FILES.find((f) => !files.some((p) => p.name === f.name))
+                    if (next) attachFile(next)
+                  }}
+                />
+              </SetupZone>
+            </div>
+
+            <BuildPickerModal
+              isOpen={buildPickerOpen}
+              value={build}
+              onClose={() => setBuildPickerOpen(false)}
+              onPick={setBuild}
+            />
+
+            {/* No heading. "Name this run" sat directly above a field labelled
+                RUN NAME, and its hint explained the value of naming things. */}
+            <SetupCard
+              /* The action closes the last card rather than floating under a
+                 page-wide rule. Its hint only speaks when something is actually
+                 in the way: both zones above carry REQUIRED, and a line restating
+                 them under a visibly disabled button was the third place one
+                 screen asked for the same two things. */
+              footer={
+                <SetupFooter
+                  hint={uploading ? 'Waiting for the test cases to finish uploading.' : undefined}
+                >
+                  <Button variant="primary" size="lg" disabled={!ready} onClick={startRun}>
+                    Run test
+                  </Button>
+                </SetupFooter>
+              }
+            >
+              <label className="flex flex-col gap-xs">
+                <FieldLabel optional>Run name</FieldLabel>
+                <Input value={runName} onChange={(e) => setRunName(e.target.value)} aria-label="Run name" size="lg" />
+              </label>
+              <div className="flex flex-col gap-xs">
+                <FieldLabel optional>Instructions</FieldLabel>
+                <InstructionsField
+                  value={instructions}
+                  onChange={setInstructions}
+                  ariaLabel="Instructions for the AI players"
+                  placeholder="e.g. Start from a fresh install. Skip the tutorial for cases TC-10 onward. Use the test account bp_tester_03."
+                />
+              </div>
+            </SetupCard>
+
+            {/* What the run produces and that it is not something to wait on —
+                same closing note the other three composers carry. */}
+            <SetupNote>
+              AI players execute the provided test cases on the selected build. Test cases are marked
+              Passed, Failed, Needs review, or Not verified, with explanations and supporting clips where
+              available. Once completed reports appear in Run history.
+            </SetupNote>
+          </div>
+        </SetupLock>
       ) : (
         <RunHistoryList
           runs={runs}

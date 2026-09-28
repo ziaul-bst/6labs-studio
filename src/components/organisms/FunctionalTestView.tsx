@@ -33,6 +33,7 @@ import {
   SampleSheetLink,
   SetupCard,
   SetupFooter,
+  SetupLock,
   SetupNote,
   SetupZone,
   ZoneFileList,
@@ -49,7 +50,12 @@ import { FunctionalTestIcon } from '../icons/FunctionalTestIcon'
 import { AgencyTestIcon } from '../icons/AgencyTestIcon'
 import { PlayIcon } from '../icons/PlayIcon'
 import { UploadIcon } from '../icons/UploadIcon'
-import { FUNCTIONAL_HISTORY, SAMPLE_TEST_CASE_FILES, SAMPLE_TEST_CASE_SHEET } from '../../lib/mocks/testing'
+import {
+  FUNCTIONAL_HISTORY,
+  FUNCTIONAL_SAMPLE_RUN,
+  SAMPLE_TEST_CASE_FILES,
+  SAMPLE_TEST_CASE_SHEET,
+} from '../../lib/mocks/testing'
 import { useHistoryDemoSeed } from '../../lib/historyDemoState'
 import { PICKER_VIDEOS } from '../../lib/mocks/user-test'
 import type { TestCaseFile, TestRunHistoryItem } from '../../lib/types/testing'
@@ -76,6 +82,12 @@ export interface FunctionalTestViewProps {
   onPickerOpenChange?: (open: boolean) => void
   /** Way out of the picker's empty-library state — navigates to the Library. */
   onOpenLibrary?: () => void
+  /**
+   * The plan does not include this test. The composer stays on screen with
+   * every control off, and Run history holds one sample report instead of runs
+   * of the studio's own. Why, and the way on, is the page's top bar.
+   */
+  locked?: boolean
   className?: string
 }
 
@@ -145,6 +157,7 @@ export function FunctionalTestView({
   onTabChange,
   onPickerOpenChange,
   onOpenLibrary,
+  locked = false,
   className,
 }: FunctionalTestViewProps) {
   const copy = COPY[variant]
@@ -160,7 +173,7 @@ export function FunctionalTestView({
   useEffect(() => {
     onPickerOpenChange?.(pickerOpen)
   }, [pickerOpen, onPickerOpenChange])
-  const [runs, setRuns] = useState<TestRunHistoryItem[]>(FUNCTIONAL_HISTORY)
+  const [runs, setRuns] = useState<TestRunHistoryItem[]>(locked ? [FUNCTIONAL_SAMPLE_RUN] : FUNCTIONAL_HISTORY)
   const [openRun, setOpenRun] = useState<TestRunHistoryItem | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   /* The home's own beat, restarted on a tab change — moving from New run to
@@ -169,8 +182,10 @@ export function FunctionalTestView({
   const loadPhase = usePageLoading(tab)
 
   /* Run-flow presets. No thread step here, so 'thread' lands on the report —
-     see lib/runDemoState. */
+     see lib/runDemoState. A locked test has no runs to hold open; the dock
+     hides the row, and this ignores a state chosen before the plan changed. */
   useRunDemoSeed((state) => {
+    if (locked) return
     if (state === 'composer') {
       setOpenRun(null)
       return
@@ -194,8 +209,10 @@ export function FunctionalTestView({
   useEffect(() => {
     onScreenChange?.(openRun ? 'report' : 'home')
   }, [openRun, onScreenChange])
-  /* Review dock: reseed the history and show it. */
+  /* Review dock: reseed the history and show it. Not on a locked test, whose
+     history is the sample and nothing else. */
   useHistoryDemoSeed(FUNCTIONAL_HISTORY, ({ runs: seeded, highlightId: hl, initial }) => {
+    if (locked) return
     setRuns(seeded)
     setHighlightId(hl)
     if (!initial) setTab('history')
@@ -344,96 +361,98 @@ export function FunctionalTestView({
       {loadPhase === 'refresh' ? (
         <TestingBodySkeleton body={skeletonBody} />
       ) : tab === 'new' ? (
-        <div className="flex flex-col gap-m w-full">
-          <div className="grid gap-m w-full" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-            <SetupZone
-              filled={selected.length > 0}
-              icon={<PlayIcon size={20} />}
-              title="Select gameplay sessions"
-              filledTitle="Sessions"
-              description={copy.recordingsHint}
-              required
-              accent={copy.accent}
-              onClick={() => setPickerOpen(true)}
-            >
-              <ZoneFilledHeader
-                icon={<PlayIcon size={16} />}
-                title={`${selected.length} session${selected.length === 1 ? '' : 's'} selected`}
-                onRemove={() => setSelectedIds([])}
-              />
-              <SelectedVideosStrip videos={selected} maxThumbs={4} showCount={false} />
-              <ZoneFooter>
-                <button type="button" onClick={() => setPickerOpen(true)} className="font-semibold text-text-brand hover:underline">
-                  Change selection
-                </button>
-              </ZoneFooter>
-            </SetupZone>
-
-            <SetupZone
-              filled={testCases.length > 0}
-              icon={<UploadIcon size={20} />}
-              title="Add test cases"
-              filledTitle="Test cases"
-              description={copy.casesHint}
-              formats="CSV · XLSX"
-              required
-              accent={copy.accent}
-              /* Empty only: once a sheet is attached the link moves into the
-                 file list's own footer row, opposite "Add another file". */
-              note={
-                testCases.length === 0 ? (
-                  <CaseSheetNote
-                    required={SAMPLE_TEST_CASE_SHEET.required}
-                    href={SAMPLE_TEST_CASE_SHEET.href}
-                    label={SAMPLE_TEST_CASE_SHEET.label}
-                  />
-                ) : undefined
-              }
-              onClick={() => attachFile(SAMPLE_TEST_CASE_FILES[0])}
-            >
-              <ZoneFileList
-                files={testCases}
-                limit={MAX_CASE_FILES}
-                limitReason={`${MAX_CASE_FILES} files is the most one run can verify against.`}
-                trailing={<SampleSheetLink href={SAMPLE_TEST_CASE_SHEET.href} label={SAMPLE_TEST_CASE_SHEET.label} />}
-                onRemove={(f) => setTestCases((prev) => prev.filter((x) => x.name !== f.name))}
-                onAdd={() => {
-                  const next = SAMPLE_TEST_CASE_FILES.find((f) => !testCases.some((p) => p.name === f.name))
-                  if (next) attachFile(next)
-                }}
-              />
-            </SetupZone>
-          </div>
-
-          {/* No heading. "Name this run" sat directly above a field labelled
-              RUN NAME, and its hint explained the value of naming things. */}
-          <SetupCard
-            /* The action closes the last card rather than floating under a
-               page-wide rule. Its hint only speaks when something is actually
-               in the way: the two zones above already carry REQUIRED, and a
-               line restating them under an obviously disabled button was the
-               third place one screen asked for the same two things. */
-            footer={
-              <SetupFooter
-                hint={uploading ? 'Waiting for the test cases to finish uploading.' : undefined}
+        <SetupLock locked={locked}>
+          <div className="flex flex-col gap-m w-full">
+            <div className="grid gap-m w-full" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              <SetupZone
+                filled={selected.length > 0}
+                icon={<PlayIcon size={20} />}
+                title="Select gameplay sessions"
+                filledTitle="Sessions"
+                description={copy.recordingsHint}
+                required
+                accent={copy.accent}
+                onClick={() => setPickerOpen(true)}
               >
-                <Button variant="primary" size="lg" disabled={!ready} onClick={startRun}>
-                  {copy.cta}
-                </Button>
-              </SetupFooter>
-            }
-          >
-            <label className="flex flex-col gap-xs">
-              <FieldLabel optional>Run name</FieldLabel>
-              <Input value={runName} onChange={(e) => setRunName(e.target.value)} aria-label="Run name" size="lg" />
-            </label>
-          </SetupCard>
+                <ZoneFilledHeader
+                  icon={<PlayIcon size={16} />}
+                  title={`${selected.length} session${selected.length === 1 ? '' : 's'} selected`}
+                  onRemove={() => setSelectedIds([])}
+                />
+                <SelectedVideosStrip videos={selected} maxThumbs={4} showCount={false} />
+                <ZoneFooter>
+                  <button type="button" onClick={() => setPickerOpen(true)} className="font-semibold text-text-brand hover:underline">
+                    Change selection
+                  </button>
+                </ZoneFooter>
+              </SetupZone>
 
-          {/* What the run produces and that it is not something to sit and
-              watch — the same closing note the other three composers carry, in
-              the same slot. */}
-          <SetupNote>{copy.outcome}</SetupNote>
-        </div>
+              <SetupZone
+                filled={testCases.length > 0}
+                icon={<UploadIcon size={20} />}
+                title="Add test cases"
+                filledTitle="Test cases"
+                description={copy.casesHint}
+                formats="CSV · XLSX"
+                required
+                accent={copy.accent}
+                /* Empty only: once a sheet is attached the link moves into the
+                   file list's own footer row, opposite "Add another file". */
+                note={
+                  testCases.length === 0 ? (
+                    <CaseSheetNote
+                      required={SAMPLE_TEST_CASE_SHEET.required}
+                      href={SAMPLE_TEST_CASE_SHEET.href}
+                      label={SAMPLE_TEST_CASE_SHEET.label}
+                    />
+                  ) : undefined
+                }
+                onClick={() => attachFile(SAMPLE_TEST_CASE_FILES[0])}
+              >
+                <ZoneFileList
+                  files={testCases}
+                  limit={MAX_CASE_FILES}
+                  limitReason={`${MAX_CASE_FILES} files is the most one run can verify against.`}
+                  trailing={<SampleSheetLink href={SAMPLE_TEST_CASE_SHEET.href} label={SAMPLE_TEST_CASE_SHEET.label} />}
+                  onRemove={(f) => setTestCases((prev) => prev.filter((x) => x.name !== f.name))}
+                  onAdd={() => {
+                    const next = SAMPLE_TEST_CASE_FILES.find((f) => !testCases.some((p) => p.name === f.name))
+                    if (next) attachFile(next)
+                  }}
+                />
+              </SetupZone>
+            </div>
+
+            {/* No heading. "Name this run" sat directly above a field labelled
+                RUN NAME, and its hint explained the value of naming things. */}
+            <SetupCard
+              /* The action closes the last card rather than floating under a
+                 page-wide rule. Its hint only speaks when something is actually
+                 in the way: the two zones above already carry REQUIRED, and a
+                 line restating them under an obviously disabled button was the
+                 third place one screen asked for the same two things. */
+              footer={
+                <SetupFooter
+                  hint={uploading ? 'Waiting for the test cases to finish uploading.' : undefined}
+                >
+                  <Button variant="primary" size="lg" disabled={!ready} onClick={startRun}>
+                    {copy.cta}
+                  </Button>
+                </SetupFooter>
+              }
+            >
+              <label className="flex flex-col gap-xs">
+                <FieldLabel optional>Run name</FieldLabel>
+                <Input value={runName} onChange={(e) => setRunName(e.target.value)} aria-label="Run name" size="lg" />
+              </label>
+            </SetupCard>
+
+            {/* What the run produces and that it is not something to sit and
+                watch — the same closing note the other three composers carry, in
+                the same slot. */}
+            <SetupNote>{copy.outcome}</SetupNote>
+          </div>
+        </SetupLock>
       ) : (
         <RunHistoryList
           runs={runs}
