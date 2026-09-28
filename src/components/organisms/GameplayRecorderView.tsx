@@ -39,6 +39,7 @@ import { showToast } from '../atoms/Toast'
 import Button from '../ui/Button'
 import LinkButton from '../ui/LinkButton'
 import { CheckIcon } from '../icons/CheckIcon'
+import { ClockIcon } from '../icons/ClockIcon'
 import { CopyIcon } from '../icons/CopyIcon'
 import { DownloadIcon } from '../icons/DownloadIcon'
 import { InfoFilledIcon } from '../icons/InfoFilledIcon'
@@ -240,7 +241,7 @@ function Hero({ onDownload }: { onDownload: () => void }) {
      its hues. */
   const purple = TESTING_ACCENT_VARS.purple
   return (
-    <section className="recorder-host relative overflow-hidden rounded-4xl p-xxl2" style={CARD}>
+    <section className="recorder-host relative overflow-hidden rounded-4xl p-xxl" style={CARD}>
       <span
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -570,7 +571,7 @@ function Downloads({
       <ul className="grid gap-m w-full list-none m-0 p-0" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
         <PlatformTile
           featured
-          icon={<WindowsIcon size={20} />}
+          icon={<WindowsIcon size={24} />}
           name="Windows"
           detail={`${RECORDER_ARCH} · ${RECORDER_VERSION}`}
           action={
@@ -578,25 +579,31 @@ function Downloads({
               ref={windowsDownloadRef}
               href={RECORDER_DOWNLOAD_URL}
               variant="primary"
-              size="md"
-              leftIcon={<DownloadIcon size={16} />}
+              size="lg"
+              leftIcon={<DownloadIcon size={20} />}
+              className="w-full"
               {...EXTERNAL}
             >
               Download
             </LinkButton>
           }
         />
-        <PlatformTile icon={<AndroidIcon size={20} />} name="Android" action={<SoonChip />} />
-        <PlatformTile icon={<AppleIcon size={20} />} name="iOS" action={<SoonChip />} />
+        <PlatformTile icon={<AndroidIcon size={24} />} name="Android" action={<ComingSoonAction />} />
+        <PlatformTile icon={<AppleIcon size={24} />} name="iOS" action={<ComingSoonAction />} />
       </ul>
     </section>
   )
 }
 
 /**
- * The one platform you can have today is lit — brand ground, gradient tile —
- * and the planned ones are drawn in dashed outline, the studio's mark for
- * "not here yet" (the purchasable area tab uses the same).
+ * A platform as a card, read top to bottom like the Testing Overview's tiles:
+ * the mark, then the name and what you get, then the action at the foot.
+ * Every card has the same anatomy, so the three share a bottom edge: the one
+ * platform you can have today is lit — brand ground, gradient tile, a
+ * full-width Download — and the planned ones are drawn in dashed outline, the
+ * studio's mark for "not here yet", with the same action slot holding a
+ * disabled "Coming soon". (A SOON chip in the corner left everything below the
+ * name empty.)
  */
 function PlatformTile({
   icon,
@@ -608,12 +615,13 @@ function PlatformTile({
   icon: ReactNode
   name: string
   detail?: string
+  /** At the foot of the card. */
   action: ReactNode
   featured?: boolean
 }) {
   return (
     <li
-      className="flex items-center gap-s min-h-[80px] rounded-3xl px-l py-m"
+      className="flex flex-col gap-l rounded-3xl p-xl"
       style={
         featured
           ? {
@@ -630,7 +638,7 @@ function PlatformTile({
       }
     >
       <span
-        className={['flex items-center justify-center shrink-0 w-10 h-10 rounded-xl', featured ? 'text-white' : 'text-text-secondary'].join(' ')}
+        className={['flex items-center justify-center shrink-0 w-12 h-12 rounded-xl', featured ? 'text-white' : 'text-text-secondary'].join(' ')}
         style={
           featured
             ? { background: TESTING_ACCENT_VARS.brand.gradient, boxShadow: 'var(--shadow-sm)' }
@@ -640,8 +648,8 @@ function PlatformTile({
       >
         {icon}
       </span>
-      <span className="flex flex-col items-start gap-xxxs flex-1 min-w-0">
-        <span className="font-display text-s font-semibold text-text-primary leading-[1.4] truncate">{name}</span>
+      <div className="flex flex-col items-start gap-xs min-w-0">
+        <span className="font-display text-l font-semibold text-text-primary leading-[1.3]">{name}</span>
         {detail && (
           <span
             className="px-xs py-xxxs rounded-xs font-code text-2xs text-text-secondary leading-[1.5]"
@@ -650,21 +658,22 @@ function PlatformTile({
             {detail}
           </span>
         )}
-      </span>
-      <span className="shrink-0">{action}</span>
+      </div>
+      {/* 20 + 12 = 32 above the action, the page's step before an action. */}
+      <div className="mt-auto pt-s">{action}</div>
     </li>
   )
 }
 
-/** The Overview's SOON chip, spelled out — "planned" is the claim, not a date. */
-function SoonChip() {
+/**
+ * The planned platforms' action: the Download's slot, disabled. The clock
+ * says "later" rather than "broken", and "planned" is the claim — not a date.
+ */
+function ComingSoonAction() {
   return (
-    <span
-      className="inline-flex items-center px-xs py-xxxs rounded-xs font-display text-2xs font-semibold uppercase tracking-[0.12em] leading-[1.5]"
-      style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
-    >
+    <Button variant="tertiary" size="lg" disabled leftIcon={<ClockIcon size={20} />} className="w-full">
       Coming soon
-    </span>
+    </Button>
   )
 }
 
