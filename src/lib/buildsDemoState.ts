@@ -37,8 +37,6 @@ export interface BuildFile {
   packageName: string
   fileName: string
   format: BuildFormat
-  /** Shown while it uploads, not after — once it is in the list, nothing about choosing it turns on its size. */
-  sizeLabel: string
   /** "Aug 29" — set when the upload lands. Just the date: the list is already headed "Uploaded builds". */
   uploadedOn?: string
   status: BuildStatus
@@ -79,7 +77,6 @@ export const MAX_BUILD_LABEL = '4 GB'
 /** The file a build is uploaded from, before it has a version. */
 export interface PickedBuild {
   fileName: string
-  sizeLabel: string
   format: BuildFormat
   /** What the manifest declares — from the APK itself, or the one inside the ZIP. */
   packageName: string
@@ -90,14 +87,14 @@ export interface PickedBuild {
  * of the manifest; the version does not, because a studio's own build number
  * and the manifest's versionName often disagree — so it is asked for.
  */
-export const PICKED_BUILD: PickedBuild = { fileName: 'whiteout-2.3.2-rc1.apk', sizeLabel: '318 MB', format: 'APK', packageName: PACKAGE }
+export const PICKED_BUILD: PickedBuild = { fileName: 'whiteout-2.3.2-rc1.apk', format: 'APK', packageName: PACKAGE }
 
 /* v2.2.9 carries a long application id — the shape a CI-stamped internal build
    takes — so the list shows a package name truncating while its date holds. */
 const SEEDED: BuildFile[] = [
-  { id: 'b-231', version: 'v2.3.1', packageName: PACKAGE, fileName: 'whiteout-2.3.1-release.apk', format: 'APK', sizeLabel: '312 MB', uploadedOn: 'Aug 29', status: 'ready', newest: true },
-  { id: 'b-230', version: 'v2.3.0', packageName: PACKAGE, fileName: 'whiteout-2.3.0-release.zip', format: 'ZIP', sizeLabel: '1.4 GB', uploadedOn: 'Aug 22', status: 'ready' },
-  { id: 'b-229', version: 'v2.2.9', packageName: 'com.gof.global_app_943a882067cdcf32cb9ea30962a125a1', fileName: 'whiteout-2.2.9-internal.apk', format: 'APK', sizeLabel: '301 MB', uploadedOn: 'Aug 14', status: 'ready' },
+  { id: 'b-231', version: 'v2.3.1', packageName: PACKAGE, fileName: 'whiteout-2.3.1-release.apk', format: 'APK', uploadedOn: 'Aug 29', status: 'ready', newest: true },
+  { id: 'b-230', version: 'v2.3.0', packageName: PACKAGE, fileName: 'whiteout-2.3.0-release.zip', format: 'ZIP', uploadedOn: 'Aug 22', status: 'ready' },
+  { id: 'b-229', version: 'v2.2.9', packageName: 'com.gof.global_app_943a882067cdcf32cb9ea30962a125a1', fileName: 'whiteout-2.2.9-internal.apk', format: 'APK', uploadedOn: 'Aug 14', status: 'ready' },
 ]
 
 /** A long shelf of builds — one every few days over three months. */
@@ -113,7 +110,6 @@ const MANY: BuildFile[] = Array.from({ length: 24 }, (_, i) => {
     packageName: PACKAGE,
     fileName: `whiteout-${version.slice(1)}-release.apk`,
     format: 'APK',
-    sizeLabel: `${296 + ((i * 5) % 30)} MB`,
     uploadedOn: `${MONTHS[d.getMonth()]} ${d.getDate()}`,
     status: 'ready',
     newest: i === 0,

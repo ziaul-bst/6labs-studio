@@ -150,17 +150,6 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
       ? 'Use the form com.studio.game.'
       : undefined
   const canUpload = nextVersion !== '' && !versionTaken && packageValid
-  /* What still stands between the reader and "Upload build". A taken version
-     says nothing here — its field already does. */
-  const detailsHint = canUpload
-    ? `Uploads as ${nextVersion}.`
-    : !nextVersion
-      ? 'Add the version to start the upload.'
-      : !packageName.trim()
-        ? 'Add the package name to start the upload.'
-        : !packageValid
-          ? 'Check the package name.'
-          : ''
 
   /* The prototype's file picker — the zone becomes the upload card, on the
      picked APK or ZIP with its package name already read out of it. */
@@ -240,7 +229,7 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
                 </span>
                 <span className="flex flex-col gap-xxxs flex-1 min-w-0">
                   <span className="font-display text-s font-semibold text-text-primary leading-[1.45] truncate">{picked.fileName}</span>
-                  <span className="font-body text-xs text-text-tertiary leading-[1.5]">{picked.sizeLabel} · uploads when you confirm</span>
+                  <span className="font-body text-xs text-text-tertiary leading-[1.5]">Uploads when you confirm</span>
                 </span>
                 {/* type="button": the first button in a form is the one Enter
                     presses, and this one would discard the file. */}
@@ -263,7 +252,7 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
                   autoComplete="off"
                   spellCheck={false}
                   error={!!versionError}
-                  message={versionError ?? 'As your team numbers the build.'}
+                  message={versionError}
                 />
                 <Input
                   id="build-package"
@@ -277,13 +266,15 @@ export function BuildPickerModal({ isOpen, value, onClose, onPick, className }: 
                   autoComplete="off"
                   spellCheck={false}
                   error={!!packageError}
-                  message={packageError ?? `Read from the ${picked.format === 'ZIP' ? 'APK inside the ZIP' : 'APK'} — edit it if it’s wrong.`}
+                  message={packageError}
                 />
               </div>
 
-              <div className="flex items-center gap-s">
-                <span className="flex-1 min-w-0 font-body text-xs text-text-tertiary leading-[1.5]">{detailsHint}</span>
-                <Button variant="primary" size="md" type="submit" disabled={!canUpload} leftIcon={<UploadIcon size={16} />}>
+              {/* Always pressable. With no hint line beside it, a disabled
+                  button could not say what it was waiting for — pressing it
+                  puts the reason on the field that needs it. */}
+              <div className="flex items-center justify-end">
+                <Button variant="primary" size="md" type="submit" leftIcon={<UploadIcon size={16} />}>
                   Upload build
                 </Button>
               </div>
