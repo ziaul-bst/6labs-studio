@@ -285,6 +285,8 @@ export function VideoLibraryCard({
           />
           <div className="absolute inset-0 video-lib-thumb-texture" aria-hidden />
           {!hasFile && <div className="absolute inset-0 video-lib-dim" aria-hidden />}
+          {/* The frame's edge against the row, for near-white captures. */}
+          <div className="absolute inset-0 video-lib-media-edge pointer-events-none" data-edge="right" aria-hidden />
 
           {/* It plays as soon as the file is here — analysis is what is
               pending, not the recording. */}
@@ -469,6 +471,8 @@ export function VideoLibraryCard({
         {!hasFile && <div className="absolute inset-0 video-lib-dim" aria-hidden />}
         {/* bottom gradient for badge/duration legibility */}
         <div className="absolute inset-x-0 bottom-0 h-16 video-lib-scrim pointer-events-none" aria-hidden />
+        {/* The frame's edge against the card body, for near-white captures. */}
+        <div className="absolute inset-0 video-lib-media-edge pointer-events-none" aria-hidden />
 
         {/* center play affordance — as soon as the file is here */}
         {hasFile && (

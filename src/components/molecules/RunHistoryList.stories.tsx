@@ -27,6 +27,35 @@ export const Personas: Story = {
   args: { runs: AI_BEHAVIOURAL_HISTORY, metaLabel: 'Personas' },
 }
 
+/**
+ * AI behavioural, one run finished with 3 of its 20 AI players failed: amber
+ * tile, Partial pill, and what the report still found beside how many failed.
+ * It opens like any report. A run that produced nothing stays Failed, in red.
+ */
+export const Partial: Story = {
+  args: {
+    runs: [
+      {
+        ...AI_BEHAVIOURAL_HISTORY[0],
+        id: 'story-partial',
+        result: { kind: 'issues', count: 7 },
+        partial: { failed: 3, total: 20 },
+        when: 'Sep 9',
+      },
+      {
+        ...AI_BEHAVIOURAL_HISTORY[0],
+        id: 'story-failed',
+        state: 'failed',
+        result: undefined,
+        failure: 'Build crashed on launch — no AI player got past the splash screen.',
+        when: 'Sep 9',
+      },
+      ...AI_BEHAVIOURAL_HISTORY,
+    ],
+    metaLabel: 'Personas',
+  },
+}
+
 /** Nothing has run: the illustrated empty state with its way out. */
 export const Empty: Story = {
   args: {

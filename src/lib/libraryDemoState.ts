@@ -24,6 +24,7 @@ export type LibraryDemoState =
   | 'processing'
   | 'failed'
   | 'large'
+  | 'light-frames'
 
 export const LIBRARY_DEMO_STATES: LibraryDemoState[] = [
   'default',
@@ -34,6 +35,7 @@ export const LIBRARY_DEMO_STATES: LibraryDemoState[] = [
   'processing',
   'failed',
   'large',
+  'light-frames',
 ]
 
 /** Switcher button copy — short, the pill is one row on a crowded screen. */
@@ -46,6 +48,7 @@ export const LIBRARY_DEMO_LABELS: Record<LibraryDemoState, string> = {
   processing: 'Processing',
   failed: 'Failed',
   large: 'Large library',
+  'light-frames': 'White frames',
 }
 
 /** Shown under the pill so a reviewer knows what they are looking at. */
@@ -63,7 +66,30 @@ export const LIBRARY_DEMO_NOTES: Record<LibraryDemoState, string> = {
     'Failed uploads with the error and Retry. Retry restarts the transfer. The picker has nothing to offer, and says why.',
   large:
     'A studio with a real corpus — 1,000 sessions. The grid loads 200 at a time, and select-all offers the whole library the way Gmail does.',
+  'light-frames':
+    'Recorder captures of a light app screen arrive as near-white thumbnails — QA had several. Mixed with dark footage on purpose: the play button, badges and checkbox have to read on both.',
 }
+
+/*
+ * Near-white frames as the Recorder captures them: a light app screen with a
+ * few faint rows of UI, a pale panel, a plain white window. Stand-in footage
+ * for the `light-frames` fixture, not artwork — each is a data URI, so the
+ * fixture needs no network and no asset files.
+ */
+const frame = (body: string) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='1280' height='720' viewBox='0 0 1280 720'>${body}</svg>`,
+  )}`
+
+export const LIGHT_FRAME_THUMBNAILS: string[] = [
+  frame(
+    "<rect width='1280' height='720' fill='#FFFFFF'/><rect x='56' y='44' width='240' height='16' rx='8' fill='#EEF0F4'/><rect x='56' y='104' width='1168' height='2' fill='#F1F2F5'/><rect x='56' y='152' width='520' height='14' rx='7' fill='#F2F3F6'/><rect x='56' y='186' width='380' height='14' rx='7' fill='#F2F3F6'/>",
+  ),
+  frame(
+    "<rect width='1280' height='720' fill='#F6F7F9'/><rect x='300' y='130' width='680' height='460' rx='28' fill='#FFFFFF'/><rect x='360' y='196' width='320' height='20' rx='10' fill='#E9EBEF'/><rect x='360' y='240' width='520' height='14' rx='7' fill='#F0F1F4'/><rect x='360' y='500' width='200' height='48' rx='24' fill='#EEF1F7'/>",
+  ),
+  frame("<rect width='1280' height='720' fill='#FFFFFF'/>"),
+]
 
 /**
  * Tags and titles exactly as an import writes them: a source system's own

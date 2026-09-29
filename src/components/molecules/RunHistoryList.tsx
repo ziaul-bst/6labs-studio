@@ -16,7 +16,8 @@
  *
  * Results speak the test's language: functional runs show passed / failed /
  * not-verified counts, everything else shows an issue count — amber while
- * there are issues, green only at zero.
+ * there are issues, green only at zero. A run that finished with some of its
+ * AI players failed reads Partial, in the same caution amber, never Failed.
  *
  * Most tests only ever write reports. User Test also answers questions and
  * lists both here, so a kind filter appears above the list — but only once
@@ -207,6 +208,9 @@ export function RunHistoryList({
         const running = inProgress || analysing
         const pending = queued || running
         const failed = run.state === 'failed'
+        /* Finished, with a hole in it: some AI players failed and the report
+           was built from the rest. It opens like any report — there is one. */
+        const partial = run.state === 'done' && Boolean(run.partial)
         /* A failure 6labs could not attribute has no details page to offer —
            the row already carries everything that is known. Sending a reader
            to an empty screen is worse than not offering the trip. */
@@ -275,7 +279,10 @@ export function RunHistoryList({
             }}
           >
             <span
-              className="flex items-center justify-center w-[40px] h-[40px] rounded-xl"
+              className={[
+                'flex items-center justify-center w-[40px] h-[40px] rounded-xl',
+                partial ? 'issue-amber-ink' : '',
+              ].join(' ')}
               /* The tile is the only place the kind is said. A question is a
                  lighter act than a run, and its tile says so before the name
                  is read. */
@@ -286,7 +293,11 @@ export function RunHistoryList({
               style={
                 failed
                   ? { backgroundColor: 'var(--error-bg)', color: 'var(--error)' }
-                  : queued || isQuestion
+                  : partial
+                    ? /* Caution, not error: the same pair the report's own
+                         partial-failure notice wears. Ink from the class. */
+                      { backgroundColor: 'var(--warning-bg)' }
+                    : queued || isQuestion
                     ? { backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }
                     : { backgroundColor: 'var(--bg-tint-light)', color: 'var(--text-brand)' }
               }
@@ -300,7 +311,9 @@ export function RunHistoryList({
                       ? 'Analysing'
                       : failed
                         ? 'Failed'
-                        : isQuestion
+                        : partial
+                          ? 'Partial'
+                          : isQuestion
                           ? 'Question'
                           : 'Report'
               }
@@ -311,7 +324,7 @@ export function RunHistoryList({
                 <QueuedGlyph />
               ) : pending ? (
                 <Spinner size={18} tone="current" />
-              ) : failed ? (
+              ) : failed || partial ? (
                 <FailedGlyph size={18} />
               ) : isQuestion ? (
                 <QuestionGlyph />
@@ -556,6 +569,37 @@ function ResultCell({ kind, run }: { kind: TestRunKind; run: TestRunHistoryItem 
       </span>
     )
   }
+  /* Partial is a finished run with a hole in it: some AI players failed and
+     the report was built from the ones that finished. It had been reading
+     Failed, which told the reader there was no report when there is one.
+     Its own status, in the caution pair the findings pill already wears —
+     never the error pair — with the line under it saying what the report
+     still found and how big the hole is. The full sentence is on the hover. */
+  if (state === 'done' && run.partial) {
+    const { failed, total } = run.partial
+    const findings = result?.kind === 'issues' ? result.count : null
+    const line = [
+      findings !== null ? `${findings} ${findings === 1 ? 'finding' : 'findings'}` : null,
+      /* "players", not "AI players", in the row: the column is 200px and the
+         test name already says who played. The hover has the full sentence. */
+      `${failed} of ${total} players failed`,
+    ]
+      .filter(Boolean)
+      .join(' · ')
+    return (
+      <span className="flex flex-col items-start gap-xxs w-full min-w-0">
+        <Pill bg="var(--warning-bg)" inkClass="issue-amber-ink">
+          Partial
+        </Pill>
+        <span
+          className="issue-amber-ink font-body text-xs leading-[1.45] w-full truncate"
+          title={`${failed} of ${total} AI players failed. The report is built from the ${total - failed} that finished.`}
+        >
+          {line}
+        </span>
+      </span>
+    )
+  }
   /* No outcome to score: plain text, not a pill, so a pill always means a
      score. A question was answered; its follow-up count is in its detail. */
   if (kind === 'question') {
@@ -604,10 +648,12 @@ function Muted({ children }: { children: ReactNode }) {
   return <span className="font-body text-s text-text-tertiary leading-[1.5] whitespace-nowrap">{children}</span>
 }
 
-function Pill({ bg, ink, children }: { bg: string; ink: string; children: ReactNode }) {
+function Pill({ bg, ink, inkClass, children }: { bg: string; ink?: string; inkClass?: string; children: ReactNode }) {
   return (
     <span
-      className="inline-flex items-center px-s py-xxs rounded-round font-body text-xs font-semibold leading-[1.5] whitespace-nowrap"
+      className={['inline-flex items-center px-s py-xxs rounded-round font-body text-xs font-semibold leading-[1.5] whitespace-nowrap', inkClass]
+        .filter(Boolean)
+        .join(' ')}
       style={{ backgroundColor: bg, color: ink }}
     >
       {children}

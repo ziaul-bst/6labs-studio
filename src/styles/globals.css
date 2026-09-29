@@ -375,10 +375,16 @@
   background-color: rgba(3, 13, 45, 0.42);
   backdrop-filter: saturate(0.7);
 }
+/* Depth under the bottom chips, kept light: the chips are dark glass and
+   carry their own contrast, and at 0.42 this laid a grey band across the
+   bottom of every near-white recorder frame. */
 .video-lib-scrim {
-  background: linear-gradient(to top, rgba(3, 13, 45, 0.42) 0%, rgba(3, 13, 45, 0) 100%);
+  background: linear-gradient(to top, rgba(3, 13, 45, 0.28) 0%, rgba(3, 13, 45, 0) 100%);
 }
-/* frosted play affordance, centered on the thumbnail */
+/* Frosted play affordance, centred on the thumbnail. DARK glass with a white
+   ring and glyph, so it reads on any frame: a white-frosted disc vanished on
+   the near-white recorder captures QA turned up (white disc, white glyph, on
+   white), while dark glass still reads on the darkest footage by its ring. */
 .video-lib-play {
   display: inline-flex;
   align-items: center;
@@ -386,25 +392,35 @@
   width: 46px;
   height: 46px;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(3, 13, 45, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   backdrop-filter: blur(6px);
   box-shadow: 0 4px 14px rgba(3, 13, 45, 0.25);
   transition: transform 160ms ease, background 160ms ease;
 }
 .video-lib-card:hover .video-lib-play {
   transform: scale(1.1);
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(3, 13, 45, 0.58);
 }
 .video-lib-play-sm {
   width: 34px;
   height: 34px;
 }
-/* frosted status badge — reads on any gradient or thumbnail */
+/* Frosted status badge. The hairline ring is what keeps a white pill a pill
+   on a white frame — the soft shadow alone left PROCESSING floating as text. */
 .video-lib-badge {
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(8px);
-  box-shadow: 0 1px 4px rgba(3, 13, 45, 0.16);
+  box-shadow: 0 0 0 1px var(--border-subtle), 0 1px 4px rgba(3, 13, 45, 0.16);
+}
+/* Where the frame meets the card. A near-white frame otherwise runs straight
+   into the white card body with no edge between them. Invisible on dark
+   footage, which has its own edge. */
+.video-lib-media-edge {
+  box-shadow: inset 0 -1px 0 var(--border-subtle);
+}
+.video-lib-media-edge[data-edge='right'] {
+  box-shadow: inset -1px 0 0 var(--border-subtle);
 }
 .video-lib-duration {
   background: rgba(3, 13, 45, 0.62);
@@ -490,13 +506,14 @@
   color: var(--error);
 }
 
-/* small white pill behind the overlay checkbox so it reads on any thumbnail */
+/* small white pill behind the overlay checkbox so it reads on any thumbnail —
+   the ring holds its shape on a white frame, as on the status badge */
 .video-lib-check-bg {
   display: inline-flex;
   padding: 3px;
   border-radius: 6px;
   background-color: var(--bg-elements);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 0 1px var(--border-subtle), 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 /* The analysing treatment lived here until 2026-09-10: two spinners, a sweeping
    scan line, a frosted "Analyzing video…" chip and shimmer skeletons for the AI

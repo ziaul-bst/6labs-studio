@@ -23,6 +23,7 @@ export type HistoryDemoState =
   | 'progress'
   | 'analysing'
   | 'failed'
+  | 'partial'
   | 'many'
   | 'reports'
   | 'clean'
@@ -61,6 +62,8 @@ export const HISTORY_DEMO_STATES_AI_BEHAVIOURAL: HistoryDemoState[] = [
   'progress',
   'analysing',
   'failed',
+  /* AI behavioural only — the one test whose players can fail one at a time. */
+  'partial',
   'many',
 ]
 
@@ -72,6 +75,7 @@ export const HISTORY_DEMO_LABELS: Record<HistoryDemoState, string> = {
   progress: 'In progress',
   analysing: 'Analysing',
   failed: 'Failed run',
+  partial: 'Partial run',
   many: 'Long history',
   reports: 'Reports only',
   clean: 'No issues found',
@@ -87,6 +91,8 @@ export const HISTORY_DEMO_NOTES: Record<HistoryDemoState, string> = {
   analysing:
     'Every agent has finished and the report is being written. The row still spins, but it opens — the sessions are all watchable.',
   failed: 'A run that stopped sits on top — red tile, Failed pill, the reason in its line. Open it for the notice.',
+  partial:
+    'A finished run where 3 of its 20 AI players failed sits on top — amber tile, Partial pill, what the report found and how many failed in its line. Its report opens with the partial-failure notice.',
   many: 'Forty-two runs: the list pages, ten a screen, with the range and page count in its footer.',
   reports: 'Questions removed, so the kind filter above the list disappears.',
   clean: 'A finished run the agent found nothing in sits on top, with the green No issues found result. Open it for the clean run page.',
@@ -115,9 +121,14 @@ export function seedHistory(
         kind: 'report',
         state: 'failed',
         result: undefined,
+        /* A whole-run cause on every test. "3 sessions could not be
+           decoded" on an AI run described a PARTIAL failure while wearing
+           Failed — the confusion the Partial state exists to end. */
         failure: /cases/.test(first.detail)
           ? 'Build crashed on launch — the players could not get past the splash screen.'
-          : 'Analysis stopped — 3 sessions could not be decoded.',
+          : first.id.startsWith('aib-')
+            ? 'Build crashed on launch — no AI player got past the splash screen.'
+            : 'Analysis stopped — 3 sessions could not be decoded.',
         when: 'Sep 9',
       }
       /* The other kind of failure: the run stopped and 6labs could not say why.
@@ -135,6 +146,26 @@ export function seedHistory(
         when: 'Sep 9',
       }
       return { runs: [failed, unexplained, ...base], highlightId: null }
+    }
+    /* Finished with some AI players failed. The id is the run fixture that
+       carries the failed players (mocks/testing 'demo-partial'), so opening
+       the row lands on its report with the partial-failure notice and the
+       failed session cards. */
+    case 'partial': {
+      const first = base.find((r) => (r.kind ?? 'report') === 'report') ?? base[0]
+      if (!first) return { runs: base, highlightId: null }
+      const total = Number(/(\d+) sessions?/.exec(first.detail)?.[1] ?? 20)
+      const partial: TestRunHistoryItem = {
+        ...first,
+        id: 'demo-partial',
+        kind: 'report',
+        state: 'done',
+        result: { kind: 'issues', count: 7 },
+        partial: { failed: 3, total },
+        failure: undefined,
+        when: 'Sep 9',
+      }
+      return { runs: [partial, ...base], highlightId: null }
     }
     case 'many': {
       /* Only finished reports are worth forty-two of — a never-run file is not history. */

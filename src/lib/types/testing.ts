@@ -74,6 +74,12 @@ export interface TestRunHistoryItem {
   withUx?: boolean
   /** Why a failed run stopped — one line, shown in its row and on its screen. */
   failure?: string
+  /**
+   * A finished run some of whose AI players failed. The run did not fail: its
+   * report is real, built from the players that finished. Only meaningful on a
+   * `done` run — the history row then reads Partial rather than Failed.
+   */
+  partial?: { failed: number; total: number }
 }
 
 /** A test-case file attached to a functional run. */

@@ -105,6 +105,7 @@ import {
   type VideoUploadSource,
 } from '../../lib/librarySource'
 import {
+  LIGHT_FRAME_THUMBNAILS,
   LONG_LABEL_BATCHES,
   LONG_LABEL_TITLES,
   LONG_LABEL_USER_TAGS,
@@ -325,6 +326,24 @@ function seedForDemoState(state: LibraryDemoState): LibraryVideo[] {
             willFail: false,
           },
     )
+  }
+
+  /* The default library with its recorder clips swapped for near-white
+     captures, half of them still processing — the combination QA hit. The
+     other sources keep their dark frames, so both sit side by side. */
+  if (state === 'light-frames') {
+    let n = 0
+    return seedVideos().map((v) => {
+      if (v.source !== 'recorder') return v
+      const i = n++
+      return {
+        ...v,
+        thumbnailSrc: LIGHT_FRAME_THUMBNAILS[i % LIGHT_FRAME_THUMBNAILS.length],
+        ...(i % 2 === 0
+          ? { status: 'processing' as VideoStatus, progress: 100, error: undefined, willFail: false }
+          : {}),
+      }
+    })
   }
 
   if (state === 'failed') {
