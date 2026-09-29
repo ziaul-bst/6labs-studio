@@ -996,9 +996,9 @@ export function VideoLibraryView({ className, initialVideos, demoState, onGetRec
                     </span>
                   ))}
                 </div>
-                <span className="font-display text-2xs font-semibold uppercase tracking-[0.15em]" style={{ color: 'var(--text-tertiary)' }}>
-                  MAX 500MB PER VIDEO
-                </span>
+                {/* No size line. The cap is 20 GB (UploadVideosModal's
+                    MAX_BYTES) — no clip reaches it, and the one that does is
+                    told so in its rejection line. */}
               </div>
             ) : (
               <>

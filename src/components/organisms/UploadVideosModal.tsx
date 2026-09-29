@@ -23,7 +23,11 @@ import { SegmentedControl } from '../atoms/SegmentedControl'
 import { ACTIVE_GAME } from '../../lib/activeGame'
 
 // ── Shared upload constants/helpers (imported by VideoLibraryView too) ──
-export const MAX_BYTES = 500 * 1024 * 1024 // 500MB
+/* 20 GB. Enforced, not advertised: no gameplay clip comes near it, so the
+   dropzones stopped printing a limit nobody hits. It is named only in the
+   rejection line of the one file that does. */
+export const MAX_BYTES = 20 * 1024 * 1024 * 1024
+export const MAX_LABEL = '20 GB'
 export const VIDEO_EXT = ['.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v']
 export const ACCEPT = 'video/*,.mp4,.mov,.webm,.avi,.mkv,.m4v'
 
@@ -94,7 +98,7 @@ export function UploadVideosModal({
         continue
       }
       if (f.size > MAX_BYTES) {
-        rejects.push({ name: f.name, reason: `Exceeds 500 MB (${formatSize(f.size)})` })
+        rejects.push({ name: f.name, reason: `Over the ${MAX_LABEL} limit (${formatSize(f.size)})` })
         continue
       }
       if (seen.has(f.name.toLowerCase())) {
@@ -255,7 +259,7 @@ export function UploadVideosModal({
                     Drop videos here or click to browse
                   </p>
                   <p className="font-body text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                    MP4, MOV, WEBM, AVI, MKV · max 500 MB each · select many at once
+                    MP4, MOV, WEBM, AVI, MKV · select many at once
                   </p>
                 </div>
               </div>

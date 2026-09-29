@@ -20,7 +20,7 @@ import { TestingBodySkeleton, TestingPageSkeleton } from '../molecules/TestingSk
 import { usePageLoading } from '../../lib/pageLoading'
 import { TestingTabs } from '../molecules/TestingTabs'
 import { RunHistoryList } from '../molecules/RunHistoryList'
-import { BuildPickerModal, BuildPlatformBadge } from './BuildPickerModal'
+import { BuildPackageLine, BuildPickerModal, BuildPlatformBadge, buildDateTail } from './BuildPickerModal'
 import { useBuilds, versionOf } from '../../lib/buildsDemoState'
 import {
   CaseSheetNote,
@@ -287,8 +287,8 @@ export function AIFunctionalTestView({
                 icon={<UploadIcon size={20} />}
                 title="Choose a build"
                 filledTitle="Build"
-                description="Upload an APK or select an uploaded build."
-                formats="APK"
+                description="Upload an APK or ZIP, or select an uploaded build."
+                formats="APK · ZIP"
                 required
                 accent="success"
                 onClick={() => setBuildPickerOpen(true)}
@@ -303,15 +303,22 @@ export function AIFunctionalTestView({
                     chosen build looks the same wherever it is shown. The tick
                     only said "attached", which the filled zone already is. */}
                 <ZoneFilledHeader
-                  icon={<BuildPlatformBadge plain>{chosenBuild?.platform ?? 'APK'}</BuildPlatformBadge>}
+                  icon={<BuildPlatformBadge plain>{chosenBuild?.format ?? 'APK'}</BuildPlatformBadge>}
                   title={build ?? ''}
                   onRemove={() => setBuild(null)}
                 />
+                {/* Two lines: what the players install (package, when — the
+                    date holds while a long package truncates), then the file it
+                    came from. No size: nothing about running it turns on that. */}
                 {chosenBuild && (
-                  <p className="font-body text-s text-text-secondary leading-[1.5] m-0 truncate">
-                    {chosenBuild.fileName} · {chosenBuild.sizeLabel} · {chosenBuild.uploadedLabel}
-                    {chosenBuild.newest ? ' · newest' : ''}
-                  </p>
+                  <div className="flex flex-col gap-xxxs min-w-0">
+                    <BuildPackageLine
+                      packageName={chosenBuild.packageName}
+                      tail={buildDateTail(chosenBuild)}
+                      className="font-body text-s text-text-secondary leading-[1.5]"
+                    />
+                    <p className="font-body text-s text-text-tertiary leading-[1.5] m-0 truncate">{chosenBuild.fileName}</p>
+                  </div>
                 )}
                 <ZoneFooter>
                   <button type="button" onClick={() => setBuildPickerOpen(true)} className="font-semibold text-text-brand hover:underline">
