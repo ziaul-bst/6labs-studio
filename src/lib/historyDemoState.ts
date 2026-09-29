@@ -92,7 +92,7 @@ export const HISTORY_DEMO_NOTES: Record<HistoryDemoState, string> = {
     'Every agent has finished and the report is being written. The row still spins, but it opens — the sessions are all watchable.',
   failed: 'A run that stopped sits on top — red tile, Failed pill, the reason in its line. Open it for the notice.',
   partial:
-    'A finished run where 3 of its 20 AI players failed sits on top — amber tile, Partial pill, what the report found and how many failed in its line. Its report opens with the partial-failure notice.',
+    'A finished run where 3 of its 20 AI players failed sits on top — amber tile, its findings as the result, and "3 of 20 AI players failed" under them (hover explains). Its report opens with the partial-failure notice.',
   many: 'Forty-two runs: the list pages, ten a screen, with the range and page count in its footer.',
   reports: 'Questions removed, so the kind filter above the list disappears.',
   clean: 'A finished run the agent found nothing in sits on top, with the green No issues found result. Open it for the clean run page.',

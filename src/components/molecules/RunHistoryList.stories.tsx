@@ -29,8 +29,9 @@ export const Personas: Story = {
 
 /**
  * AI behavioural, one run finished with 3 of its 20 AI players failed: amber
- * tile, Partial pill, and what the report still found beside how many failed.
- * It opens like any report. A run that produced nothing stays Failed, in red.
+ * tile, its findings as the result like any report, and "3 of 20 AI players
+ * failed" under it (hover explains). It opens like any report. A run that
+ * produced nothing stays Failed, in red.
  */
 export const Partial: Story = {
   args: {

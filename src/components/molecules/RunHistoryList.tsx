@@ -17,7 +17,8 @@
  * Results speak the test's language: functional runs show passed / failed /
  * not-verified counts, everything else shows an issue count — amber while
  * there are issues, green only at zero. A run that finished with some of its
- * AI players failed reads Partial, in the same caution amber, never Failed.
+ * AI players failed keeps its findings as the result — the amber tile says it
+ * is partial, and a quiet line under the result says how many failed.
  *
  * Most tests only ever write reports. User Test also answers questions and
  * lists both here, so a kind filter appears above the list — but only once
@@ -30,6 +31,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { SegmentedControl } from '../atoms/SegmentedControl'
 import { Spinner } from '../atoms/Spinner'
 import { IssueCountPill } from '../atoms/IssueCountPill'
+import { Tooltip } from '../atoms/Tooltip'
 import { EventTag } from '../atoms/EventTag'
 import { CASE_OUTCOME_STYLE } from '../atoms/CaseOutcomeTag'
 import { ClampTags } from './ClampTags'
@@ -569,34 +571,27 @@ function ResultCell({ kind, run }: { kind: TestRunKind; run: TestRunHistoryItem 
       </span>
     )
   }
-  /* Partial is a finished run with a hole in it: some AI players failed and
-     the report was built from the ones that finished. It had been reading
-     Failed, which told the reader there was no report when there is one.
-     Its own status, in the caution pair the findings pill already wears —
-     never the error pair — with the line under it saying what the report
-     still found and how big the hole is. The full sentence is on the hover. */
+  /* Partial: a finished run some of whose AI players failed. It had been
+     reading Failed, which told the reader there was no report when there is
+     one. The RESULT is still its findings — the report is real, built from
+     the players that finished — so the column carries the findings pill like
+     any report. The partial part is a caveat, not a score: a quiet line under
+     the pill, while the amber tile carries the status. The line's dotted
+     underline is the product's "there is more here" mark, and the hover says
+     what the report was built from. */
   if (state === 'done' && run.partial) {
     const { failed, total } = run.partial
-    const findings = result?.kind === 'issues' ? result.count : null
-    const line = [
-      findings !== null ? `${findings} ${findings === 1 ? 'finding' : 'findings'}` : null,
-      /* "players", not "AI players", in the row: the column is 200px and the
-         test name already says who played. The hover has the full sentence. */
-      `${failed} of ${total} players failed`,
-    ]
-      .filter(Boolean)
-      .join(' · ')
+    const summary = `${failed} of ${total} AI players failed`
     return (
       <span className="flex flex-col items-start gap-xxs w-full min-w-0">
-        <Pill bg="var(--warning-bg)" inkClass="issue-amber-ink">
-          Partial
-        </Pill>
-        <span
-          className="issue-amber-ink font-body text-xs leading-[1.45] w-full truncate"
-          title={`${failed} of ${total} AI players failed. The report is built from the ${total - failed} that finished.`}
+        {result?.kind === 'issues' && <IssueCountPill count={result.count} />}
+        <Tooltip
+          label={summary}
+          content={`The report is built from the ${total - failed} AI players that finished. The ${failed} that failed are marked in the run's Videos tab.`}
+          className="max-w-full min-w-0"
         >
-          {line}
-        </span>
+          <span className="run-history-note font-body text-xs text-text-tertiary leading-[1.45] truncate">{summary}</span>
+        </Tooltip>
       </span>
     )
   }
@@ -648,12 +643,10 @@ function Muted({ children }: { children: ReactNode }) {
   return <span className="font-body text-s text-text-tertiary leading-[1.5] whitespace-nowrap">{children}</span>
 }
 
-function Pill({ bg, ink, inkClass, children }: { bg: string; ink?: string; inkClass?: string; children: ReactNode }) {
+function Pill({ bg, ink, children }: { bg: string; ink: string; children: ReactNode }) {
   return (
     <span
-      className={['inline-flex items-center px-s py-xxs rounded-round font-body text-xs font-semibold leading-[1.5] whitespace-nowrap', inkClass]
-        .filter(Boolean)
-        .join(' ')}
+      className="inline-flex items-center px-s py-xxs rounded-round font-body text-xs font-semibold leading-[1.5] whitespace-nowrap"
       style={{ backgroundColor: bg, color: ink }}
     >
       {children}
