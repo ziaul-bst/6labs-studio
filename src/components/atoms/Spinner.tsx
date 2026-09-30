@@ -6,7 +6,8 @@
  * Testing and a 12px amber ring on pending answers. Four idioms for one idea
  * meant a reader learnt "busy" four times. This is the single drawing — a
  * quiet track with a brand arc that rotates and breathes — sized to sit in a
- * label (12/16), a button or pill (18) or on its own (24).
+ * label (12/16), a button or pill (18), on its own (24) or as the only thing
+ * in a panel (32).
  *
  * `tone`
  *   brand    – default. Brand arc on the brand tint track.
@@ -20,7 +21,7 @@
  * Code-first prototype — no Figma source yet.
  */
 
-export type SpinnerSize = 12 | 16 | 18 | 24
+export type SpinnerSize = 12 | 16 | 18 | 24 | 32
 export type SpinnerTone = 'brand' | 'neutral' | 'current' | 'on-dark'
 
 export interface SpinnerProps {
@@ -39,7 +40,7 @@ const TONE: Record<SpinnerTone, { track: string; arc: string }> = {
 }
 
 export function Spinner({ size = 16, tone = 'brand', label, className }: SpinnerProps) {
-  const stroke = size <= 16 ? 1.5 : 2
+  const stroke = size <= 16 ? 1.5 : size <= 24 ? 2 : 2.5
   const r = (size - stroke) / 2
   const c = size / 2
   const t = TONE[tone]

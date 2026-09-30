@@ -6,7 +6,7 @@ const meta = {
   component: Spinner,
   tags: ['autodocs'],
   argTypes: {
-    size: { control: 'select', options: [12, 16, 18, 24] },
+    size: { control: 'select', options: [12, 16, 18, 24, 32] },
     tone: { control: 'select', options: ['brand', 'neutral', 'current', 'on-dark'] },
   },
 } satisfies Meta<typeof Spinner>
@@ -21,7 +21,7 @@ export const Announced: Story = { args: { size: 18, tone: 'brand', label: 'Loadi
 export const Sizes: Story = {
   render: () => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-      {([12, 16, 18, 24] as const).map((s) => (
+      {([12, 16, 18, 24, 32] as const).map((s) => (
         <div key={s} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <Spinner size={s} />
           <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{s}</span>

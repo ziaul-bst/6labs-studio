@@ -18,6 +18,8 @@ export default defineConfig({
     }
   },
   base: '/',
+  // Honour an assigned PORT (the desktop preview picks a free one); plain `npm run dev` stays on 5173.
+  server: process.env.PORT ? { port: Number(process.env.PORT), strictPort: true } : undefined,
   test: {
     projects: [{
       extends: true,

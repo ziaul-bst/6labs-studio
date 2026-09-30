@@ -36,6 +36,12 @@ export interface MenuSelectOption {
    * as a choice means accepting a run built on a file that is not there.
    */
   pending?: boolean
+  /**
+   * Nothing to choose here right now — a filter facet whose count is 0 under
+   * the other filters. Stays in the list, greyed and unselectable, so a fixed
+   * set of choices keeps its shape and the 0 still reads.
+   */
+  disabled?: boolean
 }
 
 export interface TestingMenuSelectProps {
@@ -173,23 +179,24 @@ export function TestingMenuSelect({
         >
           {options.map((opt) => {
             const selected = opt.value === value
+            const locked = opt.pending || opt.disabled
             return (
               <button
                 key={opt.value}
                 type="button"
                 role="option"
                 aria-selected={selected}
-                aria-disabled={opt.pending || undefined}
-                disabled={opt.pending}
+                aria-disabled={locked || undefined}
+                disabled={locked}
                 onClick={() => {
-                  if (opt.pending) return
+                  if (locked) return
                   onChange(opt.value)
                   setOpen(false)
                 }}
                 className="testing-menu-row flex items-center gap-s w-full text-left px-s py-xs rounded-m"
                 style={{
                   backgroundColor: selected ? 'var(--bg-tint-light)' : undefined,
-                  cursor: opt.pending ? 'default' : undefined,
+                  cursor: locked ? 'default' : undefined,
                 }}
               >
                 {opt.pending ? (
@@ -202,7 +209,13 @@ export function TestingMenuSelect({
                 <span className="flex flex-col min-w-0 flex-1">
                   <span
                     className="font-display text-s font-semibold leading-[1.45] truncate"
-                    style={{ color: opt.pending ? 'var(--text-secondary)' : 'var(--text-primary)' }}
+                    style={{
+                      color: opt.disabled
+                        ? 'var(--text-tertiary)'
+                        : opt.pending
+                          ? 'var(--text-secondary)'
+                          : 'var(--text-primary)',
+                    }}
                   >
                     {opt.label}
                   </span>

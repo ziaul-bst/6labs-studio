@@ -27,7 +27,7 @@ import { UserTestReport, PartHeader } from './UserTestReport'
 import { FilterPill } from '../atoms/FilterPill'
 import { ProgressBar } from '../atoms/ProgressBar'
 import { Spinner } from '../atoms/Spinner'
-import { Skeleton, SkeletonText } from '../atoms/Skeleton'
+import { SkeletonText } from '../atoms/Skeleton'
 import { FailedGlyph, RunFailedNotice, runFailureText } from '../molecules/RunFailedNotice'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
@@ -300,6 +300,7 @@ export function AIBehaviouralRunView({
           ) : (
             <VideosBody
               sessions={sessions}
+              planned={meta.agents}
               persona={persona}
               status={status}
               query={query}
@@ -733,6 +734,7 @@ function personaSplit(
  */
 function VideosBody({
   sessions,
+  planned,
   persona,
   status,
   query,
@@ -740,6 +742,9 @@ function VideosBody({
   onOpenSession,
 }: {
   sessions: AgentSession[]
+  /** The run's AI player count — the header counts against it, so a run that
+      has recorded nothing yet reads "0 of 20", not "0 of 0". */
+  planned: number
   persona: string
   status: VideosStatusFilter
   query: string
@@ -790,7 +795,7 @@ function VideosBody({
             the same sentence every time the filter changed — the pill above
             already names who is being shown. */}
         <span className="font-body text-xs text-text-tertiary leading-[1.5]">
-          {shown.length} of {sessions.length}
+          {shown.length} of {Math.max(planned, sessions.length)} sessions
         </span>
       </div>
       {shown.length === 0 ? (
@@ -872,43 +877,21 @@ function VideosEmpty({
        nothing coming; on one whose agents are mid-session it reads as a
        failure, because the reader was told a moment ago that twenty sessions
        were on the way. A wait gets a spinner and a sentence about what is
-       happening to it. */
+       happening to it — and nothing else: skeleton cards under it read as
+       sessions that failed to load. */
     if (preparing) {
       return (
         <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
-          <div className="flex flex-col items-center gap-xs px-l pt-xxl pb-l text-center" role="status">
-            <Spinner size={24} tone="brand" />
-            <span className="font-display text-m font-semibold text-text-primary leading-[1.4] pt-xs">
-              Videos are being prepared
+          <div className="flex flex-col items-center gap-xs px-l py-xxl text-center" role="status">
+            <Spinner size={32} tone="brand" />
+            <span className="font-display text-m font-semibold text-text-primary leading-[1.4] pt-s">
+              {preparing === 'queued' ? 'Videos are being prepared' : 'Almost there'}
             </span>
             <span className="font-body text-s text-text-secondary leading-[1.7] max-w-[62ch]">
               {preparing === 'queued'
                 ? 'The run is waiting for devices. Sessions appear here one at a time as the AI players pick the build up — nothing needs to stay open for them to land.'
-                : 'The AI players are playing. Each session appears here the moment its recording is ready — they arrive one at a time, and nothing needs to stay open for them to land.'}
+                : 'The AI players are in. Their sessions will start showing up any moment now.'}
             </span>
-          </div>
-          {/* The shape the first sessions will land in, under the sentence that
-              says they are coming — the same pairing the Report tab makes,
-              where the masthead states the wait in words and the tiles below
-              hold the places the numbers will take. Four, not the run's whole
-              count: this is a shape, not a promise about how many. */}
-          <div
-            className="grid gap-m px-l pb-l pt-xs"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
-            aria-hidden
-          >
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="flex flex-col rounded-xl overflow-hidden"
-                style={{ border: '1px solid var(--border-subtle)' }}
-              >
-                <Skeleton variant="block" width="100%" radius="rounded-none" style={{ height: 'auto', aspectRatio: '4 / 3' }} />
-                <div className="px-m py-s">
-                  <Skeleton variant="text" width={`${58 + ((i * 11) % 24)}%`} height={13} radius="rounded-xs" />
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )

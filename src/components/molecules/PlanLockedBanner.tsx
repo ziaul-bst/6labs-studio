@@ -45,8 +45,8 @@ export function PlanLockedBanner({
           <LockIcon size={16} />
         </span>
         <p className="flex-1 min-w-0 m-0 font-body text-s text-text-secondary leading-[1.5]">
-          <strong className="font-semibold text-text-primary">{`${testLabel} isn't in your plan.`}</strong>{' '}
-          You can look around and open the sample report; running a test is off.
+          <strong className="font-semibold text-text-primary">{`Explore ${testLabel} in preview mode.`}</strong>{' '}
+          Contact sales to unlock it and run your own tests.
         </p>
         <span className="flex items-center gap-xs shrink-0">
           {/* A link, not a button: it leaves the studio, so it gets a new tab

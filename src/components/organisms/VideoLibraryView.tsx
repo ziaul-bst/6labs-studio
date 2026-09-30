@@ -724,14 +724,44 @@ export function VideoLibraryView({ className, initialVideos, demoState, onGetRec
   }
 
   // ── Derived ──
+  const isRecent = (v: LibraryVideo) => Date.now() - v.addedAt < 24 * 60 * 60 * 1000
+  const q = query.trim().toLowerCase()
+  const matchesQuery = (v: LibraryVideo) =>
+    !q || v.title.toLowerCase().includes(q) || v.tags.some((t) => t.label.toLowerCase().includes(q))
+  const matchesSource = (v: LibraryVideo) => sourceFacet === 'all' || v.source === sourceFacet
+  /* A clip an AI player recorded has no uploader, so naming a person always
+     leaves it out — which is right: nobody uploaded it. */
+  const matchesUploader = (v: LibraryVideo) => uploaderFacet === 'all' || v.uploadedBy === uploaderFacet
+  /* Tag pills are additive, not narrowing — two batches selected means both
+     batches, which is how a tester picks a run's footage. */
+  const matchesTag = (v: LibraryVideo) =>
+    activeTags.size === 0 ||
+    v.tags.some((t) => activeTags.has(t.label)) ||
+    (activeTags.has(RECENT_TAG) && isRecent(v))
+  const filtered = videos.filter((v) => matchesQuery(v) && matchesSource(v) && matchesUploader(v) && matchesTag(v))
+
+  /* Cross-filtered counts. Each facet is tallied over the clips that pass
+     every OTHER filter — search included — but not its own, so a number always
+     says what picking that option would show from here. Picking "Recorder app"
+     re-counts the tags and the uploaders; the Source menu keeps counting its
+     siblings, so switching source is still one read, not a reset. */
+  const tagPool = videos.filter((v) => matchesQuery(v) && matchesSource(v) && matchesUploader(v))
+  const sourcePool = videos.filter((v) => matchesQuery(v) && matchesUploader(v) && matchesTag(v))
+  const uploaderPool = videos.filter((v) => matchesQuery(v) && matchesSource(v) && matchesTag(v))
+
   /* Tallied by LABEL — the rail groups by origin, but selecting a pill filters
      on its text, so a label that exists on both sides counts once and matches
      both. System wins the origin tie: if anything assigned that label, it is
      structured, and the rail should offer it under the batch group. */
-  const countByTag = videos.reduce<Record<string, number>>((acc, v) => {
+  const countByTag = tagPool.reduce<Record<string, number>>((acc, v) => {
     v.tags.forEach((t) => (acc[t.label] = (acc[t.label] ?? 0) + 1))
     return acc
   }, {})
+  /* A selected tag keeps its pill at 0 — it is the reason the grid is empty,
+     and the pill is the way to turn it off. */
+  activeTags.forEach((t) => {
+    if (t !== RECENT_TAG && !(t in countByTag)) countByTag[t] = 0
+  })
   const originByTag = videos.reduce<Record<string, LibraryTagOrigin>>((acc, v) => {
     v.tags.forEach((t) => {
       if (t.origin === 'system' || !acc[t.label]) acc[t.label] = t.origin
@@ -747,9 +777,13 @@ export function VideoLibraryView({ className, initialVideos, demoState, onGetRec
     return acc
   }, {})
   /* Biggest batches first — the rail's job is to reach a batch in one click,
-     and a selected tag never falls into the overflow menu. */
+     and a selected tag never falls into the overflow menu. Only tags the
+     current slice actually holds are offered: a "0" pill is a dead end, and it
+     spends a slot the rail budgets per origin. */
   const sortByCount = (a: string, b: string) => countByTag[b] - countByTag[a] || a.localeCompare(b)
-  const allTags = Object.keys(countByTag).sort(sortByCount)
+  const allTags = Object.keys(countByTag)
+    .filter((t) => countByTag[t] > 0 || activeTags.has(t))
+    .sort(sortByCount)
   /* One rail row, assigned tags first then the team's own — the order carries
      the distinction that two labelled rows used to, and the tail keeps the
      grouping explicit inside a single "+N more" menu. */
@@ -765,54 +799,60 @@ export function VideoLibraryView({ className, initialVideos, demoState, onGetRec
   const railSections = railGroups
     .filter((g) => g.overflow.length > 0)
     .map((g) => ({ key: g.origin, heading: ORIGIN_GROUP_LABEL[g.origin], tags: g.overflow }))
-  const isRecent = (v: LibraryVideo) => Date.now() - v.addedAt < 24 * 60 * 60 * 1000
-  const recentCount = videos.filter(isRecent).length
+  const recentCount = tagPool.filter(isRecent).length
   const toggleTag = (tag: string) =>
     setActiveTags((prev) => {
       const next = new Set(prev)
       next.has(tag) ? next.delete(tag) : next.add(tag)
       return next
     })
-  const q = query.trim().toLowerCase()
-  const filtered = videos.filter((v) => {
-    const matchesQuery =
-      !q || v.title.toLowerCase().includes(q) || v.tags.some((t) => t.label.toLowerCase().includes(q))
-    const matchesSource = sourceFacet === 'all' || v.source === sourceFacet
-    /* A clip an AI player recorded has no uploader, so naming a person always
-       leaves it out — which is right: nobody uploaded it. */
-    const matchesUploader = uploaderFacet === 'all' || v.uploadedBy === uploaderFacet
-    /* Tag pills are additive, not narrowing — two batches selected means both
-       batches, which is how a tester picks a run's footage. */
-    const matchesTag =
-      activeTags.size === 0 ||
-      v.tags.some((t) => activeTags.has(t.label)) ||
-      (activeTags.has(RECENT_TAG) && isRecent(v))
-    return matchesQuery && matchesSource && matchesUploader && matchesTag
-  })
   const activeFacets = (sourceFacet !== 'all' ? 1 : 0) + (uploaderFacet !== 'all' ? 1 : 0) + activeTags.size
-  /* Everyone who has uploaded something to this library, "You" first, then
-     teammates by how much they have uploaded — the person with the most footage
-     is the one most often looked for. Counts are over the whole library, not
-     the current filter, so picking a person never makes the others' numbers
-     jump. AI-player clips have no uploader and so no row. */
-  const sourceCounts = videos.reduce<Record<string, number>>((acc, v) => {
+  const sessionsLabel = (n: number) => `${n.toLocaleString()} ${n === 1 ? 'session' : 'sessions'}`
+  const sourceCounts = sourcePool.reduce<Record<string, number>>((acc, v) => {
     acc[v.source] = (acc[v.source] ?? 0) + 1
     return acc
   }, {})
-  const uploaderCounts = videos.reduce<Record<string, number>>((acc, v) => {
+  const sourceOptions = [
+    { value: 'all', label: 'All' },
+    ...SOURCE_ORDER.map((src) => ({
+      value: src,
+      label: SOURCE_SHORT[src],
+      meta: sessionsLabel(sourceCounts[src] ?? 0),
+      /* Kept, greyed — the menu is a fixed vocabulary, and "0 sessions" is
+         the answer to "did the CLI send any of these?". The current value is
+         never locked, or you could not see what you are filtering on. */
+      disabled: !sourceCounts[src] && sourceFacet !== src,
+    })),
+  ]
+  /* Everyone who has uploaded something to this library, "You" first, then
+     teammates by how much they have uploaded — the person with the most footage
+     is the one most often looked for. The ROSTER and its order come from the
+     whole library, so the menu never reshuffles or vanishes under a filter;
+     only the counts are cross-filtered. AI-player clips have no uploader and
+     so no row. */
+  const libraryUploaderCounts = videos.reduce<Record<string, number>>((acc, v) => {
+    if (v.uploadedBy) acc[v.uploadedBy] = (acc[v.uploadedBy] ?? 0) + 1
+    return acc
+  }, {})
+  const uploaderCounts = uploaderPool.reduce<Record<string, number>>((acc, v) => {
     if (v.uploadedBy) acc[v.uploadedBy] = (acc[v.uploadedBy] ?? 0) + 1
     return acc
   }, {})
   const uploaderOptions = [
     { value: 'all', label: 'Anyone' },
-    ...Object.keys(uploaderCounts)
+    ...Object.keys(libraryUploaderCounts)
       .sort((a, b) =>
-        a === CURRENT_USER ? -1 : b === CURRENT_USER ? 1 : uploaderCounts[b] - uploaderCounts[a] || a.localeCompare(b),
+        a === CURRENT_USER
+          ? -1
+          : b === CURRENT_USER
+            ? 1
+            : libraryUploaderCounts[b] - libraryUploaderCounts[a] || a.localeCompare(b),
       )
       .map((name) => ({
         value: name,
         label: name === CURRENT_USER ? 'You' : name,
-        meta: `${uploaderCounts[name].toLocaleString()} ${uploaderCounts[name] === 1 ? 'session' : 'sessions'}`,
+        meta: sessionsLabel(uploaderCounts[name] ?? 0),
+        disabled: !uploaderCounts[name] && uploaderFacet !== name,
       })),
   ]
   /* What "all of them" covers. Under a filter it is the matches, not the
@@ -1044,10 +1084,14 @@ export function VideoLibraryView({ className, initialVideos, demoState, onGetRec
                         the one item that pushed the merged rail onto a second
                         line, and among upload-tag pills the recency is not
                         ambiguous. */}
+                    {/* A fixed pill, so it stays put at 0 rather than dropping
+                        out like a tag — greyed, unless it is the filter that
+                        emptied the grid. */}
                     <FilterPill
                       label="Last 24h"
                       count={recentCount}
                       selected={activeTags.has(RECENT_TAG)}
+                      disabled={recentCount === 0 && !activeTags.has(RECENT_TAG)}
                       onClick={() => toggleTag(RECENT_TAG)}
                       multi
                     />
@@ -1165,14 +1209,7 @@ export function VideoLibraryView({ className, initialVideos, demoState, onGetRec
                         value={sourceFacet}
                         onChange={(v) => setSourceFacet(v as Facet<VideoUploadSource>)}
                         ariaLabel="Filter by capture source"
-                        options={[
-                          { value: 'all', label: 'All' },
-                          ...SOURCE_ORDER.map((src) => ({
-                            value: src,
-                            label: SOURCE_SHORT[src],
-                            meta: `${sourceCounts[src] ?? 0} ${(sourceCounts[src] ?? 0) === 1 ? 'session' : 'sessions'}`,
-                          })),
-                        ]}
+                        options={sourceOptions}
                       />
                       {/* Only once more than one person has uploaded — a filter
                           with a single choice is a label. */}

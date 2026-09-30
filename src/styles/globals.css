@@ -2659,7 +2659,7 @@ textarea { resize: none; font-family: var(--font-body); }
 .testing-menu-row {
   transition: background-color 120ms ease;
 }
-.testing-menu-row:hover {
+.testing-menu-row:hover:not(:disabled) {
   background-color: var(--bg-page-pale);
 }
 
