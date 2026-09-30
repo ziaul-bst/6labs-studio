@@ -801,7 +801,11 @@ function VideosBody({
       {shown.length === 0 ? (
         <VideosEmpty
           sessions={sessions.length}
-          filtered={persona !== 'all' || status !== 'all' || query.trim().length > 0}
+          /* No sessions means no filter can be the reason the grid is empty —
+             and the pills are hidden then, so "No sessions match" would have
+             no way out. "Watch live" on a run that has recorded nothing opens
+             here seeded to Live; it gets the wait, not the miss. */
+          filtered={sessions.length > 0 && (persona !== 'all' || status !== 'all' || query.trim().length > 0)}
           preparing={preparing}
         />
       ) : (
